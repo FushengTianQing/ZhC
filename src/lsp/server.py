@@ -814,9 +814,35 @@ class LanguageServer:
 
     def _find_definition(self, uri: str, position: Dict) -> List[Location]:
         """查找定义位置"""
-        # 简化实现
-        # 实际应该使用符号表查找
-        return []
+        locations = []
+
+        with self._lock:
+            doc = self.documents.get(uri)
+            if not doc:
+                return locations
+
+            line_num = position.get("line", 0)
+            char_num = position.get("character", 0)
+
+            lines = doc.text.split("\n")
+            if line_num >= len(lines):
+                return locations
+
+            line = lines[line_num]
+            word = self._get_word_at_position(line, char_num)
+
+            # 在符号表中查找定义
+            if word in doc.symbols:
+                symbol = doc.symbols[word]
+                locations.append(Location(
+                    uri=uri,
+                    range=Range(
+                        start=Position(line=symbol.line, character=0),
+                        end=Position(line=symbol.line, character=len(lines[symbol.line]) if symbol.line < len(lines) else 1)
+                    )
+                ))
+
+        return locations
 
     def _handle_references(self, params: Optional[Dict]) -> Optional[List[Dict]]:
         """处理查找引用请求"""
@@ -833,8 +859,50 @@ class LanguageServer:
 
     def _find_references(self, uri: str, position: Dict) -> List[Location]:
         """查找引用位置"""
-        # 简化实现
-        return []
+        locations = []
+
+        with self._lock:
+            doc = self.documents.get(uri)
+            if not doc:
+                return locations
+
+            line_num = position.get("line", 0)
+            char_num = position.get("character", 0)
+
+            lines = doc.text.split("\n")
+            if line_num >= len(lines):
+                return locations
+
+            line = lines[line_num]
+            word = self._get_word_at_position(line, char_num)
+
+            # 查找所有引用位置
+            for ref_line_num, ref_line in enumerate(lines):
+                if word in ref_line:
+                    # 检查是否是独立的单词
+                    start = 0
+                    while True:
+                        pos = ref_line.find(word, start)
+                        if pos == -1:
+                            break
+
+                        # 检查是否是独立单词
+                        before_ok = pos == 0 or not (ref_line[pos - 1].isalnum() or ref_line[pos - 1] == '_')
+                        after_ok = (pos + len(word) >= len(ref_line) or
+                                   not (ref_line[pos + len(word)].isalnum() or ref_line[pos + len(word)] == '_'))
+
+                        if before_ok and after_ok:
+                            locations.append(Location(
+                                uri=uri,
+                                range=Range(
+                                    start=Position(line=ref_line_num, character=pos),
+                                    end=Position(line=ref_line_num, character=pos + len(word))
+                                )
+                            ))
+
+                        start = pos + 1
+
+        return locations
 
     # ==================== 文档符号 ====================
 
@@ -953,10 +1021,50 @@ class LanguageServer:
         if not params:
             return None
 
-        # 简化实现
-        return {
-            "changes": {}
-        }
+        text_doc = params.get("textDocument", {})
+        position = params.get("position", {})
+        new_name = params.get("newName", "")
+        uri = text_doc.get("uri", "")
+
+        if not new_name:
+            return None
+
+        # 查找所有引用位置
+        references = self._find_references(uri, position)
+
+        if not references:
+            return {"changes": {}}
+
+        # 构建更改映射
+        changes: Dict[str, List[Dict]] = {}
+
+        with self._lock:
+            doc = self.documents.get(uri)
+            if not doc:
+                return {"changes": {}}
+
+            # 获取当前符号名
+            line_num = position.get("line", 0)
+            char_num = position.get("character", 0)
+            lines = doc.text.split("\n")
+
+            if line_num >= len(lines):
+                return {"changes": {}}
+
+            line = lines[line_num]
+            old_name = self._get_word_at_position(line, char_num)
+
+            # 为每个引用位置创建 TextEdit
+            for loc in references:
+                if loc.uri not in changes:
+                    changes[loc.uri] = []
+
+                changes[loc.uri].append({
+                    "range": loc.range.to_dict(),
+                    "newText": new_name
+                })
+
+        return {"changes": changes}
 
     # ==================== 关闭 ====================
 
