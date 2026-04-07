@@ -24,7 +24,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from zhpp.compiler.function_cache import (
+from zhc.compiler.function_cache import (
     FunctionLevelCache,
     CacheStatus,
     CachedFunction,

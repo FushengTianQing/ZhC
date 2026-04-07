@@ -2,7 +2,7 @@
 """Day 22: 智能指针测试"""
 import sys, os
 
-from zhpp.type_system.smart_ptr import SmartPointerConverter, PointerType
+from zhc.type_system.smart_ptr import SmartPointerConverter, PointerType
 
 def test_unique():
     c = SmartPointerConverter()

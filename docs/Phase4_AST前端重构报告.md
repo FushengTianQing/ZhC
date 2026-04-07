@@ -13,7 +13,7 @@
 |------|------|------|
 | Lexer 关键词补全 | ✅ | 新增 13 个 Token 类型 + 13 个映射 + 字符/字符串区分 |
 | AST 节点补全 | ✅ | 新增 14 个节点类 + 14 个 ASTVisitor 方法 |
-| CCodeGenerator 骨架 | ✅ | 新建 `src/zhpp/codegen/` 包 |
+| CCodeGenerator 骨架 | ✅ | 新建 `src/codegen/` 包 |
 
 ### M2: CCodeGenerator 核心实现 ✅
 
@@ -30,7 +30,7 @@
 | 任务 | 状态 | 详情 |
 |------|------|------|
 | CLI 切换 AST 路径 | ✅ | 默认 AST，`--legacy` 回退正则替换 |
-| 集成测试适配 | ✅ | 统一所有测试使用 `-m zhpp`，修复 PYTHONPATH |
+| 集成测试适配 | ✅ | 统一所有测试使用 `-m zhc`，修复 PYTHONPATH |
 | 回归测试 | ✅ | **83 passed, 3 skipped** |
 
 ### M4: 边界情况 + 文档 ✅
@@ -65,23 +65,23 @@ Total: 83 passed, 3 skipped
 ## 三、文件变更清单
 
 ### 修改的文件
-1. `src/zhpp/parser/lexer.py` — 新增 13 个 TokenType + 13 个关键词映射 + 字符/字符串区分
-2. `src/zhpp/parser/ast_nodes.py` — 新增 14 个 AST 节点类 + 14 个 ASTVisitor 方法 + ASTPrinter 方法
-3. `src/zhpp/parser/__init__.py` — 导出新节点
-4. `src/zhpp/parser/parser.py` — 类型匹配扩展 + `parse_init_list` + 前缀 `&`/`*` 运算符
-5. `src/zhpp/cli.py` — 新增 `use_ast` 参数 + `_compile_ast()` + `_compile_legacy()` + `--legacy`
-6. `src/zhpp/__main__.py` — 修复 cli.py/cli/ 导入冲突
+1. `src/parser/lexer.py` — 新增 13 个 TokenType + 13 个关键词映射 + 字符/字符串区分
+2. `src/parser/ast_nodes.py` — 新增 14 个 AST 节点类 + 14 个 ASTVisitor 方法 + ASTPrinter 方法
+3. `src/parser/__init__.py` — 导出新节点
+4. `src/parser/parser.py` — 类型匹配扩展 + `parse_init_list` + 前缀 `&`/`*` 运算符
+5. `src/cli.py` — 新增 `use_ast` 参数 + `_compile_ast()` + `_compile_legacy()` + `--legacy`
+6. `src/__main__.py` — 修复 cli.py/cli/ 导入冲突
 7. `tests/test_integration_basic.py` — 统一测试环境 + 修复 env 传递 + skip 3 个待完善测试
 
 ### 新建的文件
-1. `src/zhpp/codegen/__init__.py` — 代码生成包
-2. `src/zhpp/codegen/c_codegen.py` — C 代码生成器（~450 行）
+1. `src/codegen/__init__.py` — 代码生成包
+2. `src/codegen/c_codegen.py` — C 代码生成器（~450 行）
 3. `tests/test_c_codegen.py` — CCodeGenerator 单元测试（48 个测试）
 
 ### 不动的文件
-1. `src/zhpp/keywords.py` — 保持不变（Legacy 路径仍需要）
-2. `src/zhpp/converter/` — 保持不变（Phase 5 重构或废弃）
-3. `src/zhpp/cli/` — 保持不变（子命令模块）
+1. `src/keywords.py` — 保持不变（Legacy 路径仍需要）
+2. `src/converter/` — 保持不变（Phase 5 重构或废弃）
+3. `src/cli/` — 保持不变（子命令模块）
 4. `tests/test_parser.py` — 未修改，所有原有测试通过
 
 ---
@@ -90,16 +90,16 @@ Total: 83 passed, 3 skipped
 
 ```bash
 # AST 路径（默认）
-python -m zhpp hello.zhc -o hello.c
+python3 -m src.__main__ hello.zhc -o hello.c
 
 # Legacy 路径（正则替换）
-python -m zhpp --legacy hello.zhc -o hello.c
+python3 -m src.__main__ --legacy hello.zhc -o hello.c
 
 # 带详细输出
-python -m zhpp hello.zhc -v
+python3 -m src.__main__ hello.zhc -v
 
 # 编译并运行
-python -m zhpp hello.zhc && clang hello.c -o hello && ./hello
+python3 -m src.__main__ hello.zhc && clang hello.c -o hello && ./hello
 ```
 
 ---

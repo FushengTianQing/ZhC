@@ -12,9 +12,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zhpp.ir import IRProgram, IRFunction, Opcode, IRValue, ValueKind
-from zhpp.ir.instructions import IRBasicBlock, IRInstruction
-from zhpp.ir.optimizer import ConstantFolding, DeadCodeElimination, PassManager
+from zhc.ir import IRProgram, IRFunction, Opcode, IRValue, ValueKind
+from zhc.ir.instructions import IRBasicBlock, IRInstruction
+from zhc.ir.optimizer import ConstantFolding, DeadCodeElimination, PassManager
 
 
 class TestConstantFolding(unittest.TestCase):
@@ -22,7 +22,7 @@ class TestConstantFolding(unittest.TestCase):
 
     def test_add_two_consts(self):
         """1 + 2 -> 3"""
-        from zhpp.ir.optimizer import ConstantFolding
+        from zhc.ir.optimizer import ConstantFolding
         ir = IRProgram()
         func = IRFunction("test", "整数型")
         bb = func.entry_block

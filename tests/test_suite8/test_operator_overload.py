@@ -6,7 +6,7 @@ Day 17: 运算符重载测试
 import sys
 import os
 
-from zhpp.converter.operator import (
+from zhc.converter.operator import (
     OperatorType, OperatorOverloadInfo, OperatorOverloadParser,
     OperatorOverloadGenerator, CHINESE_OPERATOR_MAP, OPERATOR_TO_C_FUNC
 )

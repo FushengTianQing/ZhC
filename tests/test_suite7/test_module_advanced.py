@@ -9,7 +9,7 @@ import sys
 import unittest
 from pathlib import Path
 
-from zhpp.parser.module_alias import (
+from zhc.parser.module_alias import (
     ModuleAliasManager, ConditionalCompiler, VersionManager,
     VersionInfo, VersionComparator, ModuleAlias,
     ConditionType

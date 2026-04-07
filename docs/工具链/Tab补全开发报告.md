@@ -378,7 +378,7 @@ zhc 卸载 网<Tab>    → 包名补全
 ## 七、文件结构
 
 ```
-src/zhpp/package/completion/
+src/package/completion/
 ├── __init__.py              # 模块初始化
 └── completer.py             # Python补全器
 

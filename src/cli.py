@@ -18,9 +18,9 @@ from typing import Any, Optional
 # 尝试导入高级功能
 HAS_MODULE_SYSTEM = False
 try:
-    from zhpp.compiler.pipeline import CompilationPipeline
-    from zhpp.compiler.cache import CompilationCache
-    from zhpp.compiler.optimizer import PerformanceMonitor
+    from zhc.compiler.pipeline import CompilationPipeline
+    from zhc.compiler.cache import CompilationCache
+    from zhc.compiler.optimizer import PerformanceMonitor
 
     HAS_MODULE_SYSTEM = True
 except ImportError:
@@ -251,7 +251,7 @@ class ZHCCompiler:
 
     def _parse_source(self, content: str, input_file: Path):
         """阶段1：词法分析 + 语法分析，返回(ast, errors)"""
-        from zhpp.parser import parse as parse_source
+        from zhc.parser import parse as parse_source
 
         return parse_source(content)
 
@@ -269,7 +269,7 @@ class ZHCCompiler:
 
         try:
             if self._incremental_updater is None:
-                from zhpp.analyzer.incremental_ast_updater import IncrementalASTUpdater
+                from zhc.analyzer.incremental_ast_updater import IncrementalASTUpdater
 
                 self._incremental_updater = IncrementalASTUpdater()
 
@@ -295,7 +295,7 @@ class ZHCCompiler:
         if self.config.verbose:
             print("  🔍 [语义验证] 分析中...")
 
-        from zhpp.semantic import SemanticAnalyzer
+        from zhc.semantic import SemanticAnalyzer
 
         validator = SemanticAnalyzer()
         validator.cfg_enabled = not self.config.no_unreachable
@@ -337,7 +337,7 @@ class ZHCCompiler:
         """阶段3：代码生成，返回C代码字符串或None（IR验证失败时）"""
         perf_analyzer = None
         if self.config.profile_enabled:
-            from zhpp.analyzer.performance import PerformanceAnalyzer
+            from zhc.analyzer.performance import PerformanceAnalyzer
 
             perf_analyzer = PerformanceAnalyzer()
 
@@ -354,7 +354,7 @@ class ZHCCompiler:
 
     def _generate_directly(self, ast, perf_analyzer=None):
         """直接从AST生成C代码"""
-        from zhpp.codegen import CCodeGenerator
+        from zhc.codegen import CCodeGenerator
 
         def run_codegen():
             g = CCodeGenerator()
@@ -367,17 +367,17 @@ class ZHCCompiler:
 
     def _generate_via_ir(self, ast, perf_analyzer=None):
         """通过IR中间表示生成C代码"""
-        from zhpp.ir.ir_generator import IRGenerator
-        from zhpp.ir.ir_verifier import IRVerifier
-        from zhpp.ir.optimizer import PassManager, ConstantFolding, DeadCodeElimination
-        from zhpp.ir.c_backend import CBackend
+        from zhc.ir.ir_generator import IRGenerator
+        from zhc.ir.ir_verifier import IRVerifier
+        from zhc.ir.optimizer import PassManager, ConstantFolding, DeadCodeElimination
+        from zhc.ir.c_backend import CBackend
 
         def run_ir_gen():
             gen = IRGenerator()
             ir = gen.generate(ast)
 
             if self.config.dump_ir:
-                from zhpp.ir.printer import IRPrinter
+                from zhc.ir.printer import IRPrinter
 
                 printer = IRPrinter()
                 print("=== IR 生成 ===")

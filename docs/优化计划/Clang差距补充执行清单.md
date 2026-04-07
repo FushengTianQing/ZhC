@@ -31,25 +31,25 @@
 
 ### 任务 2: 语义分析器
 
-**文件**: `src/zhpp/semantic/semantic_analyzer.py`
+**文件**: `src/semantic/semantic_analyzer.py`
 **工期**: 2天
 **优先级**: P0
 
 ### 任务 3: 类型推导引擎
 
-**文件**: `src/zhpp/typeinfer/engine.py`
+**文件**: `src/typeinfer/engine.py`
 **工期**: 2天
 **优先级**: P0
 
 ### 任务 4: 常量折叠优化
 
-**文件**: `src/zhpp/opt/constant_fold.py`
+**文件**: `src/opt/constant_fold.py`
 **工期**: 1天
 **优先级**: P1
 
 ### 任务 5: 死代码消除
 
-**文件**: `src/zhpp/opt/dead_code_elim.py`
+**文件**: `src/opt/dead_code_elim.py`
 **工期**: 1天
 **优先级**: P1
 
@@ -68,7 +68,7 @@
 
 ### 任务 7: 调试信息生成
 
-**文件**: `src/zhpp/debug/dwarf_gen.py`
+**文件**: `src/debug/dwarf_gen.py`
 **工期**: 2天
 
 ### 任务 8: VS Code插件

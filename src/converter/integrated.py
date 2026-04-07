@@ -14,8 +14,8 @@ from typing import List, Dict, Tuple, Optional
 import re
 
 # 使用相对导入，避免 sys.path 魔法
-from zhpp.parser.module import ModuleParser
-from zhpp.converter.code import CodeConverter
+from zhc.parser.module import ModuleParser
+from zhc.converter.code import CodeConverter
 
 class IntegratedConverter:
     """集成转换器主类"""

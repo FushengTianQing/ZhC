@@ -160,12 +160,12 @@ Phase 6 没有问题——它的规划明确说了"IR 推迟到 Phase 7"。但 P
 
 | 文件 | 操作 | 说明 |
 |------|------|------|
-| `src/zhpp/parser/parser.py` | 修改 | bug 修复 + 新增 4 个解析方法 + synchronize 补充 |
-| `src/zhpp/analyzer/type_checker.py` | 修改 | 注册字符串型/逻辑型 |
-| `src/zhpp/semantic/semantic_analyzer.py` | 修改 | _analyze_call_expr + 重载 + CFG 集成 + 7 分析器开关 |
-| `src/zhpp/semantic/cfg_analyzer.py` | **新建** | AST→字典适配层 + CFGAnalyzer + UninitAnalyzer |
-| `src/zhpp/cli.py` | 修改 | 7 个 CLI 参数 + 全链路传递 |
-| `src/zhpp/compiler/pipeline.py` | 修改 | Pipeline 分析器开关 + 异常处理修复 |
+| `src/parser/parser.py` | 修改 | bug 修复 + 新增 4 个解析方法 + synchronize 补充 |
+| `src/analyzer/type_checker.py` | 修改 | 注册字符串型/逻辑型 |
+| `src/semantic/semantic_analyzer.py` | 修改 | _analyze_call_expr + 重载 + CFG 集成 + 7 分析器开关 |
+| `src/semantic/cfg_analyzer.py` | **新建** | AST→字典适配层 + CFGAnalyzer + UninitAnalyzer |
+| `src/cli.py` | 修改 | 7 个 CLI 参数 + 全链路传递 |
+| `src/compiler/pipeline.py` | 修改 | Pipeline 分析器开关 + 异常处理修复 |
 
 ---
 

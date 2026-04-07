@@ -19,14 +19,14 @@ import os
 # 添加源码路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from zhpp.analyzer.data_flow import (
+from zhc.analyzer.data_flow import (
     DataFlowAnalyzer,
     DefUseChain,
     LiveVarInfo,
     TaintInfo,
     DataFlowIssue
 )
-from zhpp.analyzer.control_flow import (
+from zhc.analyzer.control_flow import (
     ControlFlowAnalyzer,
     ControlFlowGraph,
     CFGNode,
@@ -34,7 +34,7 @@ from zhpp.analyzer.control_flow import (
     NodeType,
     EdgeType
 )
-from zhpp.analyzer.memory_safety import (
+from zhc.analyzer.memory_safety import (
     MemorySafetyAnalyzer,
     NullPointerChecker,
     MemoryLeakDetector,

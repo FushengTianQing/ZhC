@@ -148,7 +148,7 @@ ide/vscode/
 
 | 配置项 | 类型 | 默认值 | 说明 |
 |:---|:---|:---|:---|
-| `zhc.compilerPath` | string | `"zhpp"` | 编译器路径 |
+| `zhc.compilerPath` | string | `"zhc"` | 编译器路径 |
 | `zhc.enableIntelliSense` | boolean | `true` | 启用智能提示 |
 | `zhc.formatOnSave` | boolean | `false` | 保存时格式化 |
 

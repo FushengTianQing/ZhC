@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zhpp.ir import (
+from zhc.ir import (
     Opcode, IRValue, ValueKind, IRInstruction, IRBasicBlock,
     IRProgram, IRFunction, IRGlobalVar, IRStructDef, IRPrinter
 )

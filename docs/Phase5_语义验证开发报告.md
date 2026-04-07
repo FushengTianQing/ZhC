@@ -13,7 +13,7 @@
 ### 达成状态
 | 验收项 | 状态 | 说明 |
 |--------|------|------|
-| 编译时自动执行语义验证 | ✅ | `python -m zhpp xxx.zhc` 自动运行 |
+| 编译时自动执行语义验证 | ✅ | `python3 -m src.__main__ xxx.zhc` 自动运行 |
 | 重复定义检测 | ✅ | 变量/函数/结构体/枚举/共用体/类型别名/标签 |
 | 未定义符号检测 | ✅ | 带拼写检查建议 |
 | 非法 break/continue 检测 | ✅ | 循环外使用报错 |
@@ -77,10 +77,10 @@
 
 | 文件 | 操作 | 改动量 |
 |------|------|--------|
-| `src/zhpp/semantic/semantic_analyzer.py` | 修改 | ~200 行新增/修改 |
-| `src/zhpp/semantic/type_utils.py` | 新建 | ~90 行 |
-| `src/zhpp/semantic/__init__.py` | 未改 | — |
-| `src/zhpp/cli.py` | 修改 | ~40 行新增 |
+| `src/semantic/semantic_analyzer.py` | 修改 | ~200 行新增/修改 |
+| `src/semantic/type_utils.py` | 新建 | ~90 行 |
+| `src/semantic/__init__.py` | 未改 | — |
+| `src/cli.py` | 修改 | ~40 行新增 |
 | `tests/test_phase5_semantic.py` | 新建 | ~350 行 |
 | `tests/test_phase5_e2e.py` | 新建 | ~200 行 |
 

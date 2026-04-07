@@ -2,7 +2,7 @@
 """Day 23: 内存安全测试"""
 import sys, os
 
-from zhpp.analyzer.memory_safety import (
+from zhc.analyzer.memory_safety import (
     NullPointerChecker, MemoryLeakDetector, BoundsChecker,
     MemorySafetyAnalyzer, SafetyLevel
 )

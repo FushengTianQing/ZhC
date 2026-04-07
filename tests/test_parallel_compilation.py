@@ -24,7 +24,7 @@ import pytest
 # 添加项目路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from zhpp.compiler.parallel_pipeline import (
+from zhc.compiler.parallel_pipeline import (
     ParallelCompilationPipeline,
     AdaptiveParallelPipeline,
     CompilationLayerCalculator,

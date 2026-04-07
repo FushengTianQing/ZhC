@@ -11,12 +11,12 @@
 ## 📁 交付文件
 
 ### 1. string.zhc - 模块声明文件
-- **路径**: `src/zhpp/lib/string.zhc`
+- **路径**: `src/lib/string.zhc`
 - **行数**: 95行
 - **内容**: 10个公开函数声明 + 详细文档注释
 
 ### 2. zhc_string.h - C实现头文件
-- **路径**: `src/zhpp/lib/zhc_string.h`
+- **路径**: `src/lib/zhc_string.h`
 - **行数**: 352行
 - **内容**: 完整的C语言实现
 

@@ -14,7 +14,7 @@ import unittest
 # 添加项目路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from zhpp.parser import (
+from zhc.parser import (
     Lexer, Token, TokenType, LexerError, tokenize,
     Parser, ParseError, parse,
     ProgramNode, FunctionDeclNode, VariableDeclNode,
@@ -651,7 +651,7 @@ class TestErrorRecovery(unittest.TestCase):
     
     def test_error_statistics(self):
         """测试错误恢复统计"""
-        from zhpp.parser import Parser, Lexer
+        from zhc.parser import Parser, Lexer
         
         code = """
         整数型 test(整数型 a, 整数型 b) {

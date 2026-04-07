@@ -21,18 +21,18 @@ import shutil
 # 添加源码路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from zhpp.opt.dead_code_elim import (
+from zhc.opt.dead_code_elim import (
     DeadCodeEliminator,
     DeadCodeType,
     eliminate_dead_code
 )
-from zhpp.opt.constant_fold import (
+from zhc.opt.constant_fold import (
     ConstantPropagator,
     propagate_constants,
     LatticeValue,
     ConstantType
 )
-from zhpp.compiler.precompiled_header import (
+from zhc.compiler.precompiled_header import (
     PrecompiledHeaderManager,
     HeaderType,
     SymbolIndex
@@ -250,7 +250,7 @@ class TestPrecompiledHeader(unittest.TestCase):
         """测试符号索引"""
         symbol_index = SymbolIndex()
         
-        from zhpp.compiler.precompiled_header import HeaderSymbol
+        from zhc.compiler.precompiled_header import HeaderSymbol
         symbol = HeaderSymbol(
             name="test_func",
             symbol_type="function",

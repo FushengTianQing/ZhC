@@ -6,7 +6,7 @@ Day 20: 内存语法测试
 import sys
 import os
 
-from zhpp.parser.memory import (
+from zhc.parser.memory import (
     MemorySyntaxParser, SmartPointerParser, MemorySafetyChecker,
     MemoryOperation, MemoryAllocation, SmartPointerType
 )

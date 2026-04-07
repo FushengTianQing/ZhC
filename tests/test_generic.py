@@ -14,14 +14,14 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from zhpp.generics.generic_parser import (
+from zhc.generics.generic_parser import (
     GenericParser,
     GenericType,
     GenericFunction,
     TypeParameter,
     GenericConstraint
 )
-from zhpp.generics.generic_instantiator import (
+from zhc.generics.generic_instantiator import (
     GenericInstantiator,
     InstantiatedType,
     InstantiatedFunction

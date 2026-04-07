@@ -10,8 +10,8 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 import unittest
-from zhpp.analyzer.dependency import DependencyResolver, MultiFileIntegrator
-from zhpp.converter.error import ErrorHandler
+from zhc.analyzer.dependency import DependencyResolver, MultiFileIntegrator
+from zhc.converter.error import ErrorHandler
 
 class TestDependencyResolution(unittest.TestCase):
     """测试依赖解析基础功能"""

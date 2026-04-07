@@ -33,8 +33,8 @@ from pathlib import Path
 import unittest
 
 # 导入模块解析器和作用域管理器
-from zhpp.parser.module import ModuleParser, ModuleInfo
-from zhpp.parser.scope import ScopeManager, Visibility, ScopeType, SymbolInfo
+from zhc.parser.module import ModuleParser, ModuleInfo
+from zhc.parser.scope import ScopeManager, Visibility, ScopeType, SymbolInfo
 
 
 class TestModuleDeclaration(unittest.TestCase):

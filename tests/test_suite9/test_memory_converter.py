@@ -3,7 +3,7 @@
 import sys
 import os
 
-from zhpp.converter.memory import MemorySyntaxConverter
+from zhc.converter.memory import MemorySyntaxConverter
 
 def run_tests():
     print("=" * 50)

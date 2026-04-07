@@ -6,11 +6,11 @@ import time
 
 # 设置路径
 
-from zhpp.parser.module import ModuleParser
-from zhpp.parser.class_ import ClassParser
-from zhpp.converter.memory import MemorySyntaxConverter
-from zhpp.type_system.smart_ptr import SmartPointerConverter
-from zhpp.analyzer.memory_safety import NullPointerChecker, MemoryLeakDetector
+from zhc.parser.module import ModuleParser
+from zhc.parser.class_ import ClassParser
+from zhc.converter.memory import MemorySyntaxConverter
+from zhc.type_system.smart_ptr import SmartPointerConverter
+from zhc.analyzer.memory_safety import NullPointerChecker, MemoryLeakDetector
 
 
 def run_tests():

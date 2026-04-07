@@ -59,7 +59,7 @@ stdlib.h 提供以下功能模块：
 ### 2.2 文件结构
 
 ```
-src/zhpp/lib/
+src/lib/
 ├── stdlib.zhc        # 中文接口定义（~250行）
 └── zhc_stdlib.h      # C实现（~420行）
 ```
@@ -138,7 +138,7 @@ math.h 提供以下功能模块：
 ### 3.2 文件结构
 
 ```
-src/zhpp/lib/
+src/lib/
 ├── math.zhc          # 中文接口定义（~420行）
 └── zhc_math.h        # C实现（~480行）
 ```
@@ -290,7 +290,7 @@ stdlib.h 和 math.h 标准库测试
 ### 6.2 新增文件
 
 ```
-src/zhpp/lib/
+src/lib/
 ├── stdlib.zhc        # stdlib中文接口（~250行）
 ├── zhc_stdlib.h      # stdlib C实现（~420行）
 ├── math.zhc          # math中文接口（~420行）

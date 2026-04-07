@@ -18,9 +18,9 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from zhpp.parser import parse as parse_source
-from zhpp.semantic import SemanticAnalyzer
-from zhpp.semantic.semantic_analyzer import SemanticError
+from zhc.parser import parse as parse_source
+from zhc.semantic import SemanticAnalyzer
+from zhc.semantic.semantic_analyzer import SemanticError
 
 
 def _parse(code: str):

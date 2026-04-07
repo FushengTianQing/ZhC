@@ -3,7 +3,7 @@
 import sys
 import os
 
-from zhpp.cli.toolchain import (
+from zhc.cli.toolchain import (
     ErrorCode, ErrorLevel, CompilerError,
     EnhancedErrorHandler, PerformanceOptimizer, DebugInfoGenerator
 )

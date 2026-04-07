@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 def _parse(code: str):
     """解析中文C代码，返回 AST 和错误"""
-    import zhpp.parser as parser_module
+    import zhc.parser as parser_module
     ast, errors = parser_module.parse(code)
     return ast, errors
 
@@ -46,7 +46,7 @@ class TestAliasAnalysis(unittest.TestCase):
     """别名分析器"""
 
     def test_analyze_function(self):
-        from zhpp.analyzer.alias_analysis import AliasAnalyzer
+        from zhc.analyzer.alias_analysis import AliasAnalyzer
         analyzer = AliasAnalyzer()
         stmts = [
             {'type': 'var_decl', 'name': 'x', 'line': 1},
@@ -66,14 +66,14 @@ class TestAliasAnalysis(unittest.TestCase):
         self.assertIn('别名', report)
 
     def test_no_alias(self):
-        from zhpp.analyzer.alias_analysis import AliasAnalyzer, AliasKind
+        from zhc.analyzer.alias_analysis import AliasAnalyzer, AliasKind
         a = AliasAnalyzer()
         # 无别名关系时返回 UNKNOWN（模块未找到该名称时）
         kind = a.query_alias('a', 'b')
         self.assertIn(kind, [AliasKind.NO_ALIAS, AliasKind.UNKNOWN])
 
     def test_propagate_aliases(self):
-        from zhpp.analyzer.alias_analysis import AliasAnalyzer, AliasInfo
+        from zhc.analyzer.alias_analysis import AliasAnalyzer, AliasInfo
         a = AliasAnalyzer()
         propagated = a.propagate_aliases('f', {'ptr': AliasInfo('ptr')})
         self.assertIn('ptr', propagated)
@@ -87,7 +87,7 @@ class TestControlFlow(unittest.TestCase):
     """控制流分析器"""
 
     def test_build_cfg(self):
-        from zhpp.analyzer.control_flow import ControlFlowAnalyzer
+        from zhc.analyzer.control_flow import ControlFlowAnalyzer
         analyzer = ControlFlowAnalyzer()
         stmts = [
             {'type': 'var_decl', 'name': 'x', 'line': 1},
@@ -99,7 +99,7 @@ class TestControlFlow(unittest.TestCase):
         self.assertIn(cfg.exit_id, cfg.nodes)
 
     def test_detect_unreachable(self):
-        from zhpp.analyzer.control_flow import ControlFlowAnalyzer
+        from zhc.analyzer.control_flow import ControlFlowAnalyzer
         analyzer = ControlFlowAnalyzer()
         stmts = [
             {'type': 'var_decl', 'name': 'x', 'line': 1},
@@ -112,7 +112,7 @@ class TestControlFlow(unittest.TestCase):
         self.assertIsInstance(issues, list)
 
     def test_cyclomatic_complexity(self):
-        from zhpp.analyzer.control_flow import ControlFlowAnalyzer
+        from zhc.analyzer.control_flow import ControlFlowAnalyzer
         analyzer = ControlFlowAnalyzer()
         cfg = analyzer.build_cfg('f', [
             {'type': 'var_decl', 'name': 'x', 'line': 1},
@@ -122,7 +122,7 @@ class TestControlFlow(unittest.TestCase):
         self.assertGreaterEqual(c, 1)
 
     def test_dominance_tree(self):
-        from zhpp.analyzer.control_flow import ControlFlowAnalyzer
+        from zhc.analyzer.control_flow import ControlFlowAnalyzer
         analyzer = ControlFlowAnalyzer()
         cfg = analyzer.build_cfg('f', [
             {'type': 'var_decl', 'name': 'x', 'line': 1},
@@ -137,7 +137,7 @@ class TestControlFlow(unittest.TestCase):
             pass
 
     def test_export_dot(self):
-        from zhpp.analyzer.control_flow import ControlFlowAnalyzer
+        from zhc.analyzer.control_flow import ControlFlowAnalyzer
         import tempfile
         analyzer = ControlFlowAnalyzer()
         cfg = analyzer.build_cfg('f', [
@@ -161,7 +161,7 @@ class TestControlFlowCached(unittest.TestCase):
     """控制流分析器（缓存版）"""
 
     def test_cached_methods_exist(self):
-        from zhpp.analyzer.control_flow_cached import ControlFlowAnalyzerCached
+        from zhc.analyzer.control_flow_cached import ControlFlowAnalyzerCached
         c = ControlFlowAnalyzerCached()
         self.assertTrue(hasattr(c, 'build_cfg_cached'))
         self.assertTrue(hasattr(c, 'detect_unreachable_code_cached'))
@@ -170,20 +170,20 @@ class TestControlFlowCached(unittest.TestCase):
         self.assertTrue(callable(c.build_cfg_cached))
 
     def test_cache_stats(self):
-        from zhpp.analyzer.control_flow_cached import ControlFlowAnalyzerCached
+        from zhc.analyzer.control_flow_cached import ControlFlowAnalyzerCached
         c = ControlFlowAnalyzerCached()
         stats = c.get_cache_stats()
         self.assertIn('cache_hits', stats)
         self.assertIn('cache_misses', stats)
 
     def test_cache_report(self):
-        from zhpp.analyzer.control_flow_cached import ControlFlowAnalyzerCached
+        from zhc.analyzer.control_flow_cached import ControlFlowAnalyzerCached
         c = ControlFlowAnalyzerCached()
         r = c.get_cache_report()
         self.assertIsInstance(r, str)
 
     def test_cache_clear(self):
-        from zhpp.analyzer.control_flow_cached import ControlFlowAnalyzerCached
+        from zhc.analyzer.control_flow_cached import ControlFlowAnalyzerCached
         c = ControlFlowAnalyzerCached()
         c.clear_cache()
         # 缓存清空后再次缓存命中率为0
@@ -199,7 +199,7 @@ class TestDataFlow(unittest.TestCase):
     """数据流分析器"""
 
     def test_build_def_use(self):
-        from zhpp.analyzer.data_flow import DataFlowAnalyzer
+        from zhc.analyzer.data_flow import DataFlowAnalyzer
         a = DataFlowAnalyzer()
         stmts = [
             {'type': 'var_decl', 'name': 'x', 'line': 1},
@@ -209,7 +209,7 @@ class TestDataFlow(unittest.TestCase):
         self.assertIn('x', chains)
 
     def test_live_variables(self):
-        from zhpp.analyzer.data_flow import DataFlowAnalyzer
+        from zhc.analyzer.data_flow import DataFlowAnalyzer
         a = DataFlowAnalyzer()
         stmts = [
             {'type': 'var_decl', 'name': 'x', 'line': 1},
@@ -219,7 +219,7 @@ class TestDataFlow(unittest.TestCase):
         self.assertIsInstance(live, dict)
 
     def test_propagate_constants(self):
-        from zhpp.analyzer.data_flow import DataFlowAnalyzer
+        from zhc.analyzer.data_flow import DataFlowAnalyzer
         a = DataFlowAnalyzer()
         stmts = [
             {'type': 'var_decl', 'name': 'x', 'value': '10', 'line': 1},
@@ -229,7 +229,7 @@ class TestDataFlow(unittest.TestCase):
         # consts 可能为空（取决于模块对字面量值的提取逻辑）
 
     def test_taint_flow(self):
-        from zhpp.analyzer.data_flow import DataFlowAnalyzer
+        from zhc.analyzer.data_flow import DataFlowAnalyzer
         a = DataFlowAnalyzer()
         a.define_taint_sources({'读取输入'})
         stmts = [
@@ -240,7 +240,7 @@ class TestDataFlow(unittest.TestCase):
         self.assertIsInstance(issues, list)
 
     def test_uninitialized_vars(self):
-        from zhpp.analyzer.data_flow import DataFlowAnalyzer
+        from zhc.analyzer.data_flow import DataFlowAnalyzer
         a = DataFlowAnalyzer()
         stmts = [
             {'type': 'var_decl', 'name': 'x', 'line': 1},  # 无初始化
@@ -250,7 +250,7 @@ class TestDataFlow(unittest.TestCase):
         self.assertIsInstance(issues, list)
 
     def test_analyze_function(self):
-        from zhpp.analyzer.data_flow import DataFlowAnalyzer
+        from zhc.analyzer.data_flow import DataFlowAnalyzer
         a = DataFlowAnalyzer()
         stmts = [
             {'type': 'var_decl', 'name': 'x', 'line': 1},
@@ -269,7 +269,7 @@ class TestDependency(unittest.TestCase):
     """模块依赖解析器"""
 
     def test_add_module(self):
-        from zhpp.analyzer.dependency import DependencyResolver
+        from zhc.analyzer.dependency import DependencyResolver
         r = DependencyResolver()
         r.add_module({
             'name': '测试模块',
@@ -281,7 +281,7 @@ class TestDependency(unittest.TestCase):
         self.assertIn('测试模块', r.graph.modules)
 
     def test_calculate_order(self):
-        from zhpp.analyzer.dependency import DependencyResolver
+        from zhc.analyzer.dependency import DependencyResolver
         r = DependencyResolver()
         r.add_module({'name': 'A', 'file_path': 'a.zhc', 'imports': [], 'symbols': {}, 'line_number': 1})
         r.add_module({'name': 'B', 'file_path': 'b.zhc', 'imports': [{'module': 'A'}], 'symbols': {}, 'line_number': 1})
@@ -289,21 +289,21 @@ class TestDependency(unittest.TestCase):
         self.assertEqual(order, ['A', 'B'])
 
     def test_missing_deps(self):
-        from zhpp.analyzer.dependency import DependencyResolver
+        from zhc.analyzer.dependency import DependencyResolver
         r = DependencyResolver()
         r.add_module({'name': 'X', 'file_path': 'x.zhc', 'imports': [{'module': 'Y'}], 'symbols': {}, 'line_number': 1})
         missing = r.find_missing_dependencies()
         self.assertEqual(len(missing), 1)
 
     def test_module_statistics(self):
-        from zhpp.analyzer.dependency import DependencyResolver
+        from zhc.analyzer.dependency import DependencyResolver
         r = DependencyResolver()
         r.add_module({'name': 'M', 'file_path': 'm.zhc', 'imports': [], 'symbols': {}, 'line_number': 1})
         stats = r.get_module_statistics()
         self.assertEqual(stats['total_modules'], 1)
 
     def test_multi_file_integrator(self):
-        from zhpp.analyzer.dependency import DependencyResolver, MultiFileIntegrator
+        from zhc.analyzer.dependency import DependencyResolver, MultiFileIntegrator
         r = DependencyResolver()
         r.add_module({'name': 'M', 'file_path': 'm.zhc', 'imports': [], 'symbols': {}, 'line_number': 1})
         integrator = MultiFileIntegrator(r)
@@ -319,7 +319,7 @@ class TestInterprocedural(unittest.TestCase):
     """过程间分析器"""
 
     def test_build_call_graph(self):
-        from zhpp.analyzer.interprocedural import InterproceduralAnalyzer
+        from zhc.analyzer.interprocedural import InterproceduralAnalyzer
         a = InterproceduralAnalyzer()
         funcs = [{'name': 'f', 'params': [], 'body': [
             {'type': 'call', 'function': 'g', 'line': 1},
@@ -329,7 +329,7 @@ class TestInterprocedural(unittest.TestCase):
         self.assertIn('g', cg.nodes['f'])
 
     def test_analyze_side_effects(self):
-        from zhpp.analyzer.interprocedural import InterproceduralAnalyzer
+        from zhc.analyzer.interprocedural import InterproceduralAnalyzer
         a = InterproceduralAnalyzer()
         stmts = [
             {'type': 'call', 'function': 'zhc_printf', 'line': 1},
@@ -338,7 +338,7 @@ class TestInterprocedural(unittest.TestCase):
         self.assertIsNotNone(summary)
 
     def test_recursion_detected(self):
-        from zhpp.analyzer.interprocedural import InterproceduralAnalyzer
+        from zhc.analyzer.interprocedural import InterproceduralAnalyzer
         a = InterproceduralAnalyzer()
         funcs = [{'name': 'f', 'params': [], 'body': [
             {'type': 'call', 'function': 'f', 'line': 1},
@@ -348,13 +348,13 @@ class TestInterprocedural(unittest.TestCase):
         self.assertIsInstance(a.recursion_detected, list)
 
     def test_analyze_with_context(self):
-        from zhpp.analyzer.interprocedural import InterproceduralAnalyzer
+        from zhc.analyzer.interprocedural import InterproceduralAnalyzer
         a = InterproceduralAnalyzer()
         result = a.analyze_with_context('f', 'test', {'x': '整数型'})
         self.assertIsInstance(result, dict)
 
     def test_generate_report(self):
-        from zhpp.analyzer.interprocedural import InterproceduralAnalyzer
+        from zhc.analyzer.interprocedural import InterproceduralAnalyzer
         a = InterproceduralAnalyzer()
         r = a.generate_report()
         self.assertIn('过程间', r)
@@ -368,7 +368,7 @@ class TestMemorySafety(unittest.TestCase):
     """内存安全分析器"""
 
     def test_null_checker(self):
-        from zhpp.analyzer.memory_safety import NullPointerChecker
+        from zhc.analyzer.memory_safety import NullPointerChecker
         c = NullPointerChecker()
         c.track_allocation('ptr', 1)
         c.check_null('ptr', 5)
@@ -378,14 +378,14 @@ class TestMemorySafety(unittest.TestCase):
             self.assertTrue(hasattr(issue, 'message'))
 
     def test_leak_detector(self):
-        from zhpp.analyzer.memory_safety import MemoryLeakDetector
+        from zhc.analyzer.memory_safety import MemoryLeakDetector
         d = MemoryLeakDetector()
         d.track_allocation('p', 1)
         leaks = d.check_leaks()
         self.assertEqual(len(leaks), 1)
 
     def test_double_free(self):
-        from zhpp.analyzer.memory_safety import MemoryLeakDetector
+        from zhc.analyzer.memory_safety import MemoryLeakDetector
         d = MemoryLeakDetector()
         d.track_allocation('p', 1)
         d.track_free('p', 5)
@@ -393,7 +393,7 @@ class TestMemorySafety(unittest.TestCase):
         self.assertIsNotNone(issue)
 
     def test_bounds_checker(self):
-        from zhpp.analyzer.memory_safety import BoundsChecker, SafetyLevel
+        from zhc.analyzer.memory_safety import BoundsChecker, SafetyLevel
         b = BoundsChecker()
         b.track_array('arr', 10, 1)
         issue = b.check_access('arr', 15, 'write', 5)
@@ -402,7 +402,7 @@ class TestMemorySafety(unittest.TestCase):
         self.assertIsNone(ok)
 
     def test_use_after_free(self):
-        from zhpp.analyzer.memory_safety import UseAfterFreeChecker
+        from zhc.analyzer.memory_safety import UseAfterFreeChecker
         u = UseAfterFreeChecker()
         u.track_pointer_flow('ptr', 1, 'allocate')
         u.track_pointer_flow('ptr', 5, 'free')
@@ -411,21 +411,21 @@ class TestMemorySafety(unittest.TestCase):
         self.assertIsInstance(issues, list)
 
     def test_ownership_tracker(self):
-        from zhpp.analyzer.memory_safety import OwnershipTracker
+        from zhc.analyzer.memory_safety import OwnershipTracker
         o = OwnershipTracker()
         o.declare_owner('x', 'f')
         issue = o.borrow('x', 'y', 1)
         self.assertIsNone(issue)
 
     def test_lifetime_analyzer(self):
-        from zhpp.analyzer.memory_safety import LifetimeAnalyzer
+        from zhc.analyzer.memory_safety import LifetimeAnalyzer
         l = LifetimeAnalyzer()
         l.track_lifetime('x', 1, 10)
         issue = l.check_lifetime('y', 'x', 5)
         self.assertIsNone(issue)
 
     def test_race_detector(self):
-        from zhpp.analyzer.memory_safety import RaceConditionDetector
+        from zhc.analyzer.memory_safety import RaceConditionDetector
         r = RaceConditionDetector()
         r.track_shared_var('cnt', 't1')
         r.track_access('cnt', 't1', 1, True)
@@ -434,14 +434,14 @@ class TestMemorySafety(unittest.TestCase):
         self.assertIsInstance(issues, list)
 
     def test_stack_analyzer(self):
-        from zhpp.analyzer.memory_safety import StackAllocationAnalyzer
+        from zhc.analyzer.memory_safety import StackAllocationAnalyzer
         s = StackAllocationAnalyzer()
         s.allocate_stack('buf', 1, 1024, 'f')
         s.deallocate_stack('buf')
         self.assertLess(s.current_stack_size, s.max_stack_size)
 
     def test_memory_safety_analyzer(self):
-        from zhpp.analyzer.memory_safety import MemorySafetyAnalyzer
+        from zhc.analyzer.memory_safety import MemorySafetyAnalyzer
         a = MemorySafetyAnalyzer()
         # NullPointerChecker
         a.null_checker.track_allocation('ptr', 1)
@@ -459,27 +459,27 @@ class TestOverloadResolver(unittest.TestCase):
     """函数重载解析器"""
 
     def test_resolve_no_candidates(self):
-        from zhpp.analyzer.overload_resolver import OverloadResolver
+        from zhc.analyzer.overload_resolver import OverloadResolver
         r = OverloadResolver()
         result = r.resolve(1, 'f', [], [])
         self.assertIsNone(result)
         self.assertTrue(r.has_errors())
 
     def test_resolve_ambiguous(self):
-        from zhpp.analyzer.overload_resolver import OverloadResolver
-        from zhpp.analyzer.scope_checker import Symbol, SymbolCategory
-        from zhpp.analyzer.type_checker import TypeInfo, TypeCategory
+        from zhc.analyzer.overload_resolver import OverloadResolver
+        from zhc.analyzer.scope_checker import Symbol, SymbolCategory
+        from zhc.analyzer.type_checker import TypeInfo, TypeCategory
         r = OverloadResolver()
         # 无歧义：无重名符号
 
     def test_same_signature_detected(self):
-        from zhpp.analyzer.overload_resolver import OverloadResolver
-        from zhpp.analyzer.scope_checker import Symbol, SymbolCategory
-        from zhpp.analyzer.type_checker import TypeInfo, TypeCategory
+        from zhc.analyzer.overload_resolver import OverloadResolver
+        from zhc.analyzer.scope_checker import Symbol, SymbolCategory
+        from zhc.analyzer.type_checker import TypeInfo, TypeCategory
         # 相同签名检测
 
     def test_report(self):
-        from zhpp.analyzer.overload_resolver import OverloadResolver
+        from zhc.analyzer.overload_resolver import OverloadResolver
         r = OverloadResolver()
         r.errors.append((1, 'test', 'test'))
         self.assertTrue(r.has_errors())
@@ -495,7 +495,7 @@ class TestPerformance(unittest.TestCase):
 
     @unittest.skip("performance.py 依赖已删除的 day2.module_parser")
     def test_measure_operation(self):
-        from zhpp.analyzer.performance import PerformanceAnalyzer
+        from zhc.analyzer.performance import PerformanceAnalyzer
         a = PerformanceAnalyzer()
         result, metrics = a.measure_operation('test', lambda: 42)
         self.assertEqual(result, 42)
@@ -503,26 +503,26 @@ class TestPerformance(unittest.TestCase):
 
     @unittest.skip("performance.py 依赖已删除的 day2.module_parser")
     def test_benchmark_module_parsing(self):
-        from zhpp.analyzer.performance import benchmark_module_parsing
+        from zhc.analyzer.performance import benchmark_module_parsing
         r = benchmark_module_parsing(10)
         self.assertIn('original_time', r)
         self.assertIn('optimized_time', r)
 
     @unittest.skip("performance.py 依赖已删除的 day2.module_parser")
     def test_benchmark_symbol_lookup(self):
-        from zhpp.analyzer.performance import benchmark_symbol_lookup
+        from zhc.analyzer.performance import benchmark_symbol_lookup
         r = benchmark_symbol_lookup(5, 20)
         self.assertIn('normal_time', r)
         self.assertIn('optimized_time', r)
 
     @unittest.skip("performance.py 依赖已删除的 day2.module_parser")
     def test_optimized_scope_manager(self):
-        from zhpp.analyzer.performance import OptimizedScopeManager
+        from zhc.analyzer.performance import OptimizedScopeManager
         # 注册/查找循环导入路径
 
     @unittest.skip("performance.py 依赖已删除的 day2.module_parser")
     def test_symbol_lookup_optimizer_class(self):
-        from zhpp.analyzer.performance import SymbolLookupOptimizer
+        from zhc.analyzer.performance import SymbolLookupOptimizer
         o = SymbolLookupOptimizer()
         o.register_symbol('x', 'global', 'val')
         self.assertEqual(o.lookup_symbol('x'), 'val')
@@ -536,13 +536,13 @@ class TestPointerAnalysis(unittest.TestCase):
     """指针分析器"""
 
     def test_pointer_analyzer_init(self):
-        from zhpp.analyzer.pointer_analysis import PointerAnalyzer
+        from zhc.analyzer.pointer_analysis import PointerAnalyzer
         a = PointerAnalyzer()
         self.assertEqual(len(a.pointers), 0)
         self.assertEqual(len(a.issues), 0)
 
     def test_pointer_state(self):
-        from zhpp.analyzer.pointer_analysis import PointerAnalyzer, PointerState
+        from zhc.analyzer.pointer_analysis import PointerAnalyzer, PointerState
         a = PointerAnalyzer()
         stmts = [
             {'type': 'var_decl', 'name': 'ptr', 'data_type': 'pointer', 'line': 1},
@@ -553,13 +553,13 @@ class TestPointerAnalysis(unittest.TestCase):
         # 悬空指针检测
 
     def test_smart_pointer(self):
-        from zhpp.analyzer.pointer_analysis import PointerAnalyzer
+        from zhc.analyzer.pointer_analysis import PointerAnalyzer
         a = PointerAnalyzer()
         a.analyze_smart_pointer('sp', '唯一指针', 1)
         self.assertTrue(a.pointers['sp'].is_smart_pointer)
 
     def test_reference_count(self):
-        from zhpp.analyzer.pointer_analysis import PointerAnalyzer
+        from zhc.analyzer.pointer_analysis import PointerAnalyzer
         a = PointerAnalyzer()
         a.pointers['ref'] = type('Ref', (), {'reference_count': 1, 'is_shared_ptr': True})()
         a.pointers['ref'].reference_count = 1
@@ -567,13 +567,13 @@ class TestPointerAnalysis(unittest.TestCase):
         self.assertEqual(a.pointers['ref'].reference_count, 2)
 
     def test_pointer_arithmetic(self):
-        from zhpp.analyzer.pointer_analysis import PointerAnalyzer, PointerState
+        from zhc.analyzer.pointer_analysis import PointerAnalyzer, PointerState
         a = PointerAnalyzer()
         a.pointers['ptr'] = type('P', (), {'state': PointerState.VALID})()
         a.check_pointer_arithmetic('ptr', '+', 1)
 
     def test_generate_report(self):
-        from zhpp.analyzer.pointer_analysis import PointerAnalyzer
+        from zhc.analyzer.pointer_analysis import PointerAnalyzer
         a = PointerAnalyzer()
         r = a.generate_report()
         self.assertIn('指针', r)
@@ -587,7 +587,7 @@ class TestScopeChecker(unittest.TestCase):
     """作用域检查器"""
 
     def test_scope_lifecycle(self):
-        from zhpp.analyzer.scope_checker import ScopeChecker, ScopeChecker
+        from zhc.analyzer.scope_checker import ScopeChecker, ScopeChecker
         c = ScopeChecker()
         c.enter_scope()
         self.assertEqual(c.current_scope.level, 1)
@@ -595,19 +595,19 @@ class TestScopeChecker(unittest.TestCase):
         self.assertEqual(c.current_scope.level, 0)
 
     def test_declare_and_lookup(self):
-        from zhpp.analyzer.scope_checker import ScopeChecker
+        from zhc.analyzer.scope_checker import ScopeChecker
         c = ScopeChecker()
         c.enter_scope()
         # 查找
 
     def test_shadow_warning(self):
-        from zhpp.analyzer.scope_checker import ScopeChecker
+        from zhc.analyzer.scope_checker import ScopeChecker
 
     def test_label_declaration(self):
-        from zhpp.analyzer.scope_checker import ScopeChecker
+        from zhc.analyzer.scope_checker import ScopeChecker
 
     def test_errors_collection(self):
-        from zhpp.analyzer.scope_checker import ScopeChecker
+        from zhc.analyzer.scope_checker import ScopeChecker
         c = ScopeChecker()
         # 测试错误收集
 
@@ -620,7 +620,7 @@ class TestSymbolLookupOptimizer(unittest.TestCase):
     """符号查找优化器"""
 
     def test_global_symbol_table(self):
-        from zhpp.analyzer.symbol_lookup_optimizer import SymbolLookupOptimizer
+        from zhc.analyzer.symbol_lookup_optimizer import SymbolLookupOptimizer
         o = SymbolLookupOptimizer()
         o.register_symbol('test_var', '模块A', 'SymbolInfo')
         self.assertEqual(o.lookup_symbol('test_var'), 'SymbolInfo')
@@ -631,14 +631,14 @@ class TestSymbolLookupOptimizer(unittest.TestCase):
         # 
 
     def test_statistics(self):
-        from zhpp.analyzer.symbol_lookup_optimizer import SymbolLookupOptimizer
+        from zhc.analyzer.symbol_lookup_optimizer import SymbolLookupOptimizer
         o = SymbolLookupOptimizer()
         o.lookup_symbol('x')
         stats = o.get_statistics()
         self.assertIn('total_lookups', stats)
 
     def test_reset(self):
-        from zhpp.analyzer.symbol_lookup_optimizer import SymbolLookupOptimizer
+        from zhc.analyzer.symbol_lookup_optimizer import SymbolLookupOptimizer
         o = SymbolLookupOptimizer()
         o.register_symbol('s', 'f', 'S')
         o.reset()
@@ -653,42 +653,42 @@ class TestTypeChecker(unittest.TestCase):
     """类型检查器"""
 
     def test_builtin_types(self):
-        from zhpp.analyzer.type_checker import TypeChecker
+        from zhc.analyzer.type_checker import TypeChecker
         c = TypeChecker()
         self.assertIsNotNone(c.get_type('整数型'))
         self.assertEqual(c.get_type('整数型').size, 4)
 
     def test_assignment(self):
-        from zhpp.analyzer.type_checker import TypeChecker
+        from zhc.analyzer.type_checker import TypeChecker
         c = TypeChecker()
         # 测试赋值兼容性
 
     def test_binary_op(self):
-        from zhpp.analyzer.type_checker import TypeChecker
+        from zhc.analyzer.type_checker import TypeChecker
         c = TypeChecker()
         t = c.check_binary_op(1, '+', c.get_type('整数型'), c.get_type('整数型'))
         self.assertEqual(t.name, '整数型')
 
     def test_unary_op(self):
-        from zhpp.analyzer.type_checker import TypeChecker
+        from zhc.analyzer.type_checker import TypeChecker
         c = TypeChecker()
         t = c.check_unary_op(1, '-', c.get_type('整数型'))
         self.assertIsNotNone(t)
 
     def test_pointer_type_creation(self):
-        from zhpp.analyzer.type_checker import TypeChecker
+        from zhc.analyzer.type_checker import TypeChecker
         c = TypeChecker()
         ptr = c.create_pointer_type(c.get_type('整数型'))
         self.assertEqual(ptr.category.name, 'POINTER')
 
     def test_function_type_creation(self):
-        from zhpp.analyzer.type_checker import TypeChecker
+        from zhc.analyzer.type_checker import TypeChecker
         c = TypeChecker()
         ft = c.create_function_type(c.get_type('整数型'), [c.get_type('整数型')])
         self.assertEqual(ft.category.name, 'FUNCTION')
 
     def test_report(self):
-        from zhpp.analyzer.type_checker import TypeChecker
+        from zhc.analyzer.type_checker import TypeChecker
         c = TypeChecker()
         c.errors.append((1, 'test', 'msg'))
         r = c.report()
@@ -703,7 +703,7 @@ class TestTypeCheckerCached(unittest.TestCase):
     """类型检查器（缓存版）"""
 
     def test_cached_methods_exist(self):
-        from zhpp.analyzer.type_checker_cached import TypeCheckerCached
+        from zhc.analyzer.type_checker_cached import TypeCheckerCached
         c = TypeCheckerCached()
         self.assertTrue(hasattr(c, 'infer_type_cached'))
         self.assertTrue(callable(c.infer_type_cached))
@@ -711,7 +711,7 @@ class TestTypeCheckerCached(unittest.TestCase):
         self.assertTrue(callable(c.get_cache_stats))
 
     def test_function_signature_cache(self):
-        from zhpp.analyzer.type_checker_cached import TypeCheckerCached
+        from zhc.analyzer.type_checker_cached import TypeCheckerCached
         c = TypeCheckerCached()
         t_int = c.get_type('整数型')
         c.cache_function_signature('f', t_int, [t_int])
@@ -719,14 +719,14 @@ class TestTypeCheckerCached(unittest.TestCase):
         self.assertIsNotNone(cached)
 
     def test_cache_stats(self):
-        from zhpp.analyzer.type_checker_cached import TypeCheckerCached
+        from zhc.analyzer.type_checker_cached import TypeCheckerCached
         c = TypeCheckerCached()
         s = c.get_cache_stats()
         self.assertIn('total_requests', s)
         self.assertIn('cache_hits', s)
 
     def test_clear_cache(self):
-        from zhpp.analyzer.type_checker_cached import TypeCheckerCached
+        from zhc.analyzer.type_checker_cached import TypeCheckerCached
         c = TypeCheckerCached()
         c.clear_cache()
         s = c.get_cache_stats()
@@ -741,33 +741,33 @@ class TestASTCache(unittest.TestCase):
     """AST缓存管理器"""
 
     def test_node_cache(self):
-        from zhpp.analyzer.ast_cache import ASTCacheManager, CacheType
+        from zhc.analyzer.ast_cache import ASTCacheManager, CacheType
         m = ASTCacheManager()
         m.set_node_result(1, CacheType.TYPE_INFERENCE, 'T')
         self.assertEqual(m.get_node_result(1, CacheType.TYPE_INFERENCE), 'T')
 
     def test_type_cache(self):
-        from zhpp.analyzer.ast_cache import ASTCacheManager
+        from zhc.analyzer.ast_cache import ASTCacheManager
         m = ASTCacheManager()
         m.set_type(1, '整数型')
         self.assertEqual(m.get_type(1), '整数型')
 
     def test_cfg_cache(self):
-        from zhpp.analyzer.ast_cache import ASTCacheManager
+        from zhc.analyzer.ast_cache import ASTCacheManager
         m = ASTCacheManager()
         cfg = {'nodes': 10}
         m.set_cfg('f', cfg)
         self.assertEqual(m.get_cfg('f'), cfg)
 
     def test_invalidate_node(self):
-        from zhpp.analyzer.ast_cache import ASTCacheManager, CacheType
+        from zhc.analyzer.ast_cache import ASTCacheManager, CacheType
         m = ASTCacheManager()
         m.set_node_result(1, CacheType.TYPE_INFERENCE, 'v')
         n = m.invalidate_node(1)
         self.assertGreaterEqual(n, 1)
 
     def test_global_cache_functions(self):
-        from zhpp.analyzer.ast_cache import get_global_cache, reset_global_cache
+        from zhc.analyzer.ast_cache import get_global_cache, reset_global_cache
         c1 = get_global_cache()
         c2 = get_global_cache()
         self.assertIs(c1, c2)
@@ -776,7 +776,7 @@ class TestASTCache(unittest.TestCase):
         self.assertIsNot(c1, c3)
 
     def test_stats(self):
-        from zhpp.analyzer.ast_cache import ASTCacheManager
+        from zhc.analyzer.ast_cache import ASTCacheManager
         m = ASTCacheManager()
         stats = m.get_stats()
         self.assertIn('total_entries', stats)
@@ -791,26 +791,26 @@ class TestIncrementalASTUpdater(unittest.TestCase):
     """增量AST更新器"""
 
     def test_diff_types(self):
-        from zhpp.analyzer.incremental_ast_updater import DiffType
+        from zhc.analyzer.incremental_ast_updater import DiffType
         self.assertEqual(DiffType.UPDATE.value, 'update')
         self.assertEqual(DiffType.INSERT.value, 'insert')
 
     def test_tree_edit_distance(self):
-        from zhpp.analyzer.incremental_ast_updater import TreeEditDistance
+        from zhc.analyzer.incremental_ast_updater import TreeEditDistance
 
     def test_diff_statistics(self):
-        from zhpp.analyzer.incremental_ast_updater import IncrementalASTUpdater
+        from zhc.analyzer.incremental_ast_updater import IncrementalASTUpdater
         # 
 
     def test_apply_diff(self):
-        from zhpp.analyzer.incremental_ast_updater import IncrementalASTUpdater
+        from zhc.analyzer.incremental_ast_updater import IncrementalASTUpdater
 
     def test_report(self):
-        from zhpp.analyzer.incremental_ast_updater import IncrementalASTUpdater
+        from zhc.analyzer.incremental_ast_updater import IncrementalASTUpdater
         # 
 
     def test_alias_compatibility(self):
-        from zhpp.analyzer.incremental_ast_updater import ASTDiffCalculator
+        from zhc.analyzer.incremental_ast_updater import ASTDiffCalculator
         # ASTDiffCalculator = IncrementalASTUpdater
 
 

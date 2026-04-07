@@ -17,8 +17,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from zhpp.debugger.gdb_zhc import ZHCGDBCommands
-from zhpp.debugger.lldb_zhc import ZHCLLLDBCommands
+from zhc.debugger.gdb_zhc import ZHCGDBCommands
+from zhc.debugger.lldb_zhc import ZHCLLLDBCommands
 
 
 class TestGDBCommands(unittest.TestCase):

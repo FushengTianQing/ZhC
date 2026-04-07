@@ -102,8 +102,8 @@ class OutputType(Enum):
 --backend obj     # 输出目标文件 (.o)
 
 # 示例
-python -m zhpp input.zhc --backend llvm -o output.ll
-python -m zhpp input.zhc --backend wasm -o output.wasm
+python3 -m src.__main__ input.zhc --backend llvm -o output.ll
+python3 -m src.__main__ input.zhc --backend wasm -o output.wasm
 ```
 
 ---

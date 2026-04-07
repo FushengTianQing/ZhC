@@ -7,13 +7,13 @@
 import sys
 import os
 
-from zhpp.parser.class_ import ClassParser, Visibility
-from zhpp.parser.class_extended import ClassParserExtended
-from zhpp.converter.attribute import AttributeConverter, ClassToStructConverter
-from zhpp.converter.method import MethodConverter, VirtualMethodTableGenerator
-from zhpp.converter.inheritance import InheritanceConverter, InheritanceChainAnalyzer
-from zhpp.converter.virtual import PolymorphismHandler
-from zhpp.converter.operator import OperatorType, OperatorOverloadParser, OperatorOverloadGenerator
+from zhc.parser.class_ import ClassParser, Visibility
+from zhc.parser.class_extended import ClassParserExtended
+from zhc.converter.attribute import AttributeConverter, ClassToStructConverter
+from zhc.converter.method import MethodConverter, VirtualMethodTableGenerator
+from zhc.converter.inheritance import InheritanceConverter, InheritanceChainAnalyzer
+from zhc.converter.virtual import PolymorphismHandler
+from zhc.converter.operator import OperatorType, OperatorOverloadParser, OperatorOverloadGenerator
 
 
 def run_all_tests():

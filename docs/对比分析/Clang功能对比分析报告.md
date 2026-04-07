@@ -186,7 +186,7 @@
 
 **建议方案**:
 ```python
-# src/zhpp/analyzer/semantic.py
+# src/analyzer/semantic.py
 
 class SemanticAnalyzer:
     """语义分析器"""
@@ -223,7 +223,7 @@ class SemanticAnalyzer:
 
 **建议方案**:
 ```python
-# src/zhpp/analyzer/static_analyzer.py
+# src/analyzer/static_analyzer.py
 
 class StaticAnalyzer:
     """静态代码分析器"""
@@ -267,7 +267,7 @@ class StaticAnalyzer:
 
 **建议方案**:
 ```python
-# src/zhpp/lexer/lexer.py
+# src/lexer/lexer.py
 
 class Lexer:
     """词法分析器"""
@@ -326,7 +326,7 @@ class Lexer:
 
 **建议方案**:
 ```python
-# src/zhpp/diagnostic/options.py
+# src/diagnostic/options.py
 
 class DiagnosticOptions:
     """诊断选项管理器"""
@@ -367,7 +367,7 @@ class DiagnosticOptions:
 
 **建议方案**:
 ```python
-# src/zhpp/opt/dead_code_elimination.py
+# src/opt/dead_code_elimination.py
 
 class DeadCodeEliminator:
     """死代码消除优化器"""
@@ -399,7 +399,7 @@ class DeadCodeEliminator:
 
 **建议方案**:
 ```python
-# src/zhpp/cache/pch_cache.py
+# src/cache/pch_cache.py
 
 class PrecompiledHeaderCache:
     """预编译头文件缓存"""
@@ -434,7 +434,7 @@ class PrecompiledHeaderCache:
 
 **建议方案**:
 ```python
-# src/zhpp/opt/constant_propagation.py
+# src/opt/constant_propagation.py
 
 class ConstantPropagator:
     """常量传播优化器"""
@@ -471,7 +471,7 @@ class ConstantPropagator:
 
 **建议方案**:
 ```python
-# src/zhpp/backend/llvm_ir_gen.py
+# src/backend/llvm_ir_gen.py
 
 class LLVMIRGenerator:
     """LLVM IR代码生成器"""
@@ -505,7 +505,7 @@ class LLVMIRGenerator:
 
 **建议方案**:
 ```python
-# src/zhpp/opt/lto_optimizer.py
+# src/opt/lto_optimizer.py
 
 class LTOOptimizer:
     """链接时优化器"""
@@ -675,7 +675,7 @@ IDE集成：       5/7   (71%)  🟢
 #### 3. 插件化架构
 
 ```python
-# src/zhpp/plugin/base.py
+# src/plugin/base.py
 
 class CompilerPlugin:
     """编译器插件基类"""

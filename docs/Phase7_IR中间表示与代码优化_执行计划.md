@@ -50,11 +50,11 @@
 
 | 文件 | 行数 | 职责 | Phase 7 影响 |
 |------|------|------|-------------|
-| `src/zhpp/codegen/c_codegen.py` | 623 | AST→C 代码生成（ASTVisitor） | **重大改造**：将作为 IR→C 后端的参照 |
-| `src/zhpp/semantic/semantic_analyzer.py` | 2127 | 主分析器（含 7 个子分析器） | 小幅：传入 Symbol 信息给 IR 生成器 |
-| `src/zhpp/compiler/pipeline.py` | ~150 | 编译流水线 | **改造**：插入 IR 生成和优化步骤 |
-| `src/zhpp/cli.py` | ~350 | CLI 入口 | 新增 `--ir` / `--no-optimize` 等参数 |
-| `src/zhpp/analyzer/scope_checker.py` | 520 | 第二套 Symbol/Scope | **整合**：合并到统一 Symbol 体系 |
+| `src/codegen/c_codegen.py` | 623 | AST→C 代码生成（ASTVisitor） | **重大改造**：将作为 IR→C 后端的参照 |
+| `src/semantic/semantic_analyzer.py` | 2127 | 主分析器（含 7 个子分析器） | 小幅：传入 Symbol 信息给 IR 生成器 |
+| `src/compiler/pipeline.py` | ~150 | 编译流水线 | **改造**：插入 IR 生成和优化步骤 |
+| `src/cli.py` | ~350 | CLI 入口 | 新增 `--ir` / `--no-optimize` 等参数 |
+| `src/analyzer/scope_checker.py` | 520 | 第二套 Symbol/Scope | **整合**：合并到统一 Symbol 体系 |
 
 ### 0.3 两套 Symbol 体系现状
 
@@ -143,14 +143,14 @@ Phase 7 **不删除** CCodeGenerator。新增 `--backend` 参数：
 | 分类方式 | 采用 `scope_checker.SymbolCategory` 枚举 | 类型安全，避免字符串拼写错误 |
 | 类型信息 | 采用 `TypeInfo` 强类型 | 比 `Optional[str]` 更精确 |
 | 作用域 | 采用 `semantic.Scope` 类 | 功能更完整（有 scope_type, lookup 链） |
-| 位置 | `src/zhpp/ir/symbol.py` | 放在 IR 包中，后续 IR 生成器直接使用 |
+| 位置 | `src/ir/symbol.py` | 放在 IR 包中，后续 IR 生成器直接使用 |
 
 ### 3.3 执行步骤
 
-#### 步骤 M0.1：创建 `src/zhpp/ir/` 包
+#### 步骤 M0.1：创建 `src/ir/` 包
 
 ```
-src/zhpp/ir/
+src/ir/
 ├── __init__.py          # 导出 Symbol, Scope, TypeInfo 等
 ├── symbol.py            # 统一的 Symbol + Scope 定义
 ├── types.py             # TypeInfo + ZHCTy 类型体系（从 scope_checker 迁移）
@@ -159,7 +159,7 @@ src/zhpp/ir/
 
 #### 步骤 M0.2：定义统一 Symbol 类
 
-文件：`src/zhpp/ir/symbol.py`
+文件：`src/ir/symbol.py`
 
 ```python
 @dataclass
@@ -232,7 +232,7 @@ class Scope:
 
 ### 3.4 验收标准
 
-- [ ] `src/zhpp/ir/symbol.py` 和 `src/zhpp/ir/types.py` 定义完成
+- [ ] `src/ir/symbol.py` 和 `src/ir/types.py` 定义完成
 - [ ] `semantic_analyzer.py` 和 `scope_checker.py` 均可导入新 Symbol
 - [ ] 旧测试（586+）全部通过（兼容路径）
 - [ ] 新增 `tests/test_ir_symbol.py`（10+ 测试）
@@ -366,7 +366,7 @@ class ValueKind(Enum):
 #### 步骤 M1.1：创建 IR 包结构
 
 ```
-src/zhpp/ir/
+src/ir/
 ├── __init__.py
 ├── symbol.py           # M0 已创建
 ├── types.py            # M0 已创建
@@ -380,7 +380,7 @@ src/zhpp/ir/
 
 #### 步骤 M1.2：实现操作码枚举
 
-文件：`src/zhpp/ir/opcodes.py`
+文件：`src/ir/opcodes.py`
 
 - 定义 `Opcode` 枚举，包含上述所有操作码
 - 每个操作码有 `category` 属性（ARITH/COMPARE/BITWISE/LOGIC/MEMORY/CONTROL/CONVERT）
@@ -388,7 +388,7 @@ src/zhpp/ir/
 
 #### 步骤 M1.3：实现 IRValue
 
-文件：`src/zhpp/ir/values.py`
+文件：`src/ir/values.py`
 
 - `ValueKind` 枚举
 - `IRValue` dataclass
@@ -396,7 +396,7 @@ src/zhpp/ir/
 
 #### 步骤 M1.4：实现 IRInstruction
 
-文件：`src/zhpp/ir/instructions.py`
+文件：`src/ir/instructions.py`
 
 - `IRInstruction` dataclass：`opcode`, `operands: List[IRValue]`, `result: Optional[IRValue]`, `metadata: Dict`
 - `IRBasicBlock` dataclass：`label: str`, `instructions: List[IRInstruction]`, `successors: List[str]`, `predecessors: List[str]`
@@ -404,7 +404,7 @@ src/zhpp/ir/
 
 #### 步骤 M1.5：实现 IRProgram
 
-文件：`src/zhpp/ir/program.py`
+文件：`src/ir/program.py`
 
 - `IRProgram`：顶层容器
 - `IRFunction`：函数（参数 + 基本块链 + 返回类型）
@@ -413,7 +413,7 @@ src/zhpp/ir/
 
 #### 步骤 M1.6：实现 IR 打印器
 
-文件：`src/zhpp/ir/printer.py`
+文件：`src/ir/printer.py`
 
 - `IRPrinter` 类，将 IRProgram 转为可读文本
 - 输出格式示例：
@@ -429,7 +429,7 @@ function 主函数() -> 整数型:
 
 ### 4.7 验收标准
 
-- [ ] `src/zhpp/ir/` 包完整创建，包含 7 个模块
+- [ ] `src/ir/` 包完整创建，包含 7 个模块
 - [ ] `Opcode` 枚举包含 30+ 操作码，每个有 category 和中文名
 - [ ] `IRValue`, `IRInstruction`, `IRBasicBlock`, `IRFunction`, `IRProgram` 全部定义
 - [ ] `IRPrinter` 可输出可读的 IR 文本
@@ -463,7 +463,7 @@ IRGenerator:
 
 #### 步骤 M2.1：IRGenerator 骨架
 
-文件：`src/zhpp/ir/ir_generator.py`
+文件：`src/ir/ir_generator.py`
 
 ```python
 class IRGenerator(ASTVisitor):
@@ -576,7 +576,7 @@ class IRGenerator(ASTVisitor):
 
 ### 6.2 设计
 
-文件：`src/zhpp/ir/c_backend.py`
+文件：`src/ir/c_backend.py`
 
 ```python
 class CBackend:
@@ -625,7 +625,7 @@ class CBackend:
 
 #### 步骤 M3.1：CBackend 骨架
 
-文件：`src/zhpp/ir/c_backend.py`
+文件：`src/ir/c_backend.py`
 
 - `generate(ir: IRProgram) -> str` 入口
 - `#include` 自动推断（根据 CALL 指令中引用的函数名）
@@ -665,7 +665,7 @@ class CBackend:
 复用 `c_codegen.py` 中的映射表：
 
 ```python
-from zhpp.codegen.c_codegen import TYPE_MAP, MODIFIER_MAP, FUNCTION_NAME_MAP, STDLIB_FUNC_MAP
+from zhc.codegen.c_codegen import TYPE_MAP, MODIFIER_MAP, FUNCTION_NAME_MAP, STDLIB_FUNC_MAP
 ```
 
 ### 6.5 验收标准
@@ -694,7 +694,7 @@ from zhpp.codegen.c_codegen import TYPE_MAP, MODIFIER_MAP, FUNCTION_NAME_MAP, ST
 
 ### 7.2 设计
 
-文件：`src/zhpp/ir/ir_verifier.py`
+文件：`src/ir/ir_verifier.py`
 
 ```python
 class IRVerifier:
@@ -756,7 +756,7 @@ class IRVerifier:
 
 ### 8.2 设计
 
-文件：`src/zhpp/ir/optimizer.py`
+文件：`src/ir/optimizer.py`
 
 ```python
 class OptimizationPass(ABC):
@@ -907,7 +907,7 @@ class PassManager:
 
 #### 步骤 M6.2：新增 CLI 参数
 
-文件：`src/zhpp/cli.py`
+文件：`src/cli.py`
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
@@ -983,18 +983,18 @@ class PassManager:
 
 | 文件 | 里程碑 | 说明 |
 |------|--------|------|
-| `src/zhpp/ir/__init__.py` | M0 | IR 包入口 |
-| `src/zhpp/ir/symbol.py` | M0 | 统一 Symbol + Scope |
-| `src/zhpp/ir/types.py` | M0 | ZHCTy 类型体系 |
-| `src/zhpp/ir/opcodes.py` | M1 | 操作码枚举 |
-| `src/zhpp/ir/values.py` | M1 | IRValue 定义 |
-| `src/zhpp/ir/instructions.py` | M1 | IRInstruction + IRBasicBlock |
-| `src/zhpp/ir/program.py` | M1 | IRProgram + IRFunction |
-| `src/zhpp/ir/printer.py` | M1 | IR 文本打印器 |
-| `src/zhpp/ir/ir_generator.py` | M2 | AST→IR 生成器 |
-| `src/zhpp/ir/c_backend.py` | M3 | IR→C 后端 |
-| `src/zhpp/ir/ir_verifier.py` | M4 | IR 验证器 |
-| `src/zhpp/ir/optimizer.py` | M5 | PassManager + 优化 Pass |
+| `src/ir/__init__.py` | M0 | IR 包入口 |
+| `src/ir/symbol.py` | M0 | 统一 Symbol + Scope |
+| `src/ir/types.py` | M0 | ZHCTy 类型体系 |
+| `src/ir/opcodes.py` | M1 | 操作码枚举 |
+| `src/ir/values.py` | M1 | IRValue 定义 |
+| `src/ir/instructions.py` | M1 | IRInstruction + IRBasicBlock |
+| `src/ir/program.py` | M1 | IRProgram + IRFunction |
+| `src/ir/printer.py` | M1 | IR 文本打印器 |
+| `src/ir/ir_generator.py` | M2 | AST→IR 生成器 |
+| `src/ir/c_backend.py` | M3 | IR→C 后端 |
+| `src/ir/ir_verifier.py` | M4 | IR 验证器 |
+| `src/ir/optimizer.py` | M5 | PassManager + 优化 Pass |
 | `tests/test_ir_symbol.py` | M0 | Symbol 测试 |
 | `tests/test_ir_definition.py` | M1 | IR 定义测试 |
 | `tests/test_ir_generator.py` | M2 | IR 生成器测试 |
@@ -1007,11 +1007,11 @@ class PassManager:
 
 | 文件 | 里程碑 | 修改内容 |
 |------|--------|----------|
-| `src/zhpp/semantic/semantic_analyzer.py` | M0 | Symbol 导入迁移 |
-| `src/zhpp/analyzer/scope_checker.py` | M0 | 删除旧 Symbol 定义，改为导入 |
-| `src/zhpp/analyzer/type_checker.py` | M0 | TypeInfo 导入路径迁移 |
-| `src/zhpp/compiler/pipeline.py` | M6 | 插入 IR 生成/优化/后端步骤 |
-| `src/zhpp/cli.py` | M6 | 新增 CLI 参数 |
+| `src/semantic/semantic_analyzer.py` | M0 | Symbol 导入迁移 |
+| `src/analyzer/scope_checker.py` | M0 | 删除旧 Symbol 定义，改为导入 |
+| `src/analyzer/type_checker.py` | M0 | TypeInfo 导入路径迁移 |
+| `src/compiler/pipeline.py` | M6 | 插入 IR 生成/优化/后端步骤 |
+| `src/cli.py` | M6 | 新增 CLI 参数 |
 | `ARCHITECTURE.md` | M7 | 更新架构图 |
 
 ---

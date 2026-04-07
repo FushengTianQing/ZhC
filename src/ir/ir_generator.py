@@ -17,7 +17,7 @@ ZHC IR - AST → IR 生成器
 
 from typing import Optional, List, Any
 
-from zhpp.parser.ast_nodes import (
+from zhc.parser.ast_nodes import (
     ASTVisitor, ASTNode,
     ProgramNode, ModuleDeclNode, ImportDeclNode,
     FunctionDeclNode, StructDeclNode, VariableDeclNode, ParamDeclNode,
@@ -36,10 +36,10 @@ from zhpp.parser.ast_nodes import (
     FunctionTypeNode, StructTypeNode,
 )
 
-from zhpp.ir.program import IRProgram, IRFunction, IRStructDef, IRGlobalVar
-from zhpp.ir.instructions import IRBasicBlock, IRInstruction
-from zhpp.ir.values import IRValue, ValueKind
-from zhpp.ir.opcodes import Opcode
+from zhc.ir.program import IRProgram, IRFunction, IRStructDef, IRGlobalVar
+from zhc.ir.instructions import IRBasicBlock, IRInstruction
+from zhc.ir.values import IRValue, ValueKind
+from zhc.ir.opcodes import Opcode
 
 
 class IRGenerator(ASTVisitor):

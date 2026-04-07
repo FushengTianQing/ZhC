@@ -12,8 +12,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zhpp.ir import IRProgram, IRFunction, IRGlobalVar, Opcode, IRValue, ValueKind
-from zhpp.ir.c_backend import CBackend
+from zhc.ir import IRProgram, IRFunction, IRGlobalVar, Opcode, IRValue, ValueKind
+from zhc.ir.c_backend import CBackend
 
 
 class TestCBackendBasics(unittest.TestCase):
@@ -46,7 +46,7 @@ class TestCBackendBasics(unittest.TestCase):
         func = IRFunction("test", "整数型")
         bb = func.entry_block
         # 添加 ALLOC 指令
-        from zhpp.ir.instructions import IRInstruction
+        from zhc.ir.instructions import IRInstruction
         var = IRValue("x", "整数型", ValueKind.VAR)
         res = IRValue("%0", "整数型", ValueKind.TEMP)
         bb.add_instruction(IRInstruction(Opcode.ALLOC, [var], [res]))
@@ -60,7 +60,7 @@ class TestCBackendBasics(unittest.TestCase):
         ir = IRProgram()
         func = IRFunction("add", "整数型")
         bb = func.entry_block
-        from zhpp.ir.instructions import IRInstruction
+        from zhc.ir.instructions import IRInstruction
         a = IRValue("a", "整数型", ValueKind.VAR)
         b = IRValue("b", "整数型", ValueKind.VAR)
         res = IRValue("%0", "整数型", ValueKind.TEMP)
@@ -77,7 +77,7 @@ class TestCBackendBasics(unittest.TestCase):
         ir = IRProgram()
         func = IRFunction("test", "整数型")
         bb = func.entry_block
-        from zhpp.ir.instructions import IRInstruction
+        from zhc.ir.instructions import IRInstruction
         res = IRValue("%0", "整数型", ValueKind.TEMP)
         func_val = IRValue("printf", kind=ValueKind.FUNCTION)
         arg = IRValue("x", kind=ValueKind.VAR)

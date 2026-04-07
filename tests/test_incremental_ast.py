@@ -25,13 +25,13 @@ import pytest
 # 添加项目路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from zhpp.parser.ast_nodes import (
+from zhc.parser.ast_nodes import (
     ASTNode, ASTNodeType,
     ProgramNode, FunctionDeclNode, VariableDeclNode, ParamDeclNode,
     PrimitiveTypeNode, BlockStmtNode, ReturnStmtNode,
     BinaryExprNode, IntLiteralNode, IdentifierExprNode,
 )
-from zhpp.analyzer.incremental_ast_updater import (
+from zhc.analyzer.incremental_ast_updater import (
     IncrementalASTUpdater,
     TreeEditDistance,
     ASTDiff,

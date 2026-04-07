@@ -14,7 +14,7 @@ from pathlib import Path
 # 添加模块路径
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zhpp.debug.debug_generator import (
+from zhc.debug.debug_generator import (
     DebugInfoGenerator,
     DWARFGenerator,
     LineNumberTable,

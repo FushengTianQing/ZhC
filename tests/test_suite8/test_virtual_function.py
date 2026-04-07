@@ -12,7 +12,7 @@ Day 16: 虚函数表与多态测试
 import sys
 import os
 
-from zhpp.converter.virtual import (
+from zhc.converter.virtual import (
     VirtualFunctionTable,
     PolymorphismHandler,
     RTTIGenerator

@@ -20,7 +20,7 @@ from collections import defaultdict
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zhpp.compiler.optimizer import (
+from zhc.compiler.optimizer import (
     PerformanceMonitor,
     AlgorithmOptimizer,
     ConcurrentCompiler,

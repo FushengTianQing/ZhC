@@ -477,7 +477,7 @@ debug_info = debug_gen.finalize()
 ## 十、文件结构
 
 ```
-src/zhpp/debug/
+src/debug/
 ├── __init__.py              # 模块初始化 ✅
 └── debug_generator.py       # 核心生成器 ✅ (~850行)
 
@@ -604,8 +604,8 @@ gdb ./test
 
 ### 16.1 代码文件
 
-- ✅ `src/zhpp/debug/__init__.py` - 模块初始化
-- ✅ `src/zhpp/debug/debug_generator.py` - 核心生成器（~850行）
+- ✅ `src/debug/__init__.py` - 模块初始化
+- ✅ `src/debug/debug_generator.py` - 核心生成器（~850行）
 
 ### 16.2 测试文件
 

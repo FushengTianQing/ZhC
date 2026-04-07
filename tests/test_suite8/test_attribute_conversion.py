@@ -13,7 +13,7 @@ import sys
 import unittest
 from pathlib import Path
 
-from zhpp.converter.attribute import (
+from zhc.converter.attribute import (
     AttributeConverter, ClassToStructConverter, TYPE_MAPPING,
     Visibility, AttributeType
 )

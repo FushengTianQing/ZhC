@@ -101,7 +101,7 @@ mkdir -p docs/day1
 mkdir -p examples/day1
 
 # 检查现有代码架构
-python3 src/zhpp.py --help
+python3 src/zhc.py --help
 ```
 
 #### 步骤2：执行任务1.1

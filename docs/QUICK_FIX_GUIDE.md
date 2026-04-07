@@ -198,7 +198,7 @@ grep -rn "def [a-z_]*(" src/ --include="*.py" | \
 
 ```python
 import pytest
-from zhpp.parser import Parser, Lexer
+from zhc.parser import Parser, Lexer
 
 class TestLexer:
     """词法分析器测试套件"""

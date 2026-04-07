@@ -99,7 +99,7 @@ self.keyword_mapping = {
 
 ```bash
 # 在GDB中加载插件
-(gdb) source /path/to/zhc/src/zhpp/debugger/gdb_zhc.py
+(gdb) source /path/to/zhc/src/debugger/gdb_zhc.py
 ```
 
 #### 设置断点
@@ -208,14 +208,14 @@ def __init__(self, debugger: lldb.SBDebugger):
 
 ```bash
 # 在LLDB中加载插件
-(lldb) command script import /path/to/zhc/src/zhpp/debugger/lldb_zhc.py
+(lldb) command script import /path/to/zhc/src/debugger/lldb_zhc.py
 ```
 
 或者在 `~/.lldbinit` 中添加：
 
 ```python
 # ~/.lldbinit
-command script import /path/to/zhc/src/zhpp/debugger/lldb_zhc.py
+command script import /path/to/zhc/src/debugger/lldb_zhc.py
 ```
 
 #### 使用命令
@@ -534,7 +534,7 @@ lldb ./test
 ## 八、项目结构
 
 ```
-src/zhpp/debugger/
+src/debugger/
 ├── __init__.py              # 模块初始化 ✅
 ├── gdb_zhc.py               # GDB集成 ✅ (~350行)
 └── lldb_zhc.py              # LLDB集成 ✅ (~350行)

@@ -25,7 +25,7 @@
 
 ### Bug 1：`semantic_analyzer.py` 第 669-688 行死代码
 
-**位置**：`src/zhpp/semantic/semantic_analyzer.py`
+**位置**：`src/semantic/semantic_analyzer.py`
 
 **问题**：`_analyze_identifier_expr` 方法内有一段永远执行不到的重复代码（第 669-688 行），原因是第 651 行已有 `return`，但后面又重复了 `if not symbol:` 检查和后续逻辑。这段死代码在每次分析标识符时都会被"执行"前的检查拦截。
 
@@ -33,7 +33,7 @@
 
 ### Bug 2：`semantic_analyzer.py` 第 281 行 AttributeError
 
-**位置**：`src/zhpp/semantic/semantic_analyzer.py` 第 281 行
+**位置**：`src/semantic/semantic_analyzer.py` 第 281 行
 
 **问题**：
 - `__init__` 第 253 行有 `self.symbol_lookup_enabled = False`
@@ -63,12 +63,12 @@
 
 ## M0：Symbol 体系统一 + Bug 修复
 
-### M0.1：创建 `src/zhpp/ir/` 包
+### M0.1：创建 `src/ir/` 包
 
 创建以下文件：
 
 ```
-src/zhpp/ir/
+src/ir/
 ├── __init__.py          # 导出 Symbol, Scope, ScopeType, SymbolCategory, ZHCTy
 ├── symbol.py            # 统一 Symbol + Scope + SymbolCategory + ScopeType
 └── types.py            # ZHCTy = TypeInfo 别名
@@ -149,7 +149,7 @@ from ..analyzer.type_checker import TypeInfo as ZHCTy
 
 ### M0.5：修复 Bug 1 — 删除死代码
 
-**文件**：`src/zhpp/semantic/semantic_analyzer.py`
+**文件**：`src/semantic/semantic_analyzer.py`
 
 删除 `_analyze_identifier_expr` 方法内第 669-688 行的重复代码（整块删除）。
 
@@ -157,7 +157,7 @@ from ..analyzer.type_checker import TypeInfo as ZHCTy
 
 ### M0.6：修复 Bug 2 — 初始化 `_symbol_lookup_optimizer`
 
-**文件**：`src/zhpp/semantic/semantic_analyzer.py`
+**文件**：`src/semantic/semantic_analyzer.py`
 
 在 `__init__` 的 `self.symbol_lookup_enabled = False` 之后添加：
 
@@ -196,7 +196,7 @@ from ..ir.symbol import Symbol as IRSymbol, Scope as IRScope
 | 1 | `ir/symbol.py` 可正常 import（无循环依赖） |
 | 2 | `ir/types.py` 的 `ZHCTy` 是 `TypeInfo` 的别名 |
 | 3 | Bug 1 死代码已删除（grep 验证第 669-688 行不存在） |
-| 4 | Bug 2 已修复（`python3 -c "from zhpp.semantic.semantic_analyzer import SemanticAnalyzer; s = SemanticAnalyzer(); print('_symbol_lookup_optimizer' in dir(s))"` 输出 True） |
+| 4 | Bug 2 已修复（`python3 -c "from zhc.semantic.semantic_analyzer import SemanticAnalyzer; s = SemanticAnalyzer(); print('_symbol_lookup_optimizer' in dir(s))"` 输出 True） |
 | 5 | 现有 586+ 测试零回归（`python3 -m pytest tests/ -x -q` 全通过） |
 
 ---
@@ -206,7 +206,7 @@ from ..ir.symbol import Symbol as IRSymbol, Scope as IRScope
 ### M1.1：创建 IR 核心文件
 
 ```
-src/zhpp/ir/
+src/ir/
 ├── opcodes.py        # Opcode 枚举（35+ 操作码）
 ├── values.py         # IRValue, ValueKind
 ├── instructions.py   # IRInstruction, IRBasicBlock
@@ -277,9 +277,9 @@ src/zhpp/ir/
 
 ### M3.0：从 `c_codegen.py` 提取映射表（独立步骤）
 
-**源**：`src/zhpp/codegen/c_codegen.py` 第 35-100 行
+**源**：`src/codegen/c_codegen.py` 第 35-100 行
 
-**目标**：`src/zhpp/ir/mappings.py`
+**目标**：`src/ir/mappings.py`
 
 ```python
 # ir/mappings.py

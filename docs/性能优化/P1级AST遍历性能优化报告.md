@@ -205,14 +205,14 @@ class SymbolLookupOptimizer:
 ## 代码统计
 
 ### 新增文件
-- `src/zhpp/analyzer/ast_cache.py` (~500行)
-- `src/zhpp/analyzer/type_checker_cached.py` (~350行)
-- `src/zhpp/analyzer/control_flow_cached.py` (~420行)
-- `src/zhpp/analyzer/symbol_lookup_optimizer.py` (~480行)
+- `src/analyzer/ast_cache.py` (~500行)
+- `src/analyzer/type_checker_cached.py` (~350行)
+- `src/analyzer/control_flow_cached.py` (~420行)
+- `src/analyzer/symbol_lookup_optimizer.py` (~480行)
 - `tests/test_ast_performance.py` (~350行)
 
 ### 修改文件
-- `src/zhpp/analyzer/__init__.py` - 新增导出
+- `src/analyzer/__init__.py` - 新增导出
 
 ### 总代码量
 - 新增代码: ~2100行
@@ -226,7 +226,7 @@ class SymbolLookupOptimizer:
 ### 1. 基本使用
 
 ```python
-from zhpp.analyzer import (
+from zhc.analyzer import (
     ASTCacheManager,
     TypeCheckerCached,
     ControlFlowAnalyzerCached,

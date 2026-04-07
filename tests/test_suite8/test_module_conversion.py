@@ -24,9 +24,9 @@ if str(SRC_ROOT) not in sys.path:
 
 # 导入测试模块（使用当前版本的路径）
 try:
-    from zhpp.parser.module import ModuleParser
-    from zhpp.converter.code import CodeConverter
-    from zhpp.converter.error import ErrorHandler, ErrorType, ErrorSeverity, SyntaxChecker
+    from zhc.parser.module import ModuleParser
+    from zhc.converter.code import CodeConverter
+    from zhc.converter.error import ErrorHandler, ErrorType, ErrorSeverity, SyntaxChecker
     print("✅ 测试模块导入成功")
 except ImportError as e:
     print(f"❌ 导入失败: {e}")
@@ -34,11 +34,11 @@ except ImportError as e:
     import importlib.util
     
     # 导入模块解析器
-    zhpp_path = project_root / 'src/phase3/zhpp_v4_module.py'
-    spec = importlib.util.spec_from_file_location("zhpp_v4_module", zhpp_path)
-    zhpp_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(zhpp_module)
-    ModuleParser = zhpp_module.ModuleParser
+    zhc_path = project_root / 'src/phase3/zhpp_v4_module.py'
+    spec = importlib.util.spec_from_file_location("zhc_v4_module", zhc_path)
+    zhc_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(zhc_module)
+    ModuleParser = zhc_module.ModuleParser
     
     # 导入代码转换器
     converter_path = project_root / 'src/phase3/day3/code_converter.py'

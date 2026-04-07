@@ -10,9 +10,9 @@
 import sys
 import os
 
-from zhpp.converter.memory import MemorySyntaxConverter
-from zhpp.type_system.smart_ptr import SmartPointerConverter, PointerType
-from zhpp.analyzer.memory_safety import (
+from zhc.converter.memory import MemorySyntaxConverter
+from zhc.type_system.smart_ptr import SmartPointerConverter, PointerType
+from zhc.analyzer.memory_safety import (
     NullPointerChecker, MemoryLeakDetector, BoundsChecker, SafetyLevel
 )
 
@@ -238,7 +238,7 @@ def test_028_mixed_pointers():
 
 def test_029_safety_analysis():
     """高级测试4: 综合安全分析"""
-    from zhpp.analyzer.memory_safety import MemorySafetyAnalyzer
+    from zhc.analyzer.memory_safety import MemorySafetyAnalyzer
     analyzer = MemorySafetyAnalyzer()
     analyzer.null_checker.track_allocation("ptr", 1)
     analyzer.leak_detector.track_allocation("leak", 2)

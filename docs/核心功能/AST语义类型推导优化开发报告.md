@@ -10,7 +10,7 @@
 
 ### 任务1: AST抽象语法树生成器 ✅
 
-**文件**: `src/zhpp/ast_core/ast_nodes.py`  
+**文件**: `src/ast_core/ast_nodes.py`  
 **代码量**: ~850行  
 **优先级**: P0  
 **工期**: 3天（实际：1天）
@@ -49,7 +49,7 @@
 
 ### 任务2: 语义分析器 ✅
 
-**文件**: `src/zhpp/semantic/semantic_analyzer.py`  
+**文件**: `src/semantic/semantic_analyzer.py`  
 **代码量**: ~550行  
 **优先级**: P0  
 **工期**: 2天（实际：0.5天）
@@ -91,7 +91,7 @@
 
 ### 任务3: 类型推导引擎 ✅
 
-**文件**: `src/zhpp/typeinfer/engine.py`  
+**文件**: `src/typeinfer/engine.py`  
 **代码量**: ~480行  
 **优先级**: P0  
 **工期**: 2天（实际：0.5天）
@@ -134,7 +134,7 @@
 
 ### 任务4: 常量折叠优化 ✅
 
-**文件**: `src/zhpp/opt/constant_fold.py`  
+**文件**: `src/opt/constant_fold.py`  
 **代码量**: ~420行  
 **优先级**: P1  
 **工期**: 1天（实际：0.5天）
@@ -171,7 +171,7 @@
 
 ### 任务5: 死代码消除 ✅
 
-**文件**: `src/zhpp/opt/dead_code_elim.py`  
+**文件**: `src/opt/dead_code_elim.py`  
 **代码量**: ~380行  
 **优先级**: P1  
 **工期**: 1天（实际：0.5天）
@@ -234,7 +234,7 @@
 ### 模块结构
 
 ```
-src/zhpp/
+src/
 ├── ast_core/           # AST节点定义（重命名避免冲突）
 │   ├── __init__.py
 │   └── ast_nodes.py    # ~850行
@@ -368,8 +368,8 @@ print(f"消除了 {eliminator.eliminated_count} 段死代码")
 
 为避免与Python标准库`ast`模块冲突，原`ast`目录已重命名为`ast_core`：
 
-- **旧路径**: `src/zhpp/ast/`
-- **新路径**: `src/zhpp/ast_core/`
+- **旧路径**: `src/ast/`
+- **新路径**: `src/ast_core/`
 - **导入方式**: `from ast_core.ast_nodes import ...`
 
 ---

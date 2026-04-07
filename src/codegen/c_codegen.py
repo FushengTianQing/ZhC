@@ -12,7 +12,7 @@ Phase 4 核心组件。
 
 from typing import Optional
 
-from zhpp.parser.ast_nodes import (
+from zhc.parser.ast_nodes import (
     ASTNode, ASTVisitor, ASTNodeType,
     ProgramNode, ModuleDeclNode, ImportDeclNode,
     FunctionDeclNode, StructDeclNode, EnumDeclNode, UnionDeclNode,
@@ -32,7 +32,7 @@ from zhpp.parser.ast_nodes import (
 )
 
 # 映射表从 ir/mappings.py 导入（Phase 7 M3.0）
-from zhpp.ir.mappings import (
+from zhc.ir.mappings import (
     TYPE_MAP,
     MODIFIER_MAP,
     FUNCTION_NAME_MAP,

@@ -20,10 +20,10 @@ ZHC IR - IR 验证器
 from typing import List, Optional
 from dataclasses import dataclass
 
-from zhpp.ir.program import IRProgram, IRFunction
-from zhpp.ir.instructions import IRBasicBlock, IRInstruction
-from zhpp.ir.values import IRValue
-from zhpp.ir.opcodes import Opcode
+from zhc.ir.program import IRProgram, IRFunction
+from zhc.ir.instructions import IRBasicBlock, IRInstruction
+from zhc.ir.values import IRValue
+from zhc.ir.opcodes import Opcode
 
 
 @dataclass

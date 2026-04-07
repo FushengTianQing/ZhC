@@ -70,7 +70,7 @@
 
 ### 1.3 `test_compiler_optimizer.py` 新建 (+30 tests)
 
-**注意**: 现有 test_optimizer_enhanced.py 测试的是 `zhpp.opt.*` 模块（死代码消除/常量传播），而 `src/compiler/optimizer.py` 是**另一个** optimizer（PerformanceMonitor/AlgorithmOptimizer/IncrementalOptimizer/ConcurrentCompiler），目前**几乎无 pytest 测试**！
+**注意**: 现有 test_optimizer_enhanced.py 测试的是 `zhc.opt.*` 模块（死代码消除/常量传播），而 `src/compiler/optimizer.py` 是**另一个** optimizer（PerformanceMonitor/AlgorithmOptimizer/IncrementalOptimizer/ConcurrentCompiler），目前**几乎无 pytest 测试**！
 
 **新增测试文件: `tests/test_compiler_optimizer.py`**
 
@@ -203,7 +203,7 @@ Week 2:
 
 ## 风险与注意事项
 
-1. **test_optimizer_enhanced.py** 测试的是 `zhpp.opt.*` 模块（死代码消除/常量传播），不是 `src/compiler/optimizer.py`。需要确认这些 `zhpp.opt.*` 模块是否真实存在，如果不存在那些测试就是假的。
+1. **test_optimizer_enhanced.py** 测试的是 `zhc.opt.*` 模块（死代码消除/常量传播），不是 `src/compiler/optimizer.py`。需要确认这些 `zhc.opt.*` 模块是否真实存在，如果不存在那些测试就是假的。
 2. **parser.py** 的 `test_parser.py` 还是 unittest 格式（有 `run_tests()` 和 `if __name__`），之前没改它。这次扩展时一并改为 pytest。
 3. **integrated.py** 引用了 `..day2.module_parser` 和 `.scope_manager`，需要确认这些模块是否存在且 API 匹配。
 

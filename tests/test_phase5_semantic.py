@@ -8,8 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zhpp.parser import parse
-from zhpp.semantic import SemanticAnalyzer
+from zhc.parser import parse
+from zhc.semantic import SemanticAnalyzer
 
 
 def _analyze(code: str, source_file: str = ""):

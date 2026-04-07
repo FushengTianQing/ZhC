@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 
-from zhpp.converter.method import (
+from zhc.converter.method import (
     MethodConverter, VirtualMethodTableGenerator,
     MethodConversionResult, ParameterInfo
 )

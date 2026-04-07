@@ -13,7 +13,7 @@ import os
 # 将 src 目录加入 path，以包方式导入 zhpp
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from zhpp.parser.ast_nodes import (
+from zhc.parser.ast_nodes import (
     ASTNode, ASTNodeType,
     ProgramNode, ModuleDeclNode, FunctionDeclNode, StructDeclNode,
     VariableDeclNode, ParamDeclNode,
@@ -25,11 +25,11 @@ from zhpp.parser.ast_nodes import (
     ReturnStmtNode, ExprStmtNode,
 )
 
-from zhpp.semantic.semantic_analyzer import (
+from zhc.semantic.semantic_analyzer import (
     SemanticAnalyzer, SymbolTable, Symbol, ScopeType, SemanticError
 )
 
-from zhpp.typeinfer.engine import (
+from zhc.typeinfer.engine import (
     TypeInferenceEngine, TypeEnv, BaseType, TypeVariable
 )
 

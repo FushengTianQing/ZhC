@@ -18,7 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zhpp.parser.ast_nodes import (
+from zhc.parser.ast_nodes import (
     ProgramNode, FunctionDeclNode, VariableDeclNode, ParamDeclNode,
     BlockStmtNode, ReturnStmtNode, IfStmtNode, WhileStmtNode, ForStmtNode,
     DoWhileStmtNode, BreakStmtNode, ContinueStmtNode, SwitchStmtNode,
@@ -36,10 +36,10 @@ from zhpp.parser.ast_nodes import (
     ModuleDeclNode, ImportDeclNode,
     CallExprNode,
 )
-from zhpp.ir.ir_generator import IRGenerator
-from zhpp.ir import IRPrinter
-from zhpp.ir.values import ValueKind
-from zhpp.ir.opcodes import Opcode
+from zhc.ir.ir_generator import IRGenerator
+from zhc.ir import IRPrinter
+from zhc.ir.values import ValueKind
+from zhc.ir.opcodes import Opcode
 
 
 # =============================================================================
@@ -817,14 +817,14 @@ class TestUtilityMethods:
     def test_emit_returns_result(self):
         """_emit 返回结果值"""
         gen = IRGenerator()
-        gen.current_function = __import__('zhpp.ir.program', fromlist=['IRFunction']).IRFunction(
+        gen.current_function = __import__('zhc.ir.program', fromlist=['IRFunction']).IRFunction(
             name="test", return_type="整数型"
         )
         gen.current_block = gen.current_function.entry_block
         result = gen._emit(Opcode.ALLOC, [], [])
         # 无 result 时返回 None
         alloc_result = gen._new_temp("整数型")
-        var_val = __import__('zhpp.ir.values', fromlist=['IRValue']).IRValue(name="x", ty="整数型")
+        var_val = __import__('zhc.ir.values', fromlist=['IRValue']).IRValue(name="x", ty="整数型")
         result2 = gen._emit(Opcode.ALLOC, [var_val], [alloc_result])
         assert result2 is not None
 

@@ -18,7 +18,7 @@ from pathlib import Path
 # 添加src路径
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zhpp.analyzer import (
+from zhc.analyzer import (
     InterproceduralAnalyzer,
     AliasAnalyzer,
     PointerAnalyzer,
@@ -26,7 +26,7 @@ from zhpp.analyzer import (
     PointerState,
     PointerError
 )
-from zhpp.semantic import SemanticAnalyzer
+from zhc.semantic import SemanticAnalyzer
 
 
 class TestInterproceduralAnalyzer(unittest.TestCase):

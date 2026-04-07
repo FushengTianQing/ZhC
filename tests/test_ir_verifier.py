@@ -12,9 +12,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zhpp.ir import IRProgram, IRFunction, Opcode, IRValue, ValueKind
-from zhpp.ir.instructions import IRBasicBlock, IRInstruction
-from zhpp.ir.ir_verifier import IRVerifier, VerificationError
+from zhc.ir import IRProgram, IRFunction, Opcode, IRValue, ValueKind
+from zhc.ir.instructions import IRBasicBlock, IRInstruction
+from zhc.ir.ir_verifier import IRVerifier, VerificationError
 
 
 class TestIRVerifier(unittest.TestCase):

@@ -22,11 +22,11 @@ import pytest
 # 添加项目路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from zhpp.analyzer.ast_cache import ASTCacheManager, CacheType, get_global_cache, reset_global_cache
-from zhpp.analyzer.type_checker_cached import TypeCheckerCached
-from zhpp.analyzer.control_flow_cached import ControlFlowAnalyzerCached
-from zhpp.analyzer.symbol_lookup_optimizer import SymbolLookupOptimizer
-from zhpp.analyzer.type_checker import TypeCategory
+from zhc.analyzer.ast_cache import ASTCacheManager, CacheType, get_global_cache, reset_global_cache
+from zhc.analyzer.type_checker_cached import TypeCheckerCached
+from zhc.analyzer.control_flow_cached import ControlFlowAnalyzerCached
+from zhc.analyzer.symbol_lookup_optimizer import SymbolLookupOptimizer
+from zhc.analyzer.type_checker import TypeCategory
 
 
 class TestASTCacheManager:
@@ -137,7 +137,7 @@ class TestASTCacheManager:
 
     def test_cached_result_decorator(self):
         """测试缓存装饰器"""
-        from zhpp.analyzer.ast_cache import cached_result
+        from zhc.analyzer.ast_cache import cached_result
 
         call_count = 0
 

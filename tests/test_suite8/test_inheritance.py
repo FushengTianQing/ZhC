@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 
-from zhpp.converter.inheritance import InheritanceConverter, InheritanceChainAnalyzer
+from zhc.converter.inheritance import InheritanceConverter, InheritanceChainAnalyzer
 
 
 class TestInheritance(unittest.TestCase):

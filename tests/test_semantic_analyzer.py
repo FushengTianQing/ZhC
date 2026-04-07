@@ -18,12 +18,12 @@ from pathlib import Path
 # 添加src路径
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zhpp.analyzer import (
+from zhc.analyzer import (
     TypeChecker, TypeInfo, TypeCategory,
     ScopeChecker, Symbol, SymbolCategory,
     OverloadResolver,
 )
-from zhpp.semantic import (
+from zhc.semantic import (
     SemanticAnalyzer
 )
 # 注意: AnalysisResult 类尚未实现，当前 SemanticAnalyzer 使用不同的 API

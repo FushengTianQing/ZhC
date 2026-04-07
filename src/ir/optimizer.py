@@ -11,10 +11,10 @@ ZHC IR - IR 优化 Pass
 from abc import ABC, abstractmethod
 from typing import List
 
-from zhpp.ir.program import IRProgram, IRFunction
-from zhpp.ir.instructions import IRBasicBlock, IRInstruction
-from zhpp.ir.values import IRValue, ValueKind
-from zhpp.ir.opcodes import Opcode
+from zhc.ir.program import IRProgram, IRFunction
+from zhc.ir.instructions import IRBasicBlock, IRInstruction
+from zhc.ir.values import IRValue, ValueKind
+from zhc.ir.opcodes import Opcode
 
 
 class OptimizationPass(ABC):

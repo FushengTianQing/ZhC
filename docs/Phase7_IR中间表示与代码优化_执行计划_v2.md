@@ -58,15 +58,15 @@
 
 | 文件 | 实际行数 | 职责 | Phase 7 影响 |
 |------|---------|------|-------------|
-| `src/zhpp/codegen/c_codegen.py` | **624** | AST→C 代码生成（47 个 visit 方法） | **重大改造**：映射表提取 + 作为 IR→C 后端参照 |
-| `src/zhpp/semantic/semantic_analyzer.py` | **2128** | 主分析器（含 Symbol/Scope/SymbolTable/SemanticError） | **中度**：Symbol 兼容迁移 + 传入 Symbol 信息给 IR 生成器 |
-| `src/zhpp/compiler/pipeline.py` | **742** | 集成编译流水线（单文件 + 项目模式） | **改造**：插入 IR 生成和优化步骤（两处入口） |
-| `src/zhpp/cli.py` | **376** | CLI 入口（单文件 + 模块项目） | 新增 `--backend` / `--no-optimize` / `--dump-ir` 等参数 |
-| `src/zhpp/analyzer/scope_checker.py` | **521** | 第二套 Symbol/Scope/ScopeChecker | **整合**：合并到统一 Symbol 体系 |
-| `src/zhpp/parser/scope.py` | **~440** | 第三套 Symbol/Scope（parser 内部） | **评估**：是否纳入统一 |
-| `src/zhpp/analyzer/type_checker.py` | **711** | TypeInfo + TypeChecker + TypeCategory | **中度**：TypeInfo 迁移到 `ir/types.py` |
-| `src/zhpp/parser/ast_nodes.py` | **1523** | 37 个具体 AST 节点类 + ASTVisitor 基类 | **无修改**：IR 生成器通过 ASTVisitor 访问 |
-| `src/zhpp/opt/` | **~74KB** | 4 个 AST 级优化器（常量传播/死代码消除/函数内联/循环优化） | **评估**：IR 适配可行性 |
+| `src/codegen/c_codegen.py` | **624** | AST→C 代码生成（47 个 visit 方法） | **重大改造**：映射表提取 + 作为 IR→C 后端参照 |
+| `src/semantic/semantic_analyzer.py` | **2128** | 主分析器（含 Symbol/Scope/SymbolTable/SemanticError） | **中度**：Symbol 兼容迁移 + 传入 Symbol 信息给 IR 生成器 |
+| `src/compiler/pipeline.py` | **742** | 集成编译流水线（单文件 + 项目模式） | **改造**：插入 IR 生成和优化步骤（两处入口） |
+| `src/cli.py` | **376** | CLI 入口（单文件 + 模块项目） | 新增 `--backend` / `--no-optimize` / `--dump-ir` 等参数 |
+| `src/analyzer/scope_checker.py` | **521** | 第二套 Symbol/Scope/ScopeChecker | **整合**：合并到统一 Symbol 体系 |
+| `src/parser/scope.py` | **~440** | 第三套 Symbol/Scope（parser 内部） | **评估**：是否纳入统一 |
+| `src/analyzer/type_checker.py` | **711** | TypeInfo + TypeChecker + TypeCategory | **中度**：TypeInfo 迁移到 `ir/types.py` |
+| `src/parser/ast_nodes.py` | **1523** | 37 个具体 AST 节点类 + ASTVisitor 基类 | **无修改**：IR 生成器通过 ASTVisitor 访问 |
+| `src/opt/` | **~74KB** | 4 个 AST 级优化器（常量传播/死代码消除/函数内联/循环优化） | **评估**：IR 适配可行性 |
 
 ### 0.3 三套 Symbol + Scope 体系现状（v2.0 完整版）
 
@@ -93,8 +93,8 @@ TypeInfo 定义于 `analyzer/type_checker.py:31`，被以下模块引用：
 | `analyzer/ast_cache.py` | `_type_cache: Dict[int, Any]  # node_id -> TypeInfo` |
 | `semantic/semantic_analyzer.py` | 延迟初始化 `TypeCheckerCached()`（间接使用 TypeInfo） |
 | `analyzer/__init__.py` | `from .type_checker import TypeChecker, TypeInfo, TypeCategory`（公共导出） |
-| `tests/test_semantic_analyzer.py` | `from zhpp.analyzer import TypeInfo`（测试直接导入） |
-| `tests/test_ast_semantic_type.py` | `from zhpp.analyzer import TypeInfo` |
+| `tests/test_semantic_analyzer.py` | `from zhc.analyzer import TypeInfo`（测试直接导入） |
+| `tests/test_ast_semantic_type.py` | `from zhc.analyzer import TypeInfo` |
 
 **迁移风险**：TypeInfo 被 `analyzer/__init__.py` 作为公共 API 导出，直接迁移定义会破坏测试代码和外部依赖。需保留兼容别名。
 
@@ -212,10 +212,10 @@ ir/c_backend.py ──────── 复用
 
 ### 3.3 执行步骤（v2.0 修正）
 
-#### 步骤 M0.1：创建 `src/zhpp/ir/` 包
+#### 步骤 M0.1：创建 `src/ir/` 包
 
 ```
-src/zhpp/ir/
+src/ir/
 ├── __init__.py          # 导出 Symbol, Scope, TypeInfo, SymbolCategory 等
 ├── symbol.py            # 统一的 Symbol + Scope + SymbolCategory 定义
 ├── types.py             # ZHCTy 类型体系（重新设计，兼容 TypeInfo）
@@ -225,7 +225,7 @@ src/zhpp/ir/
 
 #### 步骤 M0.2：定义统一 Symbol 类
 
-文件：`src/zhpp/ir/symbol.py`
+文件：`src/ir/symbol.py`
 
 **设计要点**：
 - 合并 `scope_checker.Symbol` 的 `SymbolCategory` 枚举 + `TypeInfo` 强类型
@@ -418,7 +418,7 @@ from ..ir.symbol import Symbol as IRSymbol, Scope as IRScope, SymbolCategory as 
 
 ### 3.4 验收标准（v2.0 修正）
 
-- [ ] `src/zhpp/ir/symbol.py` 和 `src/zhpp/ir/types.py` 定义完成
+- [ ] `src/ir/symbol.py` 和 `src/ir/types.py` 定义完成
 - [ ] 统一 Symbol 类同时兼容 `semantic.Symbol` 和 `scope_checker.Symbol` 的 API
 - [ ] 统一 Scope 类同时兼容 `semantic.Scope` 和 `scope_checker.Scope` 的 API
 - [ ] `semantic_analyzer.py` 的 `_symbol_lookup_optimizer` bug 已修复
@@ -461,7 +461,7 @@ from ..ir.symbol import Symbol as IRSymbol, Scope as IRScope, SymbolCategory as 
 ### 4.4 IR 包结构（v2.0 修正）
 
 ```
-src/zhpp/ir/
+src/ir/
 ├── __init__.py          # 导出所有公共 API
 ├── symbol.py            # M0: 统一 Symbol + Scope
 ├── types.py             # M0: ZHCTy / TypeInfo 别名
@@ -479,7 +479,7 @@ src/zhpp/ir/
 
 ### 4.5 验收标准
 
-- [ ] `src/zhpp/ir/` 包完整创建，包含 14 个模块
+- [ ] `src/ir/` 包完整创建，包含 14 个模块
 - [ ] `Opcode` 枚举包含 30+ 操作码，每个有 category 和中文名
 - [ ] `IRValue`, `IRInstruction`, `IRBasicBlock`, `IRFunction`, `IRProgram` 全部定义
 - [ ] `IRPrinter` 可输出可读的 IR 文本
@@ -582,7 +582,7 @@ src/zhpp/ir/
 将 `c_codegen.py` 中的 5 个映射表提取到独立模块：
 
 ```python
-# src/zhpp/ir/mappings.py
+# src/ir/mappings.py
 
 # 中文类型 -> C 类型映射（11 个条目）
 TYPE_MAP = {
@@ -618,7 +618,7 @@ from ..ir.mappings import TYPE_MAP, MODIFIER_MAP, FUNCTION_NAME_MAP, INCLUDE_MAP
 
 ### 6.3 CBackend 设计
 
-文件：`src/zhpp/ir/c_backend.py`
+文件：`src/ir/c_backend.py`
 
 - 基本块展平算法（模式 B，推荐）
 - 中文函数名解析：复用 `ir/mappings.py` 中的映射表
@@ -668,7 +668,7 @@ from ..ir.mappings import TYPE_MAP, MODIFIER_MAP, FUNCTION_NAME_MAP, INCLUDE_MAP
 #### 步骤 M5.5：适配层设计
 
 ```python
-# src/zhpp/ir/optimizer.py
+# src/ir/optimizer.py
 
 class OptimizationPass(ABC):
     """优化 Pass 基类"""
@@ -863,19 +863,19 @@ c_code = generator.generate(ast)
 
 | 文件 | 里程碑 | 说明 |
 |------|--------|------|
-| `src/zhpp/ir/__init__.py` | M0 | IR 包入口 |
-| `src/zhpp/ir/symbol.py` | M0 | 统一 Symbol + Scope + SymbolCategory |
-| `src/zhpp/ir/types.py` | M0 | ZHCTy 类型体系（TypeInfo 别名） |
-| `src/zhpp/ir/mappings.py` | M0/M3 | 映射表提取（TYPE_MAP 等 5 个） |
-| `src/zhpp/ir/opcodes.py` | M1 | 操作码枚举（30+） |
-| `src/zhpp/ir/values.py` | M1 | IRValue, ValueKind |
-| `src/zhpp/ir/instructions.py` | M1 | IRInstruction + IRBasicBlock |
-| `src/zhpp/ir/program.py` | M1 | IRProgram + IRFunction + IRGlobalVar + IRStructDef |
-| `src/zhpp/ir/printer.py` | M1 | IR 文本打印器 |
-| `src/zhpp/ir/ir_generator.py` | M2 | AST→IR 生成器 |
-| `src/zhpp/ir/c_backend.py` | M3 | IR→C 后端 |
-| `src/zhpp/ir/ir_verifier.py` | M4 | IR 验证器 |
-| `src/zhpp/ir/optimizer.py` | M5 | PassManager + 3 个优化 Pass |
+| `src/ir/__init__.py` | M0 | IR 包入口 |
+| `src/ir/symbol.py` | M0 | 统一 Symbol + Scope + SymbolCategory |
+| `src/ir/types.py` | M0 | ZHCTy 类型体系（TypeInfo 别名） |
+| `src/ir/mappings.py` | M0/M3 | 映射表提取（TYPE_MAP 等 5 个） |
+| `src/ir/opcodes.py` | M1 | 操作码枚举（30+） |
+| `src/ir/values.py` | M1 | IRValue, ValueKind |
+| `src/ir/instructions.py` | M1 | IRInstruction + IRBasicBlock |
+| `src/ir/program.py` | M1 | IRProgram + IRFunction + IRGlobalVar + IRStructDef |
+| `src/ir/printer.py` | M1 | IR 文本打印器 |
+| `src/ir/ir_generator.py` | M2 | AST→IR 生成器 |
+| `src/ir/c_backend.py` | M3 | IR→C 后端 |
+| `src/ir/ir_verifier.py` | M4 | IR 验证器 |
+| `src/ir/optimizer.py` | M5 | PassManager + 3 个优化 Pass |
 | `tests/test_ir_symbol.py` | M0 | Symbol 测试 |
 | `tests/test_ir_definition.py` | M1 | IR 定义测试 |
 | `tests/test_ir_generator.py` | M2 | IR 生成器测试 |
@@ -888,24 +888,24 @@ c_code = generator.generate(ast)
 
 | 文件 | 里程碑 | 修改内容 |
 |------|--------|----------|
-| `src/zhpp/semantic/semantic_analyzer.py` | M0 | Symbol/Scope 导入迁移 + bug 修复（TD1） |
-| `src/zhpp/semantic/__init__.py` | M0 | 更新导出（添加兼容别名） |
-| `src/zhpp/analyzer/scope_checker.py` | M0 | 删除旧 Symbol/Scope/ScopeCategory 定义，改为导入 |
-| `src/zhpp/analyzer/__init__.py` | M0 | 更新导出（兼容层） |
-| `src/zhpp/codegen/c_codegen.py` | M3 | 映射表改为从 `ir/mappings.py` 导入 |
-| `src/zhpp/compiler/pipeline.py` | M6 | 插入 IR 生成/验证/优化/后端步骤 |
-| `src/zhpp/cli.py` | M6 | 新增 CLI 参数 + IR 编译路径 |
-| `src/zhpp/analyzer/performance.py` | M7 | 修复过期引用（TD2） |
-| `src/zhpp/opt/__init__.py` | M7 | 补全导出（TD3） |
+| `src/semantic/semantic_analyzer.py` | M0 | Symbol/Scope 导入迁移 + bug 修复（TD1） |
+| `src/semantic/__init__.py` | M0 | 更新导出（添加兼容别名） |
+| `src/analyzer/scope_checker.py` | M0 | 删除旧 Symbol/Scope/ScopeCategory 定义，改为导入 |
+| `src/analyzer/__init__.py` | M0 | 更新导出（兼容层） |
+| `src/codegen/c_codegen.py` | M3 | 映射表改为从 `ir/mappings.py` 导入 |
+| `src/compiler/pipeline.py` | M6 | 插入 IR 生成/验证/优化/后端步骤 |
+| `src/cli.py` | M6 | 新增 CLI 参数 + IR 编译路径 |
+| `src/analyzer/performance.py` | M7 | 修复过期引用（TD2） |
+| `src/opt/__init__.py` | M7 | 补全导出（TD3） |
 | `ARCHITECTURE.md` | M7 | 更新架构图 |
 
 ### 不修改文件
 
 | 文件 | 理由 |
 |------|------|
-| `src/zhpp/parser/scope.py` | parser 内部使用，不纳入公共 API 统一 |
-| `src/zhpp/parser/*.py` | IR 生成器通过 ASTVisitor 访问，不修改 parser |
-| `src/zhpp/opt/*.py` | 现有 AST 优化器保持不变，IR 优化器是独立实现 |
+| `src/parser/scope.py` | parser 内部使用，不纳入公共 API 统一 |
+| `src/parser/*.py` | IR 生成器通过 ASTVisitor 访问，不修改 parser |
+| `src/opt/*.py` | 现有 AST 优化器保持不变，IR 优化器是独立实现 |
 
 ---
 

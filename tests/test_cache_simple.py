@@ -25,7 +25,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from zhpp.analyzer.ast_cache import (
+from zhc.analyzer.ast_cache import (
     ASTCacheManager,
     CacheType,
     CacheEntry,

@@ -16,10 +16,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from zhpp.parser.class_ import (
+from zhc.parser.class_ import (
     ClassParser, ClassInfo, AttributeInfo, MethodInfo, Visibility
 )
-from zhpp.parser.class_extended import ClassParserExtended
+from zhc.parser.class_extended import ClassParserExtended
 
 
 class TestClassDeclaration(unittest.TestCase):

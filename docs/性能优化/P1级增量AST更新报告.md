@@ -147,7 +147,7 @@ class IncrementalASTUpdater:
 ### 基本使用
 
 ```python
-from zhpp.analyzer import IncrementalASTUpdater
+from zhc.analyzer import IncrementalASTUpdater
 
 # 创建增量更新器
 updater = IncrementalASTUpdater()
@@ -202,7 +202,7 @@ class IncrementalCompiler:
 ## 代码统计
 
 ### 新增文件
-- `src/zhpp/analyzer/incremental_ast_updater.py` (~350行)
+- `src/analyzer/incremental_ast_updater.py` (~350行)
 - `tests/test_incremental_ast.py` (~300行)
 
 ### 核心组件

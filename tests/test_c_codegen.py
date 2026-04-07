@@ -11,8 +11,8 @@ import sys
 sys.path.insert(0, 'src')
 
 import pytest
-from zhpp.parser import *
-from zhpp.codegen import CCodeGenerator
+from zhc.parser import *
+from zhc.codegen import CCodeGenerator
 
 
 @pytest.fixture

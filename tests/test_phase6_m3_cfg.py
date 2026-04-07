@@ -18,11 +18,11 @@ import unittest
 # 确保项目路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from zhpp.parser import parse as parse_source
-from zhpp.semantic import SemanticAnalyzer, CFGAnalyzer, UninitAnalyzer
-from zhpp.semantic.cfg_analyzer import ast_to_statements, ast_stmt_to_dict, find_functions
-from zhpp.semantic.semantic_analyzer import SymbolTable, Symbol, ScopeType
-from zhpp.parser.ast_nodes import ASTNodeType
+from zhc.parser import parse as parse_source
+from zhc.semantic import SemanticAnalyzer, CFGAnalyzer, UninitAnalyzer
+from zhc.semantic.cfg_analyzer import ast_to_statements, ast_stmt_to_dict, find_functions
+from zhc.semantic.semantic_analyzer import SymbolTable, Symbol, ScopeType
+from zhc.parser.ast_nodes import ASTNodeType
 
 
 class TestASTToDictAdapter(unittest.TestCase):

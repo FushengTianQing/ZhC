@@ -14,7 +14,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / 'src'))
 
-from zhpp.parser.ast_nodes import (
+from zhc.parser.ast_nodes import (
     ASTNode, ASTNodeType,
     ProgramNode, FunctionDeclNode, VariableDeclNode, ParamDeclNode,
     StructDeclNode, BlockStmtNode, ReturnStmtNode, ExprStmtNode,
@@ -24,7 +24,7 @@ from zhpp.parser.ast_nodes import (
     AssignExprNode, ArrayExprNode, IntLiteralNode,
     PrimitiveTypeNode,
 )
-from zhpp.semantic.semantic_analyzer import SemanticAnalyzer
+from zhc.semantic.semantic_analyzer import SemanticAnalyzer
 
 
 def _type(name):

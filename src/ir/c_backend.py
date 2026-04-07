@@ -14,10 +14,10 @@ ZHC IR - IR → C 后端
 
 from typing import Callable, Dict, List
 
-from zhpp.ir.program import IRProgram, IRFunction
-from zhpp.ir.instructions import IRBasicBlock, IRInstruction
-from zhpp.ir.opcodes import Opcode
-from zhpp.ir.mappings import (
+from zhc.ir.program import IRProgram, IRFunction
+from zhc.ir.instructions import IRBasicBlock, IRInstruction
+from zhc.ir.opcodes import Opcode
+from zhc.ir.mappings import (
     resolve_type,
     resolve_function_name,
 )
