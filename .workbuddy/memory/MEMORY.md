@@ -5,7 +5,7 @@
 - **包名**: zhpp（内部导入用 `from zhpp.xxx`），pyproject.toml 中声明为 zhc
 - **源码结构**: src/ 目录作为 zhpp 包根，通过 __main__.py 入口运行 (`python -m src.__main__`)
 - **GitHub**: https://github.com/FushengTianQing/ZhC (private, main分支)
-- **质量评分**: 60/100 [B中等] (2026-04-07)
+- **质量评分**: 65/100 [B中等] (2026-04-07)
 
 ## 关键技术架构
 - **编译流水线**: 词法(Lexer) → 语法(Parser) → 语义(Semantic/Analyzer) → IR → Codegen(C/LLVM/WASM)
@@ -22,3 +22,11 @@
 ## 用户偏好
 - 远: 项目负责人，关注代码质量和团队技术提升
 - 工作日期: 初次见面 2026-04-01
+
+## Week 5 重构计划（2026-04-07）
+- **目标**: 降低圈复杂度，消除代码重复，改善API设计，提升类型注解覆盖率
+- **高复杂度函数**: 36个（目标 <20）
+- **平均圈复杂度**: 8.5（目标 <8）
+- **类型注解覆盖率**: ~40%（目标 90%+）
+- **重构优先级**: P0(optimizer/ir_generator/class_extended/cli/main) → P1(长函数) → P2(大文件拆分)
+- **详细计划**: `docs/REFACTOR_PRIORITY_LIST.md`
