@@ -2,7 +2,8 @@
 中文C语言调试信息生成模块
 DWARF Debug Information Generator
 
-生成符合DWARF标准的调试信息，支持GDB/LLDB调试器
+生成符合DWARF标准的调试信息，支持GDB/LLDB调试器。
+事件驱动架构，支持多后端扩展。
 """
 
 __version__ = '1.0.0'
@@ -13,13 +14,27 @@ from .debug_generator import (
     DWARFGenerator,
     LineNumberTable,
     DebugSymbolTable,
-    TypeInfoGenerator
+    TypeInfoGenerator,
+    SourceLocation,
+    AddressRange,
+    CompileUnit,
 )
 
+from .debug_listener import DebugListener
+from .debug_manager import DebugManager
+
 __all__ = [
+    # 核心生成器
     'DebugInfoGenerator',
-    'DWARFGenerator', 
+    'DWARFGenerator',
     'LineNumberTable',
     'DebugSymbolTable',
-    'TypeInfoGenerator'
+    'TypeInfoGenerator',
+    # 数据结构
+    'SourceLocation',
+    'AddressRange',
+    'CompileUnit',
+    # 事件驱动架构
+    'DebugListener',
+    'DebugManager',
 ]

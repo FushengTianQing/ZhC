@@ -13,7 +13,7 @@ Phase 4 核心组件。
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from zhc.codegen.debug_integration import DebugInfoManager
+    from zhc.debug.debug_manager import DebugManager
 
 from zhc.parser.ast_nodes import (
     ASTNode, ASTVisitor, ASTNodeType,
@@ -55,13 +55,13 @@ class CCodeGenerator(ASTVisitor):
         c_code = generator.generate(ast)
     """
 
-    def __init__(self, indent_str: str = "    ", debug_manager: Optional["DebugInfoManager"] = None):
+    def __init__(self, indent_str: str = "    ", debug_manager: Optional["DebugManager"] = None):
         self.indent = 0
         self.indent_str = indent_str
         self.output_lines: list = []
         self._expr_buffer: list = []  # 用于表达式求值
         
-        # 调试信息管理器
+        # 调试信息管理器（事件发射器）
         self._debug_manager = debug_manager
         
         # 泛型代码生成器
@@ -264,9 +264,9 @@ class CCodeGenerator(ASTVisitor):
         # 记录函数结束行
         end_line = len(self.output_lines)
 
-        # 添加调试信息
-        if self._debug_manager and self._debug_manager.is_enabled():
-            self._debug_manager.add_function(
+        # 发射调试信息事件
+        if self._debug_manager:
+            self._debug_manager.emit_function(
                 name=name,
                 start_line=start_line,
                 end_line=end_line,

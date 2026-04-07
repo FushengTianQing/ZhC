@@ -423,14 +423,22 @@ class ZHCCompiler:
     def _generate_directly(self, ast, perf_analyzer=None):
         """直接从AST生成C代码"""
         from zhc.codegen import CCodeGenerator
-        from zhc.codegen.debug_integration import create_debug_manager
+        from zhc.debug.debug_manager import DebugManager
+        from zhc.codegen.c_debug_listener import CDebugListener
 
-        # 创建调试信息管理器
-        debug_manager = create_debug_manager(
+        # 创建调试信息管理器（事件发射器）
+        debug_manager = DebugManager(
             source_file=str(getattr(ast, 'source_file', 'unknown.zhc')),
-            output_file='debug.json',
             enable_debug=self.config.debug_enabled
         )
+
+        # 添加 C 后端调试监听器
+        if self.config.debug_enabled:
+            c_listener = CDebugListener(
+                source_file=str(getattr(ast, 'source_file', 'unknown.zhc')),
+                output_file='debug.json'
+            )
+            debug_manager.add_listener(c_listener)
 
         def run_codegen():
             """通过 CCodeGenerator 直接从 AST 生成 C 代码"""
@@ -438,8 +446,8 @@ class ZHCCompiler:
             code = g.generate(ast)
             
             # 生成调试信息
-            if debug_manager.is_enabled():
-                debug_info = debug_manager.finalize()
+            if debug_manager.enable_debug:
+                debug_info = debug_manager.emit_finalize()
                 # 可以将调试信息写入文件或嵌入到输出中
             
             return code
