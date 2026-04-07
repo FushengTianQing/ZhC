@@ -192,63 +192,187 @@ class LanguageServer:
             if not doc:
                 return diagnostics
 
-        # 简单的语法检查
+        # 词法分析检查
         try:
-            # 调用词法分析器
             from zhc.parser.lexer import tokenize
             tokens, lexer_errors = tokenize(doc.text)
 
-            # 基本的括号匹配检查
-            stack = []
-            lines = doc.text.split("\n")
-            for line_num, line in enumerate(lines):
-                for col, char in enumerate(line):
-                    if char in "({[":
-                        stack.append((line_num, col, char))
-                    elif char in ")}]":
-                        if not stack:
-                            diagnostics.append(Diagnostic(
-                                range=Range(
-                                    start=Position(line=line_num, character=col),
-                                    end=Position(line=line_num, character=col + 1)
-                                ),
-                                severity=DiagnosticSeverity.ERROR,
-                                message=f"多余的 '{char}'"
-                            ))
-                        else:
-                            open_pos = stack.pop()
-                            expected = {"(": ")", "{": "}", "[": "]"}
-                            if expected.get(open_pos[2]) != char:
-                                diagnostics.append(Diagnostic(
-                                    range=Range(
-                                        start=Position(line=line_num, character=col),
-                                        end=Position(line=line_num, character=col + 1)
-                                    ),
-                                    severity=DiagnosticSeverity.ERROR,
-                                    message=f"不匹配的括号: 期望 '{expected[open_pos[2]]}'"
-                                ))
-
-            # 检查未闭合的括号
-            for line_num, col, char in stack:
+            # 转换词法错误为诊断
+            for error in lexer_errors:
                 diagnostics.append(Diagnostic(
                     range=Range(
-                        start=Position(line=line_num, character=col),
-                        end=Position(line=line_num, character=col + 1)
+                        start=Position(line=error.line - 1 if hasattr(error, 'line') else 0,
+                                       character=error.column - 1 if hasattr(error, 'column') else 0),
+                        end=Position(line=error.line - 1 if hasattr(error, 'line') else 0,
+                                     character=error.column if hasattr(error, 'column') else 1)
                     ),
                     severity=DiagnosticSeverity.ERROR,
-                    message=f"未闭合的 '{char}'"
+                    message=f"词法错误: {str(error)}"
                 ))
 
         except Exception as e:
-            # 编译错误
             diagnostics.append(Diagnostic(
                 range=Range(
                     start=Position(line=0, character=0),
                     end=Position(line=0, character=1)
                 ),
                 severity=DiagnosticSeverity.ERROR,
-                message=f"编译错误: {str(e)}"
+                message=f"词法分析错误: {str(e)}"
             ))
+
+        # 括号匹配检查
+        diagnostics.extend(self._check_bracket_matching(doc.text))
+
+        # 语法结构检查
+        diagnostics.extend(self._check_syntax_structure(doc.text))
+
+        # 未使用变量检查（警告）
+        diagnostics.extend(self._check_unused_symbols(doc))
+
+        return diagnostics
+
+    def _check_bracket_matching(self, text: str) -> List[Diagnostic]:
+        """检查括号匹配"""
+        diagnostics = []
+        stack = []
+        lines = text.split("\n")
+
+        for line_num, line in enumerate(lines):
+            for col, char in enumerate(line):
+                if char in "({[":
+                    stack.append((line_num, col, char))
+                elif char in ")}]":
+                    if not stack:
+                        diagnostics.append(Diagnostic(
+                            range=Range(
+                                start=Position(line=line_num, character=col),
+                                end=Position(line=line_num, character=col + 1)
+                            ),
+                            severity=DiagnosticSeverity.ERROR,
+                            message=f"多余的 '{char}'"
+                        ))
+                    else:
+                        open_pos = stack.pop()
+                        expected = {"(": ")", "{": "}", "[": "]"}
+                        if expected.get(open_pos[2]) != char:
+                            diagnostics.append(Diagnostic(
+                                range=Range(
+                                    start=Position(line=line_num, character=col),
+                                    end=Position(line=line_num, character=col + 1)
+                                ),
+                                severity=DiagnosticSeverity.ERROR,
+                                message=f"不匹配的括号: 期望 '{expected[open_pos[2]]}'"
+                            ))
+
+        # 检查未闭合的括号
+        for line_num, col, char in stack:
+            diagnostics.append(Diagnostic(
+                range=Range(
+                    start=Position(line=line_num, character=col),
+                    end=Position(line=line_num, character=col + 1)
+                ),
+                severity=DiagnosticSeverity.ERROR,
+                message=f"未闭合的 '{char}'"
+            ))
+
+        return diagnostics
+
+    def _check_syntax_structure(self, text: str) -> List[Diagnostic]:
+        """检查语法结构"""
+        diagnostics = []
+        lines = text.split("\n")
+
+        for line_num, line in enumerate(lines):
+            stripped = line.strip()
+
+            # 检查函数声明是否缺少返回类型
+            if stripped.startswith("函数 ") and "->" not in stripped and "{" not in stripped:
+                # 函数声明但没有返回类型和函数体
+                if "(" in stripped and ")" in stripped:
+                    diagnostics.append(Diagnostic(
+                        range=Range(
+                            start=Position(line=line_num, character=0),
+                            end=Position(line=line_num, character=len(line))
+                        ),
+                        severity=DiagnosticSeverity.WARNING,
+                        message="函数声明缺少返回类型，建议添加 '-> 返回类型'"
+                    ))
+
+            # 检查结构体/类是否缺少成员
+            if stripped.startswith("结构体 ") or stripped.startswith("类 "):
+                if stripped.endswith("{") and line_num + 1 < len(lines):
+                    next_line = lines[line_num + 1].strip()
+                    if next_line == "}":
+                        diagnostics.append(Diagnostic(
+                            range=Range(
+                                start=Position(line=line_num, character=0),
+                                end=Position(line=line_num, character=len(line))
+                            ),
+                            severity=DiagnosticSeverity.WARNING,
+                            message="空的结构体/类定义"
+                        ))
+
+            # 检查未完成的条件语句
+            if stripped == "如果":
+                diagnostics.append(Diagnostic(
+                    range=Range(
+                        start=Position(line=line_num, character=0),
+                        end=Position(line=line_num, character=len(line))
+                    ),
+                    severity=DiagnosticSeverity.ERROR,
+                    message="未完成的条件语句: '如果' 后需要条件表达式"
+                ))
+
+            # 检查未完成的循环语句
+            if stripped == "当":
+                diagnostics.append(Diagnostic(
+                    range=Range(
+                        start=Position(line=line_num, character=0),
+                        end=Position(line=line_num, character=len(line))
+                    ),
+                    severity=DiagnosticSeverity.ERROR,
+                    message="未完成的循环语句: '当' 后需要条件表达式"
+                ))
+
+        return diagnostics
+
+    def _check_unused_symbols(self, doc: "Document") -> List[Diagnostic]:
+        """检查未使用的符号"""
+        diagnostics = []
+
+        # 获取文档中定义的所有符号
+        defined_symbols = set(doc.symbols.keys())
+
+        # 检查每个符号是否被使用
+        for symbol_name, symbol_info in doc.symbols.items():
+            # 跳过关键字和内置函数
+            if symbol_name in ["打印", "读取", "长度", "获取", "设置"]:
+                continue
+
+            # 简单检查：符号是否在文档其他地方出现
+            # 注意：这只是简单的文本匹配，实际应该使用语义分析
+            lines = doc.text.split("\n")
+            used = False
+
+            for line_num, line in enumerate(lines):
+                # 跳过定义行
+                if line_num == symbol_info.line:
+                    continue
+
+                # 检查符号是否被使用
+                if symbol_name in line:
+                    used = True
+                    break
+
+            if not used and symbol_info.kind == SymbolKind.VARIABLE:
+                diagnostics.append(Diagnostic(
+                    range=Range(
+                        start=Position(line=symbol_info.line, character=0),
+                        end=Position(line=symbol_info.line, character=len(lines[symbol_info.line]) if symbol_info.line < len(lines) else 1)
+                    ),
+                    severity=DiagnosticSeverity.WARNING,
+                    message=f"变量 '{symbol_name}' 可能未被使用"
+                ))
 
         return diagnostics
 
@@ -558,19 +682,55 @@ class LanguageServer:
             if char_num >= len(line):
                 return None
 
-            # 简单的符号识别
+            # 获取当前单词
             word = self._get_word_at_position(line, char_num)
+
+            # 首先检查符号表中的符号
+            if word in doc.symbols:
+                symbol = doc.symbols[word]
+                kind_names = {
+                    SymbolKind.FUNCTION: "函数",
+                    SymbolKind.CLASS: "类",
+                    SymbolKind.ENUM: "枚举",
+                    SymbolKind.VARIABLE: "变量",
+                    SymbolKind.METHOD: "方法",
+                    SymbolKind.PROPERTY: "属性",
+                }
+                kind_name = kind_names.get(symbol.kind, "符号")
+                return Hover(contents=f"**{kind_name}: {symbol.name}**\n\n类型: {symbol.detail}")
 
             # 关键字文档
             keyword_docs = {
                 "整数型": "**整数型** (Integer)\n\n32 位有符号整数类型。\n\n示例: `整数型 x = 42;`",
                 "浮点型": "**浮点型** (Float)\n\n64 位双精度浮点数类型。\n\n示例: `浮点型 x = 3.14;`",
+                "双精度浮点型": "**双精度浮点型** (Double)\n\n64 位双精度浮点数类型。\n\n示例: `双精度浮点型 x = 3.1415926;`",
+                "字符型": "**字符型** (Char)\n\n单个字符类型。\n\n示例: `字符型 c = 'A';`",
                 "字符串型": "**字符串型** (String)\n\n不可变字符串类型。\n\n示例: `字符串型 s = \"Hello\";`",
                 "布尔型": "**布尔型** (Boolean)\n\n布尔值类型，值为 `真` 或 `假`。\n\n示例: `布尔型 flag = 真;`",
-                "如果": "**如果** (If)\n\n条件语句。\n\n```zhc\n如果 (condition) {\n    // 代码\n}\n```",
-                "当": "**当** (While)\n\n循环语句。\n\n```zhc\n当 (condition) {\n    // 代码\n}\n```",
-                "函数": "**函数** (Function)\n\n声明一个函数。\n\n```zhc\n函数 函数名(参数) -> 返回类型 {\n    // 代码\n}\n```",
+                "字节型": "**字节型** (Byte)\n\n单字节无符号整数类型 (0-255)。\n\n示例: `字节型 b = 255;`",
+                "长整数型": "**长整数型** (Long)\n\n64 位有符号整数类型。\n\n示例: `长整数型 x = 9223372036854775807;`",
+                "短整数型": "**短整数型** (Short)\n\n16 位有符号整数类型。\n\n示例: `短整数型 x = 32767;`",
+                "逻辑型": "**逻辑型** (Boolean)\n\n布尔值类型，同布尔型。\n\n示例: `逻辑型 flag = 假;`",
+                "空型": "**空型** (Void)\n\n表示无返回值。\n\n示例: `函数 空型 无返回值() {}`",
+                "如果": "**如果** (If)\n\n条件语句。\n\n```zhc\n如果 (condition) {\n    // 条件为真时执行\n} 否则 {\n    // 条件为假时执行\n}\n```",
+                "否则": "**否则** (Else)\n\n条件语句的 else 分支。\n\n必须跟在 `如果` 块之后。",
+                "当": "**当** (While/When)\n\n循环语句或模式匹配守卫。\n\n```zhc\n// 循环\n当 (condition) {\n    // 循环体\n}\n\n// 模式匹配\n匹配 value {\n    当 x > 10 -> // 守卫条件\n}\n```",
+                "匹配": "**匹配** (Match)\n\n模式匹配语句。\n\n```zhc\n匹配 value {\n    模式1 -> 结果1\n    模式2 -> 结果2\n    _ -> 默认结果\n}\n```",
+                "函数": "**函数** (Function)\n\n声明一个函数。\n\n```zhc\n函数 函数名(参数) -> 返回类型 {\n    // 函数体\n}\n```",
+                "结构体": "**结构体** (Struct)\n\n声明一个结构体。\n\n```zhc\n结构体 结构体名 {\n    成员1: 类型1\n    成员2: 类型2\n}\n```",
+                "类": "**类** (Class)\n\n声明一个类。\n\n```zhc\n类 类名 {\n    属性: 类型\n    函数 方法() {}\n}\n```",
+                "枚举": "**枚举** (Enum)\n\n声明一个枚举类型。\n\n```zhc\n枚举 枚举名 {\n    选项1\n    选项2\n    选项3\n}\n```",
+                "接口": "**接口** (Interface)\n\n声明一个接口。\n\n```zhc\n接口 接口名 {\n    方法1(): 返回类型\n    属性: 类型\n}\n```",
+                "公共": "**公共** (Public)\n\n公共访问修饰符。\n\n可以被任何代码访问。",
+                "私有": "**私有** (Private)\n\n私有访问修饰符。\n\n只能在定义它的类内部访问。",
+                "保护": "**保护** (Protected)\n\n保护访问修饰符。\n\n可以在定义它的类及其子类中访问。",
+                "异步": "**异步** (Async)\n\n异步函数声明。\n\n```zhc\n异步 函数 异步操作() -> Future[结果类型] {\n    // 异步操作\n}\n```",
+                "等待": "**等待** (Await)\n\n等待异步操作完成。\n\n```zhc\n结果 = 等待 异步操作()\n```",
                 "返回": "**返回** (Return)\n\n从函数返回值。\n\n```zhc\n返回 value;\n```",
+                "尝试": "**尝试** (Try)\n\n异常捕获的开始。\n\n```zhc\n尝试 {\n    // 可能抛出异常的代码\n} 捕获 异常类型 e {\n    // 处理异常\n} 最终 {\n    // 总是执行的代码\n}\n```",
+                "捕获": "**捕获** (Catch)\n\n异常捕获处理。\n\n跟在 `尝试` 块之后。",
+                "最终": "**最终** (Finally)\n\n最终块。\n\n无论是否发生异常都会执行。",
+                "让出": "**让出** (Yield)\n\n生成器让出语句。\n\n```zhc\n函数 生成器() -> 元素类型 {\n    让出 value1\n    让出 value2\n}\n```",
             }
 
             if word in keyword_docs:
