@@ -21,6 +21,19 @@ from .c_backend import CBackend
 from .printer import IRPrinter
 from .optimizer import ConstantFolding, DeadCodeElimination, PassManager, OptimizationPass
 from .ir_verifier import IRVerifier, VerificationError
+from .ssa import SSABuilder, DominatorTree, DominanceFrontier, VersionedValue, PhiNode, build_ssa
+from .dataflow import (
+    DataFlowResult,
+    DataFlowAnalysis,
+    LivenessAnalysis,
+    ReachingDefinitionsAnalysis,
+    AvailableExpressionsAnalysis,
+    Definition,
+    Expression,
+    analyze_liveness,
+    analyze_reaching_definitions,
+    analyze_available_expressions,
+)
 
 __all__ = [
     # Symbol 系统
@@ -56,4 +69,22 @@ __all__ = [
     # 验证器
     "IRVerifier",
     "VerificationError",
+    # SSA 构建
+    "SSABuilder",
+    "DominatorTree",
+    "DominanceFrontier",
+    "VersionedValue",
+    "PhiNode",
+    "build_ssa",
+    # 数据流分析
+    "DataFlowResult",
+    "DataFlowAnalysis",
+    "LivenessAnalysis",
+    "ReachingDefinitionsAnalysis",
+    "AvailableExpressionsAnalysis",
+    "Definition",
+    "Expression",
+    "analyze_liveness",
+    "analyze_reaching_definitions",
+    "analyze_available_expressions",
 ]
