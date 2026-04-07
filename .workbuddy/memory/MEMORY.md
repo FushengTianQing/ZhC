@@ -47,6 +47,7 @@
 - `src/ir/dataflow.py` - 数据流分析
 - `src/ir/loop_optimizer.py` - 循环优化
 - `src/ir/inline_optimizer.py` - 内联优化
+- `src/analyzer/interprocedural_alias.py` - 过程间别名分析
 - `src/utils/` - 工具模块（file_utils, string_utils, error_utils）
 - `src/semantic/generics.py` - 泛型类型系统
 - `src/semantic/pattern_matching.py` - 模式匹配系统
@@ -58,6 +59,16 @@
 - **远**: 项目负责人，关注代码质量和团队技术提升
 - 工作日期: 初次见面 2026-04-01
 
+## LLVM & WASM 后端集成方案
+- **文档**: `docs/LLVM_WASM_BACKEND_INTEGRATION_PLAN.md`
+- **LLVM 技术选型**: `llvmlite>=0.39.0`（LLVM 12 绑定）
+- **WASM 技术选型**: `wasm-tools`（Rust 实现）+ Python subprocess
+- **现状差距**:
+  - `LLVMPrinter`（`src/ir/llvm_backend.py`）仅为文本生成器，输出 .ll 文本而非真正 bitcode
+  - `WASMBackend`（`src/backend/wasm_backend.py`）仅为 Emscripten wrapper，非原生 WASM 生成
+  - `llvm_backend.py` 有 bug：第 142/152 行引用 `Instruction` 应为 `IRInstruction`
+- **实施计划**: 阶段1(LLVM, 1-2周) → 阶段2(WASM原生, 3-5周) → 阶段3(集成, 6周)
+
 ## 测试覆盖 (2026-04-08)
 - **本周新增测试**: 
   - `tests/test_dataflow.py` - 33 passed
@@ -66,4 +77,5 @@
   - `tests/test_utils.py` - 39 passed
   - `tests/test_dominator.py` - 20 passed (Lengauer-Tarjan 算法)
   - `tests/benchmarks/test_dominator_performance.py` - 5 passed (性能对比)
+  - `tests/test_alias_analysis.py` - 24 passed (过程间别名分析)
 - **CI 覆盖率门禁**: 15% → 25% (本周更新)
