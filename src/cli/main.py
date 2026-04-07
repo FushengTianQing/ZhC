@@ -5,11 +5,501 @@ import sys
 import os
 import subprocess
 import argparse
+import json
+import shutil
+import platform
+import webbrowser
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+from abc import ABC, abstractmethod
+
+
+class CommandHandler(ABC):
+    """命令处理器抽象基类 - 命令模式"""
+    
+    @abstractmethod
+    def execute(self, args: argparse.Namespace, cli: 'CommandLineInterface') -> int:
+        """执行命令，返回退出码"""
+        pass
+
+
+class InitCommand(CommandHandler):
+    """init 命令处理器"""
+    
+    def execute(self, args: argparse.Namespace, cli: 'CommandLineInterface') -> int:
+        print(f"🚀 正在创建项目: {args.project_name}")
+        print(f"   模板: {args.template}")
+        
+        project_dir = Path(args.project_name)
+        project_dir.mkdir(exist_ok=True)
+        
+        # 创建标准目录结构
+        (project_dir / 'src').mkdir(exist_ok=True)
+        (project_dir / 'tests').mkdir(exist_ok=True)
+        (project_dir / 'docs').mkdir(exist_ok=True)
+        (project_dir / '构建').mkdir(exist_ok=True)
+        
+        # 创建配置文件
+        config = {
+            "项目名称": args.project_name,
+            "版本": "1.0.0",
+            "作者": "开发者",
+            "描述": "一个中文C项目",
+            "入口模块": "src/主程序.zhc",
+            "模板": args.template,
+            "依赖": {},
+            "编译选项": {
+                "启用缓存": True,
+                "优化级别": "O2",
+                "输出目录": "./构建"
+            }
+        }
+        
+        config_file = project_dir / 'zhc.config.json'
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+        
+        # 根据模板创建示例文件
+        template_creators = {
+            'console': cli._create_console_template,
+            'library': cli._create_library_template,
+            'module': cli._create_module_template,
+        }
+        creator = template_creators.get(args.template)
+        if creator:
+            creator(project_dir)
+        
+        print(f"✅ 项目创建完成: {project_dir}")
+        print(f"📁 目录结构:")
+        cli._print_tree(project_dir, max_depth=3)
+        
+        return 0
+
+
+class NewCommand(CommandHandler):
+    """new 命令处理器"""
+    
+    def execute(self, args: argparse.Namespace, cli: 'CommandLineInterface') -> int:
+        print(f"📦 正在创建模块: {args.module_name}")
+        print(f"   类型: {args.type}")
+        
+        module_file = Path(f"src/{args.module_name}.zhc")
+        module_file.parent.mkdir(exist_ok=True)
+        
+        # 模板分派表
+        template_getters = {
+            'util': cli._get_util_template,
+            'data': cli._get_data_template,
+            'service': cli._get_basic_template,
+            'ui': cli._get_basic_template,
+        }
+        
+        getter = template_getters.get(args.type, cli._get_basic_template)
+        template = getter(args.module_name)
+        
+        module_file.write_text(template, encoding='utf-8')
+        
+        print(f"✅ 模块创建完成: {module_file}")
+        print(f"📝 文件内容预览:")
+        print("-" * 40)
+        print(template[:500] + ("..." if len(template) > 500 else ""))
+        print("-" * 40)
+        
+        return 0
+
+
+class BuildCommand(CommandHandler):
+    """build 命令处理器"""
+    
+    def execute(self, args: argparse.Namespace, cli: 'CommandLineInterface') -> int:
+        print("🔨 正在编译项目...")
+        
+        config_file = Path('zhc.config.json')
+        if not config_file.exists():
+            print("❌ 错误: 找不到 zhc.config.json")
+            print("   请在项目根目录运行此命令")
+            return 1
+        
+        build_cmd = ['python3', '-m', 'src.__main__']
+        
+        # 参数映射表
+        arg_flags = {
+            'release': '--release',
+            'debug': '--debug',
+            'cache': '--cache',
+            'verbose': '--verbose',
+        }
+        
+        for attr, flag in arg_flags.items():
+            if getattr(args, attr, False):
+                build_cmd.append(flag)
+        
+        with open(config_file, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        entry_module = config.get('入口模块', 'src/主程序.zhc')
+        build_cmd.append(entry_module)
+        
+        result = subprocess.run(build_cmd)
+        
+        if result.returncode == 0:
+            print("✅ 编译成功")
+            return 0
+        else:
+            print("❌ 编译失败")
+            return result.returncode
+
+
+class RunCommand(CommandHandler):
+    """run 命令处理器"""
+    
+    def execute(self, args: argparse.Namespace, cli: 'CommandLineInterface') -> int:
+        print("🚀 正在运行项目...")
+        
+        # 先构建项目
+        build_args = argparse.Namespace(release=False, debug=False, cache=False, verbose=False)
+        if cli._command_handlers['build'].execute(build_args, cli) != 0:
+            return 1
+        
+        # 确定运行文件
+        if args.file:
+            run_file = Path(args.file)
+        else:
+            config_file = Path('zhc.config.json')
+            if config_file.exists():
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                project_name = config.get('项目名称', '项目')
+            else:
+                project_name = '程序'
+            run_file = Path('构建') / project_name
+        
+        if not run_file.exists():
+            print(f"❌ 错误: 找不到可执行文件: {run_file}")
+            return 1
+        
+        run_cmd = [str(run_file)]
+        if args.args:
+            run_cmd.extend(args.args.split())
+        
+        print(f"📟 运行命令: {' '.join(run_cmd)}")
+        result = subprocess.run(run_cmd)
+        
+        return result.returncode
+
+
+class TestCommand(CommandHandler):
+    """test 命令处理器"""
+    
+    def execute(self, args: argparse.Namespace, cli: 'CommandLineInterface') -> int:
+        print("🧪 正在运行测试...")
+        
+        test_dir = Path('tests')
+        if not test_dir.exists():
+            print("ℹ️  没有找到 tests 目录")
+            return 0
+        
+        test_files = list(test_dir.glob('*.zhc'))
+        if not test_files:
+            print("ℹ️  没有找到测试文件")
+            return 0
+        
+        print(f"📄 找到 {len(test_files)} 个测试文件")
+        
+        success_count = 0
+        for test_file in test_files:
+            print(f"\n🔧 测试: {test_file.name}")
+            
+            compile_cmd = ['python3', '-m', 'src.__main__', str(test_file), '--output-dir', '构建/测试']
+            compile_result = subprocess.run(compile_cmd, capture_output=True, text=True)
+            
+            if compile_result.returncode != 0:
+                print(f"❌ 编译失败: {test_file}")
+                print(compile_result.stderr)
+                continue
+            
+            test_name = test_file.stem
+            executable = Path('构建/测试') / test_name
+            
+            if executable.exists():
+                run_result = subprocess.run([str(executable)], capture_output=True, text=True)
+                
+                if run_result.returncode == 0:
+                    print(f"✅ 测试通过: {test_file}")
+                    success_count += 1
+                else:
+                    print(f"❌ 测试失败: {test_file}")
+                    print(run_result.stderr)
+            else:
+                print(f"⚠️  找不到可执行文件: {executable}")
+        
+        if args.coverage:
+            print("⚠️ 覆盖率报告功能暂未实现")
+        
+        total_count = len(test_files)
+        print(f"\n📊 测试结果: {success_count}/{total_count} 通过 ({success_count/total_count*100:.1f}%)")
+        
+        if success_count == total_count:
+            print("🎉 所有测试通过！")
+            return 0
+        else:
+            print("❌ 有测试失败")
+            return 1
+
+
+class DocCommand(CommandHandler):
+    """doc 命令处理器"""
+    
+    def execute(self, args: argparse.Namespace, cli: 'CommandLineInterface') -> int:
+        print("📚 正在生成文档...")
+        
+        readme_content = '''# 中文C项目
+
+## 项目结构
+
+```
+项目/
+├── src/           # 源代码
+├── tests/         # 测试代码
+├── docs/          # 文档
+├── 构建/          # 构建输出
+└── zhc.config.json # 项目配置
+```
+
+## 构建指南
+
+```bash
+# 安装依赖
+无需外部依赖
+
+# 构建项目
+zhc build
+
+# 运行项目
+zhc run
+
+# 运行测试
+zhc test
+```
+
+## API文档
+
+TODO: 自动生成API文档
+'''
+        
+        docs_dir = Path('docs')
+        docs_dir.mkdir(exist_ok=True)
+        
+        readme_file = docs_dir / 'README.md'
+        readme_file.write_text(readme_content, encoding='utf-8')
+        
+        print(f"✅ 文档已生成: {readme_file}")
+        
+        if args.open:
+            if args.format == 'html':
+                html_file = docs_dir / 'index.html'
+                processed_content = readme_content.replace('\n', '<br>').replace('```', '<pre>')
+                html_content = f'''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{Path.cwd().name} - 文档</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 40px; }}
+        pre {{ background: #f5f5f5; padding: 10px; border-radius: 5px; }}
+    </style>
+</head>
+<body>
+{processed_content}
+</body>
+</html>
+'''
+                html_file.write_text(html_content, encoding='utf-8')
+                webbrowser.open(f'file://{html_file.absolute()}')
+        
+        return 0
+
+
+class AddCommand(CommandHandler):
+    """add 命令处理器"""
+    
+    def execute(self, args: argparse.Namespace, cli: 'CommandLineInterface') -> int:
+        print(f"➕ 正在添加依赖: {args.module_path}")
+        
+        config_file = Path('zhc.config.json')
+        if not config_file.exists():
+            print("❌ 错误: 找不到 zhc.config.json")
+            return 1
+        
+        with open(config_file, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        if '依赖' not in config:
+            config['依赖'] = {}
+        
+        config['依赖'][args.module_path] = args.version or "latest"
+        
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ 依赖添加成功: {args.module_path}")
+        return 0
+
+
+class RemoveCommand(CommandHandler):
+    """remove 命令处理器"""
+    
+    def execute(self, args: argparse.Namespace, cli: 'CommandLineInterface') -> int:
+        print(f"➖ 正在移除依赖: {args.module_name}")
+        
+        config_file = Path('zhc.config.json')
+        if not config_file.exists():
+            print("❌ 错误: 找不到 zhc.config.json")
+            return 1
+        
+        with open(config_file, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        if '依赖' in config and args.module_name in config['依赖']:
+            del config['依赖'][args.module_name]
+            
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+            
+            print(f"✅ 依赖移除成功: {args.module_name}")
+        else:
+            print(f"⚠️  依赖不存在: {args.module_name}")
+        
+        return 0
+
+
+class UpdateCommand(CommandHandler):
+    """update 命令处理器"""
+    
+    def execute(self, args: argparse.Namespace, cli: 'CommandLineInterface') -> int:
+        print("🔄 正在更新依赖...")
+        print("✅ 依赖更新完成（模拟）")
+        return 0
+
+
+class CleanCommand(CommandHandler):
+    """clean 命令处理器"""
+    
+    def execute(self, args: argparse.Namespace, cli: 'CommandLineInterface') -> int:
+        print("🧹 正在清理项目...")
+        
+        dirs_to_clean = ['构建', '.zhc_cache']
+        for dir_name in dirs_to_clean:
+            dir_path = Path(dir_name)
+            if dir_path.exists():
+                shutil.rmtree(dir_path)
+                print(f"✅ 清理目录: {dir_path}")
+        
+        if args.all:
+            patterns = ['*.c', '*.o', '*.exe', '*.out']
+            for pattern in patterns:
+                for file in Path('.').glob(pattern):
+                    file.unlink()
+                    print(f"✅ 清理文件: {file}")
+        
+        print("🎉 项目清理完成")
+        return 0
+
+
+class CacheCommand(CommandHandler):
+    """cache 命令处理器"""
+    
+    def execute(self, args: argparse.Namespace, cli: 'CommandLineInterface') -> int:
+        if args.clear:
+            print("🗑️  正在清理缓存...")
+            cache_dir = Path('.zhc_cache')
+            if cache_dir.exists():
+                shutil.rmtree(cache_dir)
+                print(f"✅ 缓存已清理: {cache_dir}")
+            else:
+                print("ℹ️  没有找到缓存目录")
+        
+        if args.stats:
+            print("📊 缓存统计:")
+            cache_dir = Path('.zhc_cache')
+            if cache_dir.exists():
+                total_size = 0
+                file_count = 0
+                for file in cache_dir.rglob('*'):
+                    if file.is_file():
+                        total_size += file.stat().st_size
+                        file_count += 1
+                
+                print(f"   文件数: {file_count}")
+                print(f"   总大小: {total_size / 1024 / 1024:.2f} MB")
+            else:
+                print("   缓存目录不存在")
+        
+        return 0
+
+
+class InfoCommand(CommandHandler):
+    """info 命令处理器"""
+    
+    def execute(self, args: argparse.Namespace, cli: 'CommandLineInterface') -> int:
+        info: Dict[str, Any] = {
+            "系统": platform.system(),
+            "系统版本": platform.version(),
+            "Python版本": sys.version,
+            "Python路径": sys.executable,
+            "当前目录": str(Path.cwd()),
+            "项目根目录": str(Path(__file__).parent.parent) if __file__ else "未知",
+            "中文C版本": "v6.0 (支持模块系统)",
+            "模块系统": "已启用"
+        }
+        
+        if args.json:
+            print(json.dumps(info, indent=2, ensure_ascii=False))
+        else:
+            print("🖥️  系统信息:")
+            for key, value in info.items():
+                print(f"  {key}: {value}")
+        
+        return 0
+
+
+class CompileCommand(CommandHandler):
+    """compile 命令处理器"""
+    
+    def execute(self, args: argparse.Namespace, cli: 'CommandLineInterface') -> int:
+        print(f"🔧 编译文件: {args.file}")
+        
+        compile_cmd = ['python3', '-m', 'src.__main__']
+        
+        if args.output:
+            compile_cmd.extend(['-o', args.output])
+        
+        compile_cmd.append(args.file)
+        
+        result = subprocess.run(compile_cmd)
+        
+        return result.returncode
+
 
 class CommandLineInterface:
-    """统一的命令行接口"""
+    """统一的命令行接口 - 使用命令模式"""
+    
+    # 命令处理器分派表
+    _command_handlers: Dict[str, CommandHandler] = {
+        'init': InitCommand(),
+        'new': NewCommand(),
+        'build': BuildCommand(),
+        'run': RunCommand(),
+        'test': TestCommand(),
+        'doc': DocCommand(),
+        'add': AddCommand(),
+        'remove': RemoveCommand(),
+        'update': UpdateCommand(),
+        'clean': CleanCommand(),
+        'cache': CacheCommand(),
+        'info': InfoCommand(),
+        'compile': CompileCommand(),
+    }
     
     def __init__(self):
         self.parser = self._create_parser()
@@ -131,91 +621,22 @@ class CommandLineInterface:
         return self.parser.parse_args(args)
     
     def execute(self, args):
-        """执行命令"""
-        if args.command == 'init':
-            return self._init_project(args)
-        elif args.command == 'new':
-            return self._new_module(args)
-        elif args.command == 'build':
-            return self._build_project(args)
-        elif args.command == 'run':
-            return self._run_project(args)
-        elif args.command == 'test':
-            return self._run_tests(args)
-        elif args.command == 'doc':
-            return self._generate_docs(args)
-        elif args.command == 'add':
-            return self._add_dependency(args)
-        elif args.command == 'remove':
-            return self._remove_dependency(args)
-        elif args.command == 'update':
-            return self._update_dependencies(args)
-        elif args.command == 'clean':
-            return self._clean_project(args)
-        elif args.command == 'cache':
-            return self._manage_cache(args)
-        elif args.command == 'info':
-            return self._show_info(args)
-        elif args.command == 'compile':
-            return self._compile_file(args)
-        else:
-            # 如果没有指定命令，尝试直接编译文件
-            if hasattr(args, 'file') and args.file:
-                return self._compile_direct(args)
-            else:
-                print("❌ 错误: 未知命令或缺少参数")
-                self.parser.print_help()
-                return 1
-    
-    def _init_project(self, args):
-        """初始化新项目"""
-        print(f"🚀 正在创建项目: {args.project_name}")
-        print(f"   模板: {args.template}")
+        """执行命令 - 使用dispatch table"""
+        command = args.command
+        handler = self._command_handlers.get(command)
         
-        # 创建项目目录
-        project_dir = Path(args.project_name)
-        project_dir.mkdir(exist_ok=True)
+        if handler:
+            return handler.execute(args, self)
         
-        # 创建标准目录结构
-        (project_dir / 'src').mkdir(exist_ok=True)
-        (project_dir / 'tests').mkdir(exist_ok=True)
-        (project_dir / 'docs').mkdir(exist_ok=True)
-        (project_dir / '构建').mkdir(exist_ok=True)
+        # 如果没有指定命令，尝试直接编译文件
+        if hasattr(args, 'file') and args.file:
+            compile_cmd = ['python3', '-m', 'src.__main__', args.file]
+            result = subprocess.run(compile_cmd)
+            return result.returncode
         
-        # 创建配置文件
-        config = {
-            "项目名称": args.project_name,
-            "版本": "1.0.0",
-            "作者": "开发者",
-            "描述": "一个中文C项目",
-            "入口模块": "src/主程序.zhc",
-            "模板": args.template,
-            "依赖": {},
-            "编译选项": {
-                "启用缓存": True,
-                "优化级别": "O2",
-                "输出目录": "./构建"
-            }
-        }
-        
-        config_file = project_dir / 'zhc.config.json'
-        import json
-        with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(config, f, indent=2, ensure_ascii=False)
-        
-        # 根据模板创建示例文件
-        if args.template == 'console':
-            self._create_console_template(project_dir)
-        elif args.template == 'library':
-            self._create_library_template(project_dir)
-        elif args.template == 'module':
-            self._create_module_template(project_dir)
-        
-        print(f"✅ 项目创建完成: {project_dir}")
-        print(f"📁 目录结构:")
-        self._print_tree(project_dir, max_depth=3)
-        
-        return 0
+        print("❌ 错误: 未知命令或缺少参数")
+        self.parser.print_help()
+        return 1
     
     def _create_console_template(self, project_dir: Path):
         """创建控制台应用模板"""
@@ -357,38 +778,6 @@ zhc run
 }
 ''', encoding='utf-8')
     
-    def _new_module(self, args):
-        """创建新模块"""
-        print(f"📦 正在创建模块: {args.module_name}")
-        print(f"   类型: {args.type}")
-        
-        # 确定模块文件路径
-        module_file = Path(f"src/{args.module_name}.zhc")
-        module_file.parent.mkdir(exist_ok=True)
-        
-        # 根据类型创建不同的模块模板
-        if args.type == 'util':
-            template = self._get_util_template(args.module_name)
-        elif args.type == 'data':
-            template = self._get_data_template(args.module_name)
-        elif args.type == 'service':
-            template = self._get_basic_template(args.module_name)  # service模板复用basic
-        elif args.type == 'ui':
-            template = self._get_basic_template(args.module_name)  # ui模板复用basic
-        else:
-            template = self._get_basic_template(args.module_name)
-        
-        # 写入模块文件
-        module_file.write_text(template, encoding='utf-8')
-        
-        print(f"✅ 模块创建完成: {module_file}")
-        print(f"📝 文件内容预览:")
-        print("-" * 40)
-        print(template[:500] + ("..." if len(template) > 500 else ""))
-        print("-" * 40)
-        
-        return 0
-    
     def _get_util_template(self, module_name: str) -> str:
         """获取工具模块模板"""
         return f'''模块 {module_name} {{
@@ -515,409 +904,6 @@ zhc run
         }}
 }}
 '''
-    
-    def _build_project(self, args):
-        """编译项目"""
-        print("🔨 正在编译项目...")
-        
-        # 检查配置文件
-        config_file = Path('zhc.config.json')
-        if not config_file.exists():
-            print("❌ 错误: 找不到 zhc.config.json")
-            print("   请在项目根目录运行此命令")
-            return 1
-        
-        # 构建命令
-        build_cmd = ['python3', '-m', 'src.__main__']
-        
-        # 添加参数
-        if args.release:
-            build_cmd.append('--release')
-        elif args.debug:
-            build_cmd.append('--debug')
-        
-        if args.cache:
-            build_cmd.append('--cache')
-        
-        if args.verbose:
-            build_cmd.append('--verbose')
-        
-        # 读取入口模块
-        import json
-        with open(config_file, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-        
-        entry_module = config.get('入口模块', 'src/主程序.zhc')
-        build_cmd.append(entry_module)
-        
-        # 执行构建
-        import subprocess
-        result = subprocess.run(build_cmd)
-        
-        if result.returncode == 0:
-            print("✅ 编译成功")
-            return 0
-        else:
-            print("❌ 编译失败")
-            return result.returncode
-    
-    def _run_project(self, args):
-        """运行项目"""
-        print("🚀 正在运行项目...")
-        
-        # 先构建项目
-        build_args = argparse.Namespace(release=False, debug=False, cache=False, verbose=False)
-        if self._build_project(build_args) != 0:
-            return 1
-        
-        # 确定运行文件
-        if args.file:
-            run_file = Path(args.file)
-        else:
-            # 从配置读取
-            config_file = Path('zhc.config.json')
-            if config_file.exists():
-                import json
-                with open(config_file, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                project_name = config.get('项目名称', '项目')
-            else:
-                project_name = '程序'
-            
-            run_file = Path('构建') / project_name
-        
-        # 检查可执行文件是否存在
-        if not run_file.exists():
-            print(f"❌ 错误: 找不到可执行文件: {run_file}")
-            return 1
-        
-        # 运行程序
-        import subprocess
-        run_cmd = [str(run_file)]
-        if args.args:
-            run_cmd.extend(args.args.split())
-        
-        print(f"📟 运行命令: {' '.join(run_cmd)}")
-        result = subprocess.run(run_cmd)
-        
-        return result.returncode
-    
-    def _run_tests(self, args):
-        """运行测试"""
-        print("🧪 正在运行测试...")
-        
-        # 查找测试文件
-        test_dir = Path('tests')
-        if not test_dir.exists():
-            print("ℹ️  没有找到 tests 目录")
-            return 0
-        
-        test_files = list(test_dir.glob('*.zhc'))
-        if not test_files:
-            print("ℹ️  没有找到测试文件")
-            return 0
-        
-        print(f"📄 找到 {len(test_files)} 个测试文件")
-        
-        # 编译并运行每个测试
-        success_count = 0
-        for test_file in test_files:
-            print(f"\n🔧 测试: {test_file.name}")
-            
-            # 编译测试
-            compile_cmd = ['python3', '-m', 'src.__main__', str(test_file), '--output-dir', '构建/测试']
-            compile_result = subprocess.run(compile_cmd, capture_output=True, text=True)
-            
-            if compile_result.returncode != 0:
-                print(f"❌ 编译失败: {test_file}")
-                print(compile_result.stderr)
-                continue
-            
-            # 运行测试
-            test_name = test_file.stem
-            executable = Path('构建/测试') / test_name
-            
-            if executable.exists():
-                run_result = subprocess.run([str(executable)], capture_output=True, text=True)
-                
-                if run_result.returncode == 0:
-                    print(f"✅ 测试通过: {test_file}")
-                    success_count += 1
-                else:
-                    print(f"❌ 测试失败: {test_file}")
-                    print(run_result.stderr)
-            else:
-                print(f"⚠️  找不到可执行文件: {executable}")
-        
-        # 生成覆盖率报告（如果启用）
-        if args.coverage:
-            print("⚠️ 覆盖率报告功能暂未实现")
-        
-        # 总结
-        total_count = len(test_files)
-        print(f"\n📊 测试结果: {success_count}/{total_count} 通过 ({success_count/total_count*100:.1f}%)")
-        
-        if success_count == total_count:
-            print("🎉 所有测试通过！")
-            return 0
-        else:
-            print("❌ 有测试失败")
-            return 1
-    
-    def _generate_docs(self, args):
-        """生成文档"""
-        print("📚 正在生成文档...")
-        
-        # 这里可以集成文档生成工具
-        # 目前先创建基础的README
-        
-        readme_content = '''# 中文C项目
-
-## 项目结构
-
-```
-项目/
-├── src/           # 源代码
-├── tests/         # 测试代码
-├── docs/          # 文档
-├── 构建/          # 构建输出
-└── zhc.config.json # 项目配置
-```
-
-## 构建指南
-
-```bash
-# 安装依赖
-无需外部依赖
-
-# 构建项目
-zhc build
-
-# 运行项目
-zhc run
-
-# 运行测试
-zhc test
-```
-
-## API文档
-
-TODO: 自动生成API文档
-'''
-        
-        docs_dir = Path('docs')
-        docs_dir.mkdir(exist_ok=True)
-        
-        readme_file = docs_dir / 'README.md'
-        readme_file.write_text(readme_content, encoding='utf-8')
-        
-        print(f"✅ 文档已生成: {readme_file}")
-        
-        # 如果指定了打开文档
-        if args.open:
-            import webbrowser
-            if args.format == 'html':
-                # 生成HTML文档
-                html_file = docs_dir / 'index.html'
-                # 先处理内容中的换行和代码块标记
-                processed_content = readme_content.replace('\n', '<br>').replace('```', '<pre>')
-                html_content = f'''
-<!DOCTYPE html>
-<html>
-<head>
-    <title>{Path.cwd().name} - 文档</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 40px; }}
-        pre {{ background: #f5f5f5; padding: 10px; border-radius: 5px; }}
-    </style>
-</head>
-<body>
-{processed_content}
-</body>
-</html>
-'''
-                html_file.write_text(html_content, encoding='utf-8')
-                webbrowser.open(f'file://{html_file.absolute()}')
-        
-        return 0
-    
-    def _add_dependency(self, args):
-        """添加模块依赖"""
-        print(f"➕ 正在添加依赖: {args.module_path}")
-        
-        # 检查配置文件
-        config_file = Path('zhc.config.json')
-        if not config_file.exists():
-            print("❌ 错误: 找不到 zhc.config.json")
-            return 1
-        
-        # 读取配置
-        import json
-        with open(config_file, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-        
-        # 添加依赖
-        if '依赖' not in config:
-            config['依赖'] = {}
-        
-        config['依赖'][args.module_path] = args.version or "latest"
-        
-        # 保存配置
-        with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(config, f, indent=2, ensure_ascii=False)
-        
-        print(f"✅ 依赖添加成功: {args.module_path}")
-        return 0
-    
-    def _remove_dependency(self, args):
-        """移除模块依赖"""
-        print(f"➖ 正在移除依赖: {args.module_name}")
-        
-        # 检查配置文件
-        config_file = Path('zhc.config.json')
-        if not config_file.exists():
-            print("❌ 错误: 找不到 zhc.config.json")
-            return 1
-        
-        # 读取配置
-        import json
-        with open(config_file, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-        
-        # 移除依赖
-        if '依赖' in config and args.module_name in config['依赖']:
-            del config['依赖'][args.module_name]
-            
-            # 保存配置
-            with open(config_file, 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=2, ensure_ascii=False)
-            
-            print(f"✅ 依赖移除成功: {args.module_name}")
-        else:
-            print(f"⚠️  依赖不存在: {args.module_name}")
-        
-        return 0
-    
-    def _update_dependencies(self, args):
-        """更新所有依赖"""
-        print("🔄 正在更新依赖...")
-        
-        # 这里可以实现依赖更新逻辑
-        # 目前只是占位符
-        
-        print("✅ 依赖更新完成（模拟）")
-        return 0
-    
-    def _clean_project(self, args):
-        """清理项目"""
-        print("🧹 正在清理项目...")
-        
-        # 清理构建目录
-        build_dir = Path('构建')
-        if build_dir.exists():
-            import shutil
-            shutil.rmtree(build_dir)
-            print(f"✅ 清理构建目录: {build_dir}")
-        
-        # 清理缓存
-        cache_dir = Path('.zhc_cache')
-        if cache_dir.exists():
-            import shutil
-            shutil.rmtree(cache_dir)
-            print(f"✅ 清理缓存目录: {cache_dir}")
-        
-        # 如果指定了清理所有
-        if args.all:
-            # 清理其他生成文件
-            for pattern in ['*.c', '*.o', '*.exe', '*.out']:
-                for file in Path('.').glob(pattern):
-                    file.unlink()
-                    print(f"✅ 清理文件: {file}")
-        
-        print("🎉 项目清理完成")
-        return 0
-    
-    def _manage_cache(self, args):
-        """管理缓存"""
-        if args.clear:
-            print("🗑️  正在清理缓存...")
-            cache_dir = Path('.zhc_cache')
-            if cache_dir.exists():
-                import shutil
-                shutil.rmtree(cache_dir)
-                print(f"✅ 缓存已清理: {cache_dir}")
-            else:
-                print("ℹ️  没有找到缓存目录")
-        
-        if args.stats:
-            print("📊 缓存统计:")
-            cache_dir = Path('.zhc_cache')
-            if cache_dir.exists():
-                total_size = 0
-                file_count = 0
-                for file in cache_dir.rglob('*'):
-                    if file.is_file():
-                        total_size += file.stat().st_size
-                        file_count += 1
-                
-                print(f"   文件数: {file_count}")
-                print(f"   总大小: {total_size / 1024 / 1024:.2f} MB")
-            else:
-                print("   缓存目录不存在")
-        
-        return 0
-    
-    def _show_info(self, args):
-        """显示系统信息"""
-        import platform
-        import sys
-        
-        info = {
-            "系统": platform.system(),
-            "系统版本": platform.version(),
-            "Python版本": sys.version,
-            "Python路径": sys.executable,
-            "当前目录": str(Path.cwd()),
-            "项目根目录": str(Path(__file__).parent.parent) if __file__ else "未知",
-            "中文C版本": "v6.0 (支持模块系统)",
-            "模块系统": "已启用"
-        }
-        
-        if args.json:
-            import json
-            print(json.dumps(info, indent=2, ensure_ascii=False))
-        else:
-            print("🖥️  系统信息:")
-            for key, value in info.items():
-                print(f"  {key}: {value}")
-        
-        return 0
-    
-    def _compile_file(self, args):
-        """编译单个文件"""
-        print(f"🔧 编译文件: {args.file}")
-        
-        compile_cmd = ['python3', '-m', 'src.__main__']
-        
-        if args.output:
-            compile_cmd.extend(['-o', args.output])
-        
-        compile_cmd.append(args.file)
-        
-        import subprocess
-        result = subprocess.run(compile_cmd)
-        
-        return result.returncode
-    
-    def _compile_direct(self, args):
-        """直接编译文件（快捷方式）"""
-        # 这里假设args有file属性
-        compile_cmd = ['python3', '-m', 'src.__main__', args.file]
-        
-        import subprocess
-        result = subprocess.run(compile_cmd)
-        
-        return result.returncode
     
     def _print_tree(self, directory: Path, prefix: str = "", max_depth: int = 3, current_depth: int = 0):
         """打印目录树"""

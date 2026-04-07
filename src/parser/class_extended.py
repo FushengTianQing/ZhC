@@ -118,8 +118,15 @@ class ClassInfo:
         return self.methods
 
 
+class ParseState(Enum):
+    """解析状态枚举 - 用于状态机模式"""
+    IDLE = "idle"
+    IN_CLASS = "in_class"
+    IN_METHOD_BODY = "in_method_body"
+
+
 class ClassParserExtended:
-    """扩展的类解析器"""
+    """扩展的类解析器 - 使用状态机模式"""
 
     # 正则表达式模式
     CLASS_PATTERN = r'类\s+(\w+)(?:\s*:\s*(\w+))?\s*\{'
@@ -140,7 +147,28 @@ class ClassParserExtended:
         self.errors: List[Dict[str, Any]] = []
         self.warnings: List[Dict[str, Any]] = []
         self.method_body_lines: List[str] = []
-        self.in_method_body: bool = False
+        # 状态机状态
+        self.state: ParseState = ParseState.IDLE
+
+        # 状态处理分派表
+        self._state_handlers = {
+            ParseState.IDLE: self._handle_idle,
+            ParseState.IN_CLASS: self._handle_in_class,
+            ParseState.IN_METHOD_BODY: self._handle_in_method_body,
+        }
+
+        # 可见性分派表
+        self._visibility_map = {
+            "公开:": Visibility.PUBLIC,
+            "私有:": Visibility.PRIVATE,
+            "保护:": Visibility.PROTECTED,
+        }
+
+        # 区域分派表
+        self._section_map = {
+            "属性:": "属性",
+            "方法:": "方法",
+        }
 
     def parse_class_declaration(self, line: str, line_num: int) -> Optional[ClassInfo]:
         """解析类声明 - 兼容ClassParser接口"""
@@ -189,46 +217,52 @@ class ClassParserExtended:
         self.errors.clear()
         self.warnings.clear()
         self.method_body_lines.clear()
-        self.in_method_body = False
+        self.state = ParseState.IDLE
 
     def parse_line(self, line: str, line_num: int):
-        """解析一行代码"""
+        """解析一行代码 - 使用状态机模式分派"""
         stripped = line.strip()
 
         # 跳过空行和注释
         if not stripped or stripped.startswith("//"):
-            if self.in_method_body:
+            if self.state == ParseState.IN_METHOD_BODY:
                 self.method_body_lines.append(line)
             return
 
         # 处理类结束
         if re.match(self.CLASS_END_PATTERN, stripped) and self.current_class:
-            if self.in_method_body:
-                # 结束方法体
-                self._finish_method_body()
-            self.current_class = None
-            self.current_section = ""
-            self.in_method_body = False
+            self._handle_end_marker()
             return
 
-        # 如果在方法体内，继续收集代码行
-        if self.in_method_body:
-            self.method_body_lines.append(line)
-            return
+        # 状态机分派
+        handler = self._state_handlers.get(self.state)
+        if handler:
+            handler(stripped, line_num, line)
 
-        # 解析类声明
+    def _handle_end_marker(self):
+        """处理结束标记}"""
+        if self.state == ParseState.IN_METHOD_BODY:
+            self._finish_method_body()
+        self.current_class = None
+        self.current_section = ""
+        self.state = ParseState.IDLE
+
+    def _handle_idle(self, stripped: str, line_num: int, line: str):
+        """IDLE状态处理器 - 等待解析新类"""
         class_match = re.match(self.CLASS_PATTERN, stripped)
         if class_match:
             self._parse_class_declaration(class_match, line_num)
-            return
+            self.state = ParseState.IN_CLASS
 
+    def _handle_in_class(self, stripped: str, line_num: int, line: str):
+        """IN_CLASS状态处理器 - 在类内部"""
         # 解析可见性声明
-        if re.match(self.VISIBILITY_PATTERN, stripped):
+        if stripped in self._visibility_map:
             self._parse_visibility(stripped)
             return
 
         # 解析区域头
-        if re.match(self.SECTION_PATTERN, stripped):
+        if stripped in self._section_map:
             self._parse_section(stripped)
             return
 
@@ -244,9 +278,14 @@ class ClassParserExtended:
             method = self._parse_method_declaration(stripped, line_num)
             if method:
                 self.current_method = method
-                self.in_method_body = True
+                self.state = ParseState.IN_METHOD_BODY
                 self.method_body_lines = []
             return
+
+    def _handle_in_method_body(self, stripped: str, line_num: int, line: str):
+        """IN_METHOD_BODY状态处理器 - 在方法体内"""
+        # 继续收集方法体代码行
+        self.method_body_lines.append(line)
 
     def _parse_class_declaration(self, match, line_num: int):
         """解析类声明"""
@@ -282,20 +321,12 @@ class ClassParserExtended:
         self.current_visibility = Visibility.PRIVATE
 
     def _parse_visibility(self, line: str):
-        """解析可见性声明"""
-        if "公开:" in line:
-            self.current_visibility = Visibility.PUBLIC
-        elif "私有:" in line:
-            self.current_visibility = Visibility.PRIVATE
-        elif "保护:" in line:
-            self.current_visibility = Visibility.PROTECTED
+        """解析可见性声明 - 使用dispatch table"""
+        self.current_visibility = self._visibility_map.get(line, Visibility.PRIVATE)
 
     def _parse_section(self, line: str):
-        """解析区域头"""
-        if "属性:" in line:
-            self.current_section = "属性"
-        elif "方法:" in line:
-            self.current_section = "方法"
+        """解析区域头 - 使用dispatch table"""
+        self.current_section = self._section_map.get(line, "")
 
     def _parse_attribute(self, line: str, line_num: int) -> Optional[AttributeInfo]:
         """解析属性声明"""
@@ -419,7 +450,7 @@ class ClassParserExtended:
                 self.parse_line(line, i)
 
             # 处理文件结束时的方法体
-            if self.in_method_body:
+            if self.state == ParseState.IN_METHOD_BODY:
                 self._finish_method_body()
 
         except Exception as e:
