@@ -207,7 +207,7 @@ python3 -m src.__main__ input.zhc --backend wasm -o output.wasm
 
 ## 六、待用户决策
 
-1. **LLVM 后端**：是否需要？还是 C 后端 + clang 工具链足够？
+1. **LLVM 后端**：是否需要？
 2. **WASM 插件**：是否需要？
 3. **插件系统**：需要哪些 C 库？
 4. **优先级**：多后端 vs 插件系统 vs 其他
