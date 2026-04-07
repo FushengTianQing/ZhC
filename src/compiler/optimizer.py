@@ -432,7 +432,7 @@ class ConcurrentCompiler:
         # 创建线程执行每个阶段
         threads = []
         for i, stage_func in enumerate(stages):
-            def stage_worker(stage_idx, input_queue, output_queue):
+            def stage_worker(stage_idx, input_queue, output_queue, is_last_stage=False):
                 while True:
                     try:
                         item = input_queue.get(timeout=1)
@@ -442,12 +442,16 @@ class ConcurrentCompiler:
                             
                         result = stage_func(item)
                         output_queue.put(result)
+                        if is_last_stage:
+                            output_queue.put(None)
+                            break
                     except queue.Empty:
                         continue
                         
+            is_last = (i == len(stages) - 1)
             thread = threading.Thread(
                 target=stage_worker,
-                args=(i, stage_queues[i], stage_queues[i+1])
+                args=(i, stage_queues[i], stage_queues[i+1], is_last)
             )
             threads.append(thread)
             thread.start()

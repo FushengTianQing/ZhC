@@ -256,6 +256,8 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+# 跳过 archived 目录（这些是独立脚本格式，含有 sys.exit()）
+norecursedirs = ["tests/archived"]
 
 # 测试输出选项
 addopts = [
