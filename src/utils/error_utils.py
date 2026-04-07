@@ -105,22 +105,20 @@ def log_error(error: Exception, context: Optional[str] = None) -> None:
 
 
 def retry_on_error(
-    func: Callable,
     max_retries: int = 3,
     delay: float = 1.0,
     exceptions: tuple = (Exception,)
 ) -> Callable:
     """
-    重试装饰器，在异常时自动重试
+    重试装饰器工厂，在异常时自动重试
     
     Args:
-        func: 要装饰的函数
         max_retries: 最大重试次数
         delay: 重试间隔（秒）
         exceptions: 要捕获的异常类型
         
     Returns:
-        装饰后的函数
+        装饰器函数
         
     Example:
         >>> @retry_on_error(max_retries=3, delay=0.5)
@@ -129,24 +127,27 @@ def retry_on_error(
     """
     import time
     
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        last_exception = None
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+            
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except exceptions as e:
+                    last_exception = e
+                    if attempt < max_retries:
+                        if delay > 0:
+                            time.sleep(delay)
+                        log_error(e, context=f"{func.__name__} 第 {attempt + 1} 次尝试失败")
+            
+            # 所有重试都失败，抛出最后一次异常
+            raise last_exception
         
-        for attempt in range(max_retries + 1):
-            try:
-                return func(*args, **kwargs)
-            except exceptions as e:
-                last_exception = e
-                if attempt < max_retries:
-                    if delay > 0:
-                        time.sleep(delay)
-                    log_error(e, context=f"{func.__name__} 第 {attempt + 1} 次尝试失败")
-        
-        # 所有重试都失败，抛出最后一次异常
-        raise last_exception
+        return wrapper
     
-    return wrapper
+    return decorator
 
 
 def validate_type(value: Any, expected_type: type, name: str = "参数") -> Any:

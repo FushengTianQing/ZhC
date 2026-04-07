@@ -169,7 +169,7 @@ jobs:
           TH="${{ env.COVERAGE_THRESHOLD }}"
           echo "**当前**: ${COV} | **门槛**: ${TH}% | **目标**: 60%" >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
-          echo "> 路线图: 15% -> 25%(W1) -> 38%(W2) -> 50%(W3) -> 60%(M2)" >> $GITHUB_STEP_SUMMARY
+          echo "> 路线图: 25%(W1) -> 38%(W2) -> 50%(W3) -> 60%(M2)" >> $GITHUB_STEP_SUMMARY
           echo "coverage=${COV}" >> $GITHUB_ENV
 
       - uses: actions/upload-artifact@v4

@@ -215,7 +215,7 @@ def truncate(text: str, max_length: int, suffix: str = '...') -> str:
     
     Args:
         text: 输入字符串
-        max_length: 最大长度
+        max_length: 最大长度（包含后缀）
         suffix: 截断后添加的后缀，默认 '...'
         
     Returns:
@@ -229,6 +229,10 @@ def truncate(text: str, max_length: int, suffix: str = '...') -> str:
     """
     if len(text) <= max_length:
         return text
+    
+    # 确保后缀能够放入 max_length
+    if len(suffix) > max_length:
+        return suffix[:max_length]
     
     return text[:max_length - len(suffix)] + suffix
 
@@ -262,7 +266,10 @@ def format_table(headers: List[str], rows: List[List[str]], padding: int = 2) ->
                 col_widths[i] = max(col_widths[i], len(str(cell)))
     
     # 格式化表头
-    header_line = ' ' * padding.join(str(h).ljust(w) for h, w in zip(headers, col_widths))
+    header_parts = []
+    for h, w in zip(headers, col_widths):
+        header_parts.append(str(h).ljust(w))
+    header_line = (' ' * padding).join(header_parts)
     
     # 格式化分隔线
     separator = '-'.join('-' * w for w in col_widths)
@@ -270,7 +277,9 @@ def format_table(headers: List[str], rows: List[List[str]], padding: int = 2) ->
     # 格式化数据行
     data_lines = []
     for row in rows:
-        line = ' ' * padding.join(str(cell).ljust(w) for cell, w in zip(row, col_widths))
-        data_lines.append(line)
+        line_parts = []
+        for cell, w in zip(row, col_widths):
+            line_parts.append(str(cell).ljust(w))
+        data_lines.append((' ' * padding).join(line_parts))
     
     return '\n'.join([header_line, separator] + data_lines)
