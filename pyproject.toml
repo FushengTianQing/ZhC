@@ -264,9 +264,9 @@ addopts = [
     "-v",                                    # 详细输出
     "--strict-markers",                      # 严格的marker
     "--strict-config",                       # 严格配置
-    # "--cov=src",                           # 覆盖率（取消注释以启用）
-    # "--cov-report=term-missing",            # 覆盖率报告（取消注释以启用）
-    # "--cov-fail-under=60",                 # 最低覆盖率要求（取消注释以启用）
+    "--cov=src",                              # 覆盖率
+    "--cov-report=term-missing",              # 覆盖率报告
+    "--cov-fail-under=60",                    # 最低覆盖率要求
 ]
 
 # 标记定义
