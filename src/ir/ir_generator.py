@@ -245,70 +245,89 @@ class IRGenerator(ASTVisitor):
     # 表达式求值 — _eval_expr 分派 + 10个子方法
     # =========================================================================
 
+    # 字面量类型到求值方法的映射
+    LITERAL_EVALUATORS = {
+        'INT_LITERAL': ('_eval_int_literal', '整数型', int),
+        'FLOAT_LITERAL': ('_eval_float_literal', '双精度浮点型', float),
+        'STRING_LITERAL': ('_eval_string_literal', '字符串型', None),
+        'CHAR_LITERAL': ('_eval_char_literal', '字符型', None),
+        'BOOL_LITERAL': ('_eval_bool_literal', '布尔型', None),
+        'NULL_LITERAL': ('_eval_null_literal', '空型', None),
+    }
+
+    # 表达式类型到求值方法的映射
+    EXPR_EVALUATORS = {
+        'IDENTIFIER_EXPR': '_eval_identifier',
+        'BINARY_EXPR': '_eval_binary',
+        'UNARY_EXPR': '_eval_unary',
+        'ASSIGN_EXPR': '_eval_assignment',
+        'CALL_EXPR': '_eval_call',
+        'MEMBER_EXPR': '_eval_member',
+        'ARRAY_EXPR': '_eval_array',
+        'TERNARY_EXPR': '_eval_ternary',
+        'CAST_EXPR': '_eval_cast',
+    }
+
     def _eval_expr(self, node: ASTNode) -> Optional[IRValue]:
         """
         求值表达式，返回结果 IRValue。
 
-        将表达式分派到具体的求值方法。
+        使用 dispatch table 将表达式分派到具体的求值方法。
         """
         if node is None:
             return None
 
         nt = node.node_type.name if hasattr(node, 'node_type') else str(type(node))
 
-        # 字面量
-        if nt == 'INT_LITERAL':
-            return self._eval_literal(node, '整数型', int(getattr(node, 'value', 0)))
-        if nt == 'FLOAT_LITERAL':
-            return self._eval_literal(node, '双精度浮点型', float(getattr(node, 'value', 0.0)))
-        if nt == 'STRING_LITERAL':
-            val = getattr(node, 'value', '')
-            return self._eval_literal(node, '字符串型', f'"{val}"', is_string=True)
-        if nt == 'CHAR_LITERAL':
-            val = getattr(node, 'value', '0')
-            return self._eval_literal(node, '字符型', f"'{val}'", is_string=True)
-        if nt == 'BOOL_LITERAL':
-            return self._eval_literal(node, '布尔型', getattr(node, 'value', False))
-        if nt == 'NULL_LITERAL':
-            return self._eval_literal(node, '空型', 0)
+        # 字面量求值
+        if nt in self.LITERAL_EVALUATORS:
+            method_name, type_name, converter = self.LITERAL_EVALUATORS[nt]
+            # 调用对应的字面量求值方法
+            evaluator = getattr(self, method_name, None)
+            if evaluator:
+                return evaluator(node)
+            # 备用方案：直接在方法中处理
+            if converter:
+                value = converter(getattr(node, 'value', 0))
+            else:
+                value = getattr(node, 'value', '')
+            return self._eval_literal(node, type_name, value, is_string=(nt in ('STRING_LITERAL', 'CHAR_LITERAL')))
 
-        # 标识符
-        if nt == 'IDENTIFIER_EXPR':
-            return self._eval_identifier(node)
-
-        # 二元表达式
-        if nt == 'BINARY_EXPR':
-            return self._eval_binary(node)
-
-        # 一元表达式
-        if nt == 'UNARY_EXPR':
-            return self._eval_unary(node)
-
-        # 赋值表达式
-        if nt == 'ASSIGN_EXPR':
-            return self._eval_assignment(node)
-
-        # 函数调用
-        if nt == 'CALL_EXPR':
-            return self._eval_call(node)
-
-        # 成员访问
-        if nt == 'MEMBER_EXPR':
-            return self._eval_member(node)
-
-        # 数组访问
-        if nt == 'ARRAY_EXPR':
-            return self._eval_array(node)
-
-        # 三元表达式
-        if nt == 'TERNARY_EXPR':
-            return self._eval_ternary(node)
-
-        # 类型转换
-        if nt == 'CAST_EXPR':
-            return self._eval_cast(node)
+        # 表达式求值
+        evaluator_name = self.EXPR_EVALUATORS.get(nt)
+        if evaluator_name:
+            evaluator = getattr(self, evaluator_name, None)
+            if evaluator:
+                return evaluator(node)
 
         return None
+
+    def _eval_int_literal(self, node: ASTNode) -> IRValue:
+        """求值整数字面量"""
+        return self._eval_literal(node, '整数型', int(getattr(node, 'value', 0)))
+
+    def _eval_float_literal(self, node: ASTNode) -> IRValue:
+        """求值浮点字面量"""
+        return self._eval_literal(node, '双精度浮点型', float(getattr(node, 'value', 0.0)))
+
+    def _eval_string_literal(self, node: ASTNode) -> IRValue:
+        """求值字符串字面量"""
+        val = getattr(node, 'value', '')
+        return self._eval_literal(node, '字符串型', f'"{val}"', is_string=True)
+
+    def _eval_char_literal(self, node: ASTNode) -> IRValue:
+        """求值字符字面量"""
+        val = getattr(node, 'value', '0')
+        return self._eval_literal(node, '字符型', f"'{val}'", is_string=True)
+
+    def _eval_bool_literal(self, node: ASTNode) -> IRValue:
+        """求值布尔字面量"""
+        return self._eval_literal(node, '布尔型', getattr(node, 'value', False))
+
+    def _eval_null_literal(self, node: ASTNode) -> IRValue:
+        """求值空字面量"""
+        # NullLiteralNode 没有 value 属性，直接返回 "0"
+        return IRValue("0", '空型', ValueKind.CONST, const_value=0)
 
     def _eval_literal(self, node: ASTNode, type_name: str, value: Any, is_string: bool = False) -> IRValue:
         """求值字面量：INT/FLOAT/STRING/CHAR/BOOL/NULL"""

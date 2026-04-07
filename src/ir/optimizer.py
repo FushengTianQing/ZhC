@@ -60,6 +60,34 @@ class ConstantFolding(OptimizationPass):
         %1 = %0 * 4   ->   %1 = 12
     """
 
+    # 二元操作符映射表
+    BINARY_OPS = {
+        Opcode.ADD: lambda a, b: a + b,
+        Opcode.SUB: lambda a, b: a - b,
+        Opcode.MUL: lambda a, b: a * b,
+        Opcode.DIV: lambda a, b: a / b if b != 0 else None,
+        Opcode.MOD: lambda a, b: a % b if b != 0 else None,
+        Opcode.EQ: lambda a, b: a == b,
+        Opcode.NE: lambda a, b: a != b,
+        Opcode.LT: lambda a, b: a < b,
+        Opcode.LE: lambda a, b: a <= b,
+        Opcode.GT: lambda a, b: a > b,
+        Opcode.GE: lambda a, b: a >= b,
+        Opcode.L_AND: lambda a, b: bool(a) and bool(b),
+        Opcode.L_OR: lambda a, b: bool(a) or bool(b),
+    }
+
+    # 一元操作符映射表
+    UNARY_OPS = {
+        Opcode.NEG: lambda a: -a,
+        Opcode.L_NOT: lambda a: not a,
+    }
+
+    # 可折叠的操作符集合
+    FOLDABLE_OPS = frozenset(
+        list(BINARY_OPS.keys()) + list(UNARY_OPS.keys())
+    )
+
     def name(self) -> str:
         return "常量折叠"
 
@@ -87,10 +115,7 @@ class ConstantFolding(OptimizationPass):
 
     def _can_fold(self, instr: IRInstruction) -> bool:
         """判断是否可以折叠"""
-        op = instr.opcode
-        if op not in (Opcode.ADD, Opcode.SUB, Opcode.MUL, Opcode.DIV, Opcode.MOD,
-                       Opcode.EQ, Opcode.NE, Opcode.LT, Opcode.LE, Opcode.GT, Opcode.GE,
-                       Opcode.L_AND, Opcode.L_OR, Opcode.NEG, Opcode.L_NOT):
+        if instr.opcode not in self.FOLDABLE_OPS:
             return False
         if not instr.operands or not instr.result:
             return False
@@ -105,40 +130,12 @@ class ConstantFolding(OptimizationPass):
         op = instr.opcode
 
         try:
-            if op == Opcode.ADD:
-                return vals[0] + vals[1]
-            if op == Opcode.SUB:
-                return vals[0] - vals[1]
-            if op == Opcode.MUL:
-                return vals[0] * vals[1]
-            if op == Opcode.DIV:
-                if vals[1] == 0:
-                    return None
-                return vals[0] / vals[1]
-            if op == Opcode.MOD:
-                if vals[1] == 0:
-                    return None
-                return vals[0] % vals[1]
-            if op == Opcode.EQ:
-                return vals[0] == vals[1]
-            if op == Opcode.NE:
-                return vals[0] != vals[1]
-            if op == Opcode.LT:
-                return vals[0] < vals[1]
-            if op == Opcode.LE:
-                return vals[0] <= vals[1]
-            if op == Opcode.GT:
-                return vals[0] > vals[1]
-            if op == Opcode.GE:
-                return vals[0] >= vals[1]
-            if op == Opcode.L_AND:
-                return bool(vals[0]) and bool(vals[1])
-            if op == Opcode.L_OR:
-                return bool(vals[0]) or bool(vals[1])
-            if op == Opcode.NEG:
-                return -vals[0]
-            if op == Opcode.L_NOT:
-                return not vals[0]
+            # 二元操作
+            if op in self.BINARY_OPS:
+                return self.BINARY_OPS[op](vals[0], vals[1])
+            # 一元操作
+            if op in self.UNARY_OPS:
+                return self.UNARY_OPS[op](vals[0])
         except (ZeroDivisionError, TypeError, ValueError):
             pass
         return None
