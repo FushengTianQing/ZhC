@@ -14,8 +14,7 @@ from typing import List, Dict, Tuple, Optional
 import re
 
 # 使用相对导入，避免 sys.path 魔法
-from ..day2.module_parser import ModuleParser
-from .scope_manager import ScopeManager, Visibility, ScopeType
+from zhpp.parser.module import ModuleParser
 from zhpp.converter.code import CodeConverter
 
 class IntegratedConverter:
