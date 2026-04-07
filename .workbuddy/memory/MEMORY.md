@@ -98,6 +98,10 @@
 - `src/ir/inline_optimizer.py` - 内联优化（成本模型、函数内联）
 - `src/semantic/generics.py` - 泛型类型系统（TypeParameter, GenericType, GenericFunction, TypeConstraint）
 - `src/semantic/generic_parser.py` - 泛型语法解析（TypeNode, GenericTypeDeclNode, GenericFunctionDeclNode）
+- `src/semantic/generic_instantiator.py` - 泛型实例化（类型/函数实例化、类型推导）
+- `src/codegen/generic_codegen.py` - 泛型代码生成（名字修饰、单态化）
+- `src/semantic/pattern_matching.py` - 模式匹配系统（9 种模式类型、PatternMatcher）
+- `src/semantic/pattern_parser.py` - 模式匹配语法解析器（PatternParser）
 
 ## Phase 4 Stage 2 - 高级语言特性（2026-04-08）
 - **文档位置**: `docs/PHASE4_TASK_PLAN.md`
@@ -116,16 +120,69 @@
   - 内联成本模型、函数内联器
 
 **Stage 2 (Week 11-13) - 高级语言特性 🚧 进行中**:
-- Task 11.1: 泛型编程支持 ✅ Day 1-2 完成
+- Task 11.1: 泛型编程支持 ✅ 全部完成
   - Day 1: 泛型类型系统设计（generics.py, GENERICS_DESIGN.md）
   - Day 2: 泛型解析（lexer.py 扩展, generic_parser.py）
-  - Day 3: 泛型实例化（类型/函数实例化）
-  - Day 4: 代码生成（单态化实现）
-- Task 11.2: 模式匹配实现（3天）
-- Task 11.3: 异步编程支持（3天）
+  - Day 3: 泛型实例化（generic_instantiator.py）
+  - Day 4: 代码生成（generic_codegen.py）
+- Task 11.2: 模式匹配实现 🚧 Day 1 进行中
+  - Day 1: 模式匹配语法设计（pattern_matching.py, pattern_parser.py, lexer.py 扩展）
+  - Day 2: 模式匹配语义分析 - 待开始
+  - Day 3: 模式匹配代码生成 - 待开始
+- Task 11.3: 异步编程支持（3天）- 待开始
 
 **泛型系统设计** (2026-04-08):
 - **核心类**: TypeParameter, GenericType, GenericFunction, TypeConstraint
 - **预定义约束**: 可比较、可相等、可加、可打印、数值型
 - **语法支持**: `泛型类型 列表<类型 T>`, `泛型函数 T 最大值<类型 T: 可比较>`
-- **测试覆盖**: 58 个测试用例全部通过
+- **实例化**: GenericInstantiator, InstantiationContext, GenericTypeInferrer
+- **代码生成**: NameMangler（名字修饰）, GenericCodeGenerator（单态化）
+- **测试覆盖**: 113 个测试用例全部通过（24+34+21+34）
+
+**模式匹配系统设计** (2026-04-08):
+- **核心类**: Pattern 基类 + 9 种具体模式
+- **模式类型**: 通配符(_)、变量(x)、字面量(42/"hello")、构造器(Some(x))、解构(点{x,y})、范围(1..10)、元组((x,y))、或(|)、与(&)、守卫(当)
+- **语法解析器**: PatternParser（pattern_parser.py）
+- **测试覆盖**: 87 个测试用例全部通过（55+32）
+- **新增文件**: src/semantic/pattern_matching.py, src/semantic/pattern_parser.py
+
+## Phase 4 Stage 3 - 工具链生态（2026-04-08）
+
+**Task 14.1: Language Server Protocol 实现 ✅ 已完成**
+
+**Day 1: LSP 协议实现**:
+- `src/lsp/protocol.py` - LSP 协议类型定义
+- `src/lsp/jsonrpc.py` - JSON-RPC 2.0 实现
+- `src/lsp/server.py` - Language Server 主实现
+- 65 个单元测试全部通过
+
+**Day 2: 代码补全**:
+- Document 符号表解析（函数、结构体、类、枚举、变量）
+- 上下文分析（类型声明、成员访问、点操作符）
+- 代码补全增强（类型补全、成员补全、方法补全）
+- 符号表实时更新
+
+**Day 3: 诊断和悬停**:
+- 悬停功能增强（符号表信息、关键字文档）
+- 诊断功能增强（词法错误、括号匹配、语法结构、未使用变量检查）
+
+**Day 4: 导航和重构**:
+- 转到定义（符号表查找）
+- 查找引用（所有出现位置）
+- 重命名（生成所有引用更改）
+
+**Day 5: VSCode 扩展和文档**:
+- `editors/vscode/` - VSCode 扩展（package.json, extension.ts, 语法高亮）
+- `docs/LSP_GUIDE.md` - LSP 使用指南
+
+**LSP 模块文件**:
+- `src/lsp/__init__.py` - 模块入口
+- `src/lsp/protocol.py` - 协议类型（Position, Range, Diagnostic, CompletionItem, Hover 等）
+- `src/lsp/jsonrpc.py` - JSON-RPC 通信（JSONRPCServer, JSONRPCClient, Transport）
+- `src/lsp/server.py` - Language Server（代码补全、诊断、悬停、导航、重命名）
+
+**测试文件**:
+- `tests/test_lsp_protocol.py` - 26 个协议类型测试
+- `tests/test_lsp_jsonrpc.py` - 16 个 JSON-RPC 测试
+- `tests/test_lsp_server.py` - 23 个服务器测试
+- **总计**: 65 个测试全部通过
