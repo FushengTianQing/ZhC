@@ -1,0 +1,85 @@
+{
+  "name": "zhc-language-server",
+  "displayName": "ZHC Language Server",
+  "description": "Language Server Protocol support for ZHC (中文编程语言)",
+  "version": "0.1.0",
+  "publisher": "zhc",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Debuggers"
+  ],
+  "activationEvents": [
+    "onLanguage:zhc"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "zhc",
+        "aliases": ["ZHC", "zhc", "中文C"],
+        "extensions": [".zhc"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "zhc",
+        "scopeName": "source.zhc",
+        "path": "./syntaxes/zhc.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "ZHC Language Server",
+      "properties": {
+        "zhc.languageServer.path": {
+          "type": "string",
+          "default": "zhc-lsp",
+          "description": "Path to the ZHC language server executable"
+        },
+        "zhc.languageServer.args": {
+          "type": "array",
+          "default": [],
+          "description": "Arguments to pass to the language server"
+        },
+        "zhc.trace.server": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the language server"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "zhc.restartServer",
+        "title": "Restart ZHC Language Server",
+        "category": "ZHC"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.75.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0",
+    "@vscode/vsce": "^2.19.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.1.0"
+  }
+}

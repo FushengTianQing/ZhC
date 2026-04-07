@@ -1,0 +1,79 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "ZHC",
+  "scopeName": "source.zhc",
+  "fileTypes": ["zhc"],
+  "patterns": [
+    {
+      "name": "comment.line.double-slash.zhc",
+      "match": "//.*$"
+    },
+    {
+      "name": "comment.block.zhc",
+      "begin": "/\\*",
+      "end": "\\*/"
+    },
+    {
+      "name": "string.quoted.double.zhc",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.zhc",
+          "match": "\\\\."
+        }
+      ]
+    },
+    {
+      "name": "string.quoted.single.zhc",
+      "begin": "'",
+      "end": "'",
+      "patterns": [
+        {
+          "name": "constant.character.escape.zhc",
+          "match": "\\\\."
+        }
+      ]
+    },
+    {
+      "name": "constant.numeric.zhc",
+      "match": "\\b\\d+(\\.\\d+)?\\b"
+    },
+    {
+      "name": "constant.language.zhc",
+      "match": "\\b(真|假|空)\\b"
+    },
+    {
+      "name": "keyword.control.zhc",
+      "match": "\\b(如果|否则|当|匹配|返回|尝试|捕获|最终|中断|继续)\\b"
+    },
+    {
+      "name": "keyword.declaration.zhc",
+      "match": "\\b(函数|结构体|类|枚举|接口|变量|常量|公共|私有|保护|异步|等待)\\b"
+    },
+    {
+      "name": "storage.type.zhc",
+      "match": "\\b(整数型|浮点型|双精度浮点型|字符型|字符串型|布尔型|字节型|长整数型|短整数型|逻辑型|空型)\\b"
+    },
+    {
+      "name": "support.function.zhc",
+      "match": "\\b(打印|读取|长度|获取|设置|字符串|整数|浮点)\\b"
+    },
+    {
+      "name": "entity.name.type.zhc",
+      "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+    },
+    {
+      "name": "variable.other.zhc",
+      "match": "\\b[a-z][a-zA-Z0-9_]*\\b"
+    },
+    {
+      "name": "punctuation.bracket.zhc",
+      "match": "[\\(\\)\\[\\]\\{\\}]]"
+    },
+    {
+      "name": "punctuation.operator.zhc",
+      "match": "[+\\-*/%=<>!&|^~?:]"
+    }
+  ]
+}
