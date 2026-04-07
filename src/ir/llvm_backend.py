@@ -74,7 +74,7 @@ class LLVMPrinter:
     def _gen_function(self, func: IRFunction):
         ret_ty = _llvm_type(func.return_type or "i32")
         params = ", ".join(
-            f"{_llvm_type(p.ty or 'i32'} %{p.name}"
+            f"{_llvm_type(p.ty or 'i32')} %{p.name}"
             for p in func.params
         )
         self.lines.append(f"define {ret_ty} @{func.name}({params} {{")

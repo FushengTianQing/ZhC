@@ -49,6 +49,10 @@ class ErrorType(Enum):
     # 编译错误
     COMPILE_CONVERSION_FAILED = "转换失败"
     COMPILE_UNSUPPORTED_FEATURE = "不支持的功能"
+    
+    # 文件错误
+    FILE_NOT_FOUND = "文件不存在"
+    FILE_READ_ERROR = "文件读取错误"
 
 class ErrorRecord:
     """错误记录"""

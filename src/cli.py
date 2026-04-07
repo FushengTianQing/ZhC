@@ -311,9 +311,9 @@ class ZHCCompiler:
         errors = validator.get_errors()
         if errors:
             print(validator.format_errors())
-            if len(errors) > self.MAX_DISPLAY_ERRORS:
+            if len(errors) > CompilerConfig.MAX_DISPLAY_ERRORS:
                 print(
-                    f"  ... 还有 {len(errors) - self.MAX_DISPLAY_ERRORS} 个错误未显示"
+                    f"  ... 还有 {len(errors) - CompilerConfig.MAX_DISPLAY_ERRORS} 个错误未显示"
                 )
             return False
 

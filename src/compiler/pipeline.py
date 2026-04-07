@@ -410,9 +410,9 @@ class CompilationPipeline:
             f.write(c_code)
         
         # 6. 模块依赖分析
-        module_declarations = []
-        first_module_name = None
-        all_imports = []
+        module_declarations: List[Dict[str, Any]] = []
+        first_module_name: Optional[str] = None
+        all_imports: List[str] = []
         
         # 收集模块信息（从 AST 的 ImportDeclNode）
         for decl in ast.declarations:
@@ -501,10 +501,11 @@ class CompilationPipeline:
         
         for filepath in source_paths:
             if not filepath.exists():
+                from ..converter.error import ErrorType
                 self.error_handler.add_error(
-                    "FILE_NOT_FOUND",
+                    ErrorType.FILE_NOT_FOUND,
                     f"文件不存在: {filepath}",
-                    filepath=str(filepath)
+                    line_no=0
                 )
                 continue
                 
@@ -524,10 +525,11 @@ class CompilationPipeline:
         if cycles:
             logger.warning("发现循环依赖: %s", cycles)
             for cycle in cycles:
+                from ..converter.error import ErrorType
                 self.error_handler.add_error(
-                    "DEPENDENCY_CYCLE",
+                    ErrorType.DEPENDENCY_CYCLE,
                     f"循环依赖: {' -> '.join(cycle)}",
-                    filepath=str(source_files[0])
+                    line_no=0
                 )
         else:
             logger.info("无循环依赖")
@@ -680,15 +682,28 @@ class CompilationPipeline:
             logger.debug("  需要重新编译: %s", f.name)
             
         # 只重新编译需要的文件
-        self.error_handler.clear_errors()
+        self.error_handler.reset()
         for filepath in need_recompile:
             self.process_file(filepath)
             
         # 重新分析依赖关系
-        self.dependency_resolver.clear()
+        # 重新创建依赖解析器
+        self.dependency_resolver = DependencyResolver(self.error_handler)
+        self.file_integrator = MultiFileIntegrator(self.dependency_resolver)
+        
+        # 重新处理所有文件以建立依赖关系
         for filepath in source_paths:
-            module_name = filepath.stem
-            self.dependency_resolver.add_module(module_name, filepath)
+            result = self.process_file(filepath)
+            if result:
+                # 从处理结果中提取模块信息并添加到依赖解析器
+                module_decl = {
+                    'name': result.get('module_name', filepath.stem),
+                    'file_path': str(filepath),
+                    'imports': result.get('imports', []),
+                    'symbols': {'public': {}, 'private': {}},
+                    'line_number': 1
+                }
+                self.dependency_resolver.add_module(module_decl)
             
         # 重新计算编译顺序并编译
         return self.compile_project(
