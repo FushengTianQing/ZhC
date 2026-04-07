@@ -186,3 +186,31 @@
 - `tests/test_lsp_jsonrpc.py` - 16 个 JSON-RPC 测试
 - `tests/test_lsp_server.py` - 23 个服务器测试
 - **总计**: 65 个测试全部通过
+
+**Task 14.2: 调试信息生成 ✅ 已完成**
+
+**Day 1: DWARF 格式研究**:
+- `src/codegen/debug_info.py` - DWARF 调试信息生成器
+  - DW_TAG, DW_AT, DW_FORM, DW_LANG, DW_OP 枚举
+  - DebugLocation, DebugVariable, DebugLineEntry, DebugInfoEntry 数据类
+  - DebugInfoGenerator 类（行号程序、类型 DIE、函数 DIE 生成）
+  - DWARFEncoder 类（二进制编码）
+- 26 个单元测试全部通过
+
+**Day 2: 调试信息生成**:
+- 行号信息生成（LineProgram, DebugLineEntry）
+- 变量信息生成（DebugVariable）
+- 函数信息生成（SUBPROGRAM DIE）
+- 类型信息生成（BASE_TYPE, STRUCT_TYPE, ENUMERATION_TYPE, ARRAY_TYPE, POINTER_TYPE）
+
+**Day 3: 调试器集成**:
+- `docs/DEBUG_GUIDE.md` - 调试指南（GDB/LLDB 使用）
+- `examples/debug_example.zhc` - 调试示例程序
+- `tests/test_debug_integration.py` - 调试器集成测试（15 个测试）
+- 中文符号支持（函数名、类型名、变量名）
+
+**调试信息模块文件**:
+- `src/codegen/debug_info.py` - DWARF 调试信息生成器
+- `tests/test_debug_info.py` - 26 个调试信息测试
+- `tests/test_debug_integration.py` - 15 个集成测试
+- **总计**: 41 个测试全部通过
