@@ -153,6 +153,20 @@ class TokenType(Enum):
     CONSTRAINT = auto()      # 约束
     WHERE = auto()           # 其中 (where clause)
     
+    # 模式匹配关键字
+    MATCH = auto()           # 匹配
+    UNDERSCORE = auto()      # _ (通配符)
+    DOTDOT = auto()          # .. (范围操作符)
+    FAT_ARROW = auto()       # => (匹配分支箭头)
+    
+    # 异步编程关键字
+    ASYNC = auto()           # 异步
+    AWAIT = auto()           # 等待
+    FUTURE = auto()          # 未来
+    TASK = auto()            # 任务
+    PROMISE = auto()         # 承诺
+    YIELD = auto()           # 让出
+    
     # 特殊
     EOF = auto()          # 文件结束
     UNKNOWN = auto()      # 未知字符
@@ -175,7 +189,7 @@ class Lexer:
     
     # 关键字映射
     KEYWORDS = {
-        # 类型关键字
+        # 类型关键字（完整形式）
         '整数型': TokenType.INT,
         '浮点型': TokenType.FLOAT,
         '字符型': TokenType.CHAR,
@@ -190,6 +204,17 @@ class Lexer:
         '无类型': TokenType.VOID,
         '无符号': TokenType.UNSIGNED,
         '有符号': TokenType.SIGNED,
+        
+        # 类型关键字（简写形式）
+        '整数': TokenType.INT,
+        '浮点': TokenType.FLOAT,
+        '字符': TokenType.CHAR,
+        '布尔': TokenType.BOOL,
+        '字符串': TokenType.STRING,
+        '字节': TokenType.BYTE,
+        '双精度': TokenType.DOUBLE,
+        '长整数': TokenType.LONG,
+        '短整数': TokenType.SHORT,
 
         # 修饰符关键字
         '易变': TokenType.VOLATILE,
@@ -240,6 +265,20 @@ class Lexer:
         '类型': TokenType.TYPE_PARAM,
         '约束': TokenType.CONSTRAINT,
         '其中': TokenType.WHERE,
+        
+        # 模式匹配关键字
+        '匹配': TokenType.MATCH,
+        # 注意：'当' 已经在流程控制关键字中定义为 WHILE (第214行)
+        # 模式匹配中的 '当' 用于守卫表达式，复用 CASE token
+        # 但由于字典不允许重复键，这里不再重复定义
+        
+        # 异步编程关键字
+        '异步': TokenType.ASYNC,
+        '等待': TokenType.AWAIT,
+        '未来': TokenType.FUTURE,
+        '任务': TokenType.TASK,
+        '承诺': TokenType.PROMISE,
+        '让出': TokenType.YIELD,
     }
     
     def __init__(self, source: str):
@@ -254,6 +293,7 @@ class Lexer:
         self.column = 1
         self.tokens: List[Token] = []
         self.errors: List[LexerError] = []
+        self.generic_angle_count = 0  # 泛型嵌套层级计数器
     
     def current_char(self) -> Optional[str]:
         """获取当前字符"""
@@ -322,12 +362,16 @@ class Lexer:
         is_float = False
         
         # 读取整数部分
-        while self.current_char() and (self.current_char().isdigit() or self.current_char() == '.'):
-            if self.current_char() == '.':
-                if is_float:
-                    break
-                is_float = True
+        while self.current_char() and self.current_char().isdigit():
             value += self.advance()
+        
+        # 检查是否是浮点数或范围操作符
+        if self.current_char() == '.' and self.peek_char() and self.peek_char() != '.':
+            # 浮点数：点后面不是另一个点
+            value += self.advance()  # 消费 '.'
+            is_float = True
+            while self.current_char() and self.current_char().isdigit():
+                value += self.advance()
         
         # 科学计数法
         if self.current_char() and self.current_char().lower() == 'e':
@@ -401,6 +445,10 @@ class Lexer:
         while self.current_char() and (self.current_char().isalnum() or self.current_char() == '_' or '\u4e00' <= self.current_char() <= '\u9fff'):
             value += self.advance()
         
+        # 特殊处理下划线：单独的下划线是通配符模式
+        if value == '_':
+            return Token(TokenType.UNDERSCORE, '_', start_line, start_column)
+        
         # 检查是否是关键字
         token_type = self.KEYWORDS.get(value, TokenType.IDENTIFIER)
         return Token(token_type, value, start_line, start_column)
@@ -411,6 +459,8 @@ class Lexer:
         注意：< 和 > 在泛型上下文中作为泛型分隔符，
         在其他上下文中作为比较运算符。
         词法分析器统一产生 LT/GT Token，由语法分析器根据上下文判断。
+        
+        特殊处理：嵌套泛型类型中的 >> 会被拆分为两个 GT
         """
         start_line = self.line
         start_column = self.column
@@ -419,6 +469,16 @@ class Lexer:
         # 双字符运算符
         if self.peek_char():
             two_char = char + self.peek_char()
+            
+            # 特殊处理：嵌套泛型类型中的 >> 拆分为两个 GT
+            if two_char == '>>' and self.generic_angle_count >= 2:
+                # 拆分为两个 GT
+                self.advance()  # 第一个 >
+                token1 = Token(TokenType.GT, '>', start_line, start_column)
+                self.generic_angle_count -= 1
+                
+                # 第二个 > 在下一个 tokenize 循环中处理
+                return token1
             
             operators = {
                 '==': TokenType.EQ,
@@ -437,6 +497,8 @@ class Lexer:
                 '<<': TokenType.LSHIFT,
                 '>>': TokenType.RSHIFT,
                 '->': TokenType.ARROW,
+                '..': TokenType.DOTDOT,      # 范围操作符
+                '=>': TokenType.FAT_ARROW,   # 匹配分支箭头
             }
             
             if two_char in operators:
@@ -529,6 +591,11 @@ class Lexer:
             token = self.read_operator()
             if token:
                 self.tokens.append(token)
+                # 更新泛型嵌套层级计数器
+                if token.type == TokenType.LT:
+                    self.generic_angle_count += 1
+                elif token.type == TokenType.GT:
+                    self.generic_angle_count -= 1
                 continue
             
             # 分隔符
