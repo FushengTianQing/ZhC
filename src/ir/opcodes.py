@@ -14,6 +14,7 @@ ZHC IR - 操作码定义
 """
 
 from enum import Enum
+from ..errors import CodeGenerationError
 
 
 class Opcode(Enum):
@@ -112,4 +113,9 @@ class Opcode(Enum):
         for op in cls:
             if op.name == name:
                 return op
-        raise ValueError(f"Unknown opcode: {name}")
+        raise CodeGenerationError(
+            f"未知的操作码: {name}",
+            error_code="C001",
+            context=f"操作码名称: {name}",
+            suggestion="请检查操作码名称是否正确"
+        )

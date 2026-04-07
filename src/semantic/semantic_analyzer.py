@@ -8,11 +8,14 @@ Semantic Analyzer
 更新: 2026-04-03 统一使用 parser.ast_nodes
 """
 
+from __future__ import annotations
+
 from enum import Enum
 from typing import Optional, List, Dict, Set, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from ..errors import SemanticError
 from ..parser.ast_nodes import (
     ASTNode, ASTNodeType,
     ProgramNode, ModuleDeclNode, ImportDeclNode,
@@ -63,8 +66,8 @@ class Symbol:
 
 
 @dataclass
-class SemanticError:
-    """语义错误"""
+class SemanticErrorInfo:
+    """语义错误信息"""
     error_type: str = ""
     message: str = ""
     location: str = ""
@@ -132,7 +135,12 @@ class SymbolTable:
     def exit_scope(self) -> Scope:
         """退出当前作用域"""
         if len(self.scope_stack) <= 1:
-            raise RuntimeError("无法退出全局作用域")
+            raise SemanticError(
+                "无法退出全局作用域",
+                error_code="S031",
+                context="作用域栈只剩全局作用域",
+                suggestion="请检查作用域管理逻辑"
+            )
         self.scope_stack.pop()
         self.current_scope = self.scope_stack[-1]
         return self.current_scope
@@ -221,8 +229,8 @@ class SemanticAnalyzer:
     
     def __init__(self):
         self.symbol_table = SymbolTable()
-        self.errors: List[SemanticError] = []
-        self.warnings: List[SemanticError] = []
+        self.errors: List[SemanticErrorInfo] = []
+        self.warnings: List[SemanticErrorInfo] = []
         self.current_function: Optional[Symbol] = None
         self.current_struct: Optional[Symbol] = None
         self.in_loop: bool = False
@@ -1362,7 +1370,7 @@ class SemanticAnalyzer:
     def _add_error(self, error_type: str, message: str, location: str,
                     suggestions: List[str] = None) -> None:
         """添加错误"""
-        error = SemanticError(
+        error = SemanticErrorInfo(
             error_type=error_type,
             message=message,
             location=location,
@@ -1376,7 +1384,7 @@ class SemanticAnalyzer:
     def _add_warning(self, error_type: str, message: str, location: str,
                      suggestions: List[str] = None) -> None:
         """添加警告"""
-        warning = SemanticError(
+        warning = SemanticErrorInfo(
             error_type=error_type,
             message=message,
             location=location,
@@ -1919,11 +1927,11 @@ class SemanticAnalyzer:
 
 
 
-    def get_errors(self) -> List[SemanticError]:
+    def get_errors(self) -> List[SemanticErrorInfo]:
         """获取所有错误"""
         return self.errors
     
-    def get_unique_errors(self) -> List[SemanticError]:
+    def get_unique_errors(self) -> List[SemanticErrorInfo]:
         """获取去重后的错误列表（同一位置的同一类型只保留一个，按行号排序）"""
         seen = set()
         unique = []
@@ -1935,7 +1943,7 @@ class SemanticAnalyzer:
         # 按位置排序
         return sorted(unique, key=lambda e: e.location)
     
-    def get_warnings(self) -> List[SemanticError]:
+    def get_warnings(self) -> List[SemanticErrorInfo]:
         """获取所有警告"""
         return self.warnings
     
