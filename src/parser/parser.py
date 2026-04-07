@@ -12,14 +12,13 @@ from typing import List, Optional
 from .lexer import Token, TokenType, Lexer, LexerError
 from .ast_nodes import *
 
-
-class ParseError(Exception):
-    """语法分析错误"""
-    def __init__(self, message: str, token: Token, error_level: str = "ERROR"):
-        self.message = message
-        self.token = token
-        self.error_level = error_level  # ERROR, WARNING, INFO
-        super().__init__(f"第{token.line}行第{token.column}列 [{error_level}]: {message}")
+# 导入统一异常类
+from zhc.errors import (
+    ParserError,
+    SourceLocation,
+    missing_token,
+    unexpected_token,
+)
 
 
 class ErrorRecovery:
@@ -119,7 +118,7 @@ class Parser:
         """
         self.tokens = tokens
         self.pos = 0
-        self.errors: List[ParseError] = []
+        self.errors: List[ParserError] = []
         self.recovery = ErrorRecovery(self)  #错误恢复管理器
     
     def current_token(self) -> Token:
@@ -155,7 +154,12 @@ class Parser:
         if self.current_token().type == token_type:
             return self.advance()
         
-        error = ParseError(f"{message}, 但找到 '{self.current_token().value}'", self.current_token())
+        token = self.current_token()
+        error = unexpected_token(
+            token=token.value,
+            location=SourceLocation(line=token.line, column=token.column),
+            expected=[message],
+        )
         self.errors.append(error)
         
         # 错误恢复：尝试跳过当前Token
@@ -256,7 +260,7 @@ class Parser:
         """
         try:
             return parse_func(*args, **kwargs)
-        except ParseError as e:
+        except ParserError as e:
             self.errors.append(e)
             self.synchronize()
             return None
@@ -274,7 +278,7 @@ class Parser:
                 decl = self.parse_declaration()
                 if decl:
                     declarations.append(decl)
-            except ParseError as e:
+            except ParserError as e:
                 self.errors.append(e)
                 self.synchronize()
         
@@ -470,7 +474,7 @@ class Parser:
                             break
                         else:
                             # 意外的Token，尝试恢复
-                            self.errors.append(ParseError(
+                            self.errors.append(ParserError(
                                 f"期望 ',' 或 ')'，但找到 '{self.current_token().value}'",
                                 self.current_token()
                             ))
@@ -479,7 +483,7 @@ class Parser:
                             self.recovery.recovery_stats['panic_skip'] += 1
                             if self.match(TokenType.RPAREN):
                                 break
-                    except ParseError as e:
+                    except ParserError as e:
                         self.errors.append(e)
                         # 尝试跳到下一个参数或右括号
                         while not self.match(TokenType.COMMA, TokenType.RPAREN) and not self.is_at_end():
@@ -766,7 +770,7 @@ class Parser:
                 stmt = self.parse_declaration()
                 if stmt:
                     statements.append(stmt)
-            except ParseError as e:
+            except ParserError as e:
                 self.errors.append(e)
                 # 在代码块内使用增强恢复
                 self.synchronize()
@@ -887,7 +891,7 @@ class Parser:
         if self.match(TokenType.WHILE):
             self.advance()
         else:
-            self.errors.append(ParseError(
+            self.errors.append(ParserError(
                 f"执行-当循环缺少 '当' 关键字", do_token, "ERROR"))
             self.synchronize()
             return DoWhileStmtNode(body, IntLiteralNode(1),
@@ -929,7 +933,7 @@ class Parser:
                 self.advance()  # 跳过多余分号
             else:
                 # 未知 token，尝试恢复
-                self.errors.append(ParseError(
+                self.errors.append(ParserError(
                     f"选择语句中意外的Token: '{self.current_token().value}'",
                     self.current_token(), "ERROR"))
                 self.synchronize()
@@ -1043,7 +1047,7 @@ class Parser:
                 type_node = StructTypeNode(name)  # 枚举类型作为命名类型处理
             else:
                 token = self.current_token()
-                self.errors.append(ParseError("期望枚举类型名", token))
+                self.errors.append(ParserError("期望枚举类型名", token))
                 type_node = PrimitiveTypeNode("整数型")
         elif self.match(TokenType.IDENTIFIER):
             # 可能是自定义类型（typedef或结构体）
@@ -1052,7 +1056,7 @@ class Parser:
         else:
             # 未知的类型，返回空类型并记录错误
             token = self.current_token()
-            self.errors.append(ParseError(f"未知的类型: '{token.value}'", token))
+            self.errors.append(ParserError(f"未知的类型: '{token.value}'", token))
             type_node = PrimitiveTypeNode("空型")
         
         # 指针（支持多级指针）
@@ -1340,7 +1344,7 @@ class Parser:
             return expr
         
         # 错误恢复：尝试跳到表达式边界
-        error = ParseError(f"意外的Token: '{token.value}'", token)
+        error = ParserError(f"意外的Token: '{token.value}'", token)
         self.errors.append(error)
         
         # 智能恢复：跳到可能的表达式结束点
@@ -1354,7 +1358,7 @@ class Parser:
         """是否有错误"""
         return len(self.errors) > 0
     
-    def get_errors(self) -> List[ParseError]:
+    def get_errors(self) -> List[ParserError]:
         """获取错误列表"""
         return self.errors
     

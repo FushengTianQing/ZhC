@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from zhc.parser import (
     Lexer, Token, TokenType, LexerError, tokenize,
-    Parser, ParseError, parse,
+    Parser, ParserError, parse,
     ProgramNode, FunctionDeclNode, VariableDeclNode,
     BinaryExprNode, IntLiteralNode, IdentifierExprNode
 )

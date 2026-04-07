@@ -14,7 +14,8 @@
 """
 
 from .lexer import Lexer, Token, TokenType, LexerError, tokenize
-from .parser import Parser, ParseError, parse
+from .parser import Parser, parse
+from zhc.errors import ParserError
 from .ast_nodes import (
     # 基类
     ASTNode, ASTNodeType, ASTVisitor,
@@ -51,7 +52,7 @@ __all__ = [
     # Lexer
     'Lexer', 'Token', 'TokenType', 'LexerError', 'tokenize',
     # Parser
-    'Parser', 'ParseError', 'parse',
+    'Parser', 'ParserError', 'parse',
     # AST Nodes
     'ASTNode', 'ASTNodeType', 'ASTVisitor',
     'ProgramNode', 'ModuleDeclNode', 'ImportDeclNode',
