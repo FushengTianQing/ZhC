@@ -6,6 +6,7 @@ ZHC Language Server
 
 import json
 import sys
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 from threading import Lock
 
@@ -143,6 +144,9 @@ class LanguageServer:
                 for change in changes:
                     if "text" in change:
                         doc.text = change["text"]
+                        # 重新解析符号表
+                        doc.symbols = {}
+                        doc._parse_symbols()
 
         # 重新发布诊断
         self._publish_diagnostics(uri)
@@ -289,6 +293,133 @@ class LanguageServer:
             # 获取已输入的文本
             current_word = self._get_current_word(prefix)
 
+            # 分析上下文
+            context = self._analyze_completion_context(lines, line_num, char_num)
+
+        # 根据上下文类型提供不同的补全
+        if context == "type_declaration":
+            # 类型声明上下文 - 补全类型关键字
+            completions.extend(self._get_type_completions(current_word))
+        elif context == "member_access":
+            # 成员访问上下文 - 补全结构体/类成员
+            completions.extend(self._get_member_completions(prefix, doc))
+        elif context == "after_dot":
+            # 点操作符后 - 补全方法和属性
+            completions.extend(self._get_method_completions(current_word))
+        else:
+            # 默认上下文 - 关键字 + 符号
+            completions.extend(self._get_default_completions(current_word, doc))
+
+        return completions
+
+    def _analyze_completion_context(self, lines: List[str], line_num: int, char_num: int) -> str:
+        """分析补全上下文"""
+        if line_num >= len(lines):
+            return "default"
+
+        line = lines[line_num]
+        prefix = line[:char_num] if char_num <= len(line) else line
+
+        # 类型声明: 类型关键字后
+        type_keywords = ["整数型", "浮点型", "字符型", "字符串型", "布尔型", "空型", "字节型", "双精度浮点型", "长整数型", "短整数型", "逻辑型"]
+        for kw in type_keywords:
+            if prefix.endswith(kw):
+                return "type_declaration"
+
+        # 成员访问: 点操作符后
+        if "." in prefix and not prefix.endswith("."):
+            return "member_access"
+
+        # 在括号中
+        if "(" in prefix:
+            return "argument"
+
+        return "default"
+
+    def _get_type_completions(self, current_word: str) -> List[CompletionItem]:
+        """获取类型补全"""
+        types = [
+            ("整数型", "32位有符号整数", "INT"),
+            ("浮点型", "64位双精度浮点数", "FLOAT"),
+            ("双精度浮点型", "64位双精度浮点数", "DOUBLE"),
+            ("字符型", "单个字符", "CHAR"),
+            ("字符串型", "字符串", "STRING"),
+            ("布尔型", "布尔值", "BOOL"),
+            ("字节型", "单字节", "BYTE"),
+            ("长整数型", "长整数", "LONG"),
+            ("短整数型", "短整数", "SHORT"),
+            ("逻辑型", "布尔值", "BOOL"),
+            ("空型", "空类型", "VOID"),
+        ]
+
+        completions = []
+        for name, detail, _ in types:
+            if name.startswith(current_word):
+                completions.append(CompletionItem(
+                    label=name,
+                    kind=CompletionItemKind.KEYWORD,
+                    detail=detail,
+                    insert_text=name
+                ))
+        return completions
+
+    def _get_member_completions(self, prefix: str, doc: "Document") -> List[CompletionItem]:
+        """获取成员补全"""
+        completions = []
+        # 提取前缀中的对象名
+        obj_name = prefix.rsplit(".", 1)[-1] if "." in prefix else ""
+
+        # 内置方法
+        builtin_methods = [
+            ("长度", "整数型", "获取长度"),
+            ("获取", "元素", "获取元素"),
+            ("设置", "空型", "设置元素"),
+            ("添加", "空型", "添加元素"),
+            ("删除", "布尔型", "删除元素"),
+            ("清空", "空型", "清空容器"),
+        ]
+
+        for name, ret_type, doc_str in builtin_methods:
+            if name.startswith(obj_name):
+                completions.append(CompletionItem(
+                    label=name,
+                    kind=CompletionItemKind.METHOD,
+                    detail=f"{ret_type} {name}()",
+                    documentation=doc_str,
+                    insert_text=name
+                ))
+
+        return completions
+
+    def _get_method_completions(self, current_word: str) -> List[CompletionItem]:
+        """获取方法补全"""
+        methods = [
+            ("长度", "整数型 长度()", "获取长度"),
+            ("获取", "元素 获取(整数型 索引)", "获取元素"),
+            ("设置", "空型 设置(整数型 索引, 元素)", "设置元素"),
+            ("复制", "容器 复制()", "复制容器"),
+            ("清空", "空型 清空()", "清空容器"),
+            ("是否为空", "布尔型 是否为空()", "检查是否为空"),
+            ("包含", "布尔型 包含(元素)", "检查是否包含元素"),
+            ("转字符串", "字符串型 转字符串()", "转换为字符串"),
+        ]
+
+        completions = []
+        for name, signature, doc_str in methods:
+            if name.startswith(current_word):
+                completions.append(CompletionItem(
+                    label=name,
+                    kind=CompletionItemKind.METHOD,
+                    detail=signature,
+                    documentation=doc_str,
+                    insert_text=name
+                ))
+        return completions
+
+    def _get_default_completions(self, current_word: str, doc: "Document") -> List[CompletionItem]:
+        """获取默认补全（关键字 + 符号表）"""
+        completions = []
+
         # 关键字补全
         keywords = [
             ("整数型", "整数类型", CompletionItemKind.KEYWORD),
@@ -328,22 +459,48 @@ class LanguageServer:
                     insert_text=keyword
                 ))
 
+        # 符号表补全
+        for name, symbol_info in doc.symbols.items():
+            if name.startswith(current_word) and name != current_word:
+                # 将 SymbolKind 映射到 CompletionItemKind
+                kind_map = {
+                    SymbolKind.FUNCTION: CompletionItemKind.FUNCTION,
+                    SymbolKind.CLASS: CompletionItemKind.CLASS,
+                    SymbolKind.ENUM: CompletionItemKind.ENUM,
+                    SymbolKind.VARIABLE: CompletionItemKind.VARIABLE,
+                    SymbolKind.METHOD: CompletionItemKind.METHOD,
+                    SymbolKind.PROPERTY: CompletionItemKind.PROPERTY,
+                    SymbolKind.FIELD: CompletionItemKind.FIELD,
+                }
+                kind = kind_map.get(symbol_info.kind, CompletionItemKind.TEXT)
+                completions.append(CompletionItem(
+                    label=name,
+                    kind=kind,
+                    detail=symbol_info.detail,
+                    insert_text=name
+                ))
+
         # 内置函数补全
         builtin_funcs = [
-            ("打印", "void 打印(任意值)", "打印到标准输出"),
-            ("读取", "字符串 读取()", "从标准输入读取"),
+            ("打印", "空型 打印(任意值)", "打印到标准输出"),
+            ("读取", "字符串型 读取()", "从标准输入读取"),
             ("长度", "整数型 长度(容器)", "获取容器长度"),
             ("获取", "元素 获取(容器, 整数型)", "获取容器元素"),
-            ("设置", "空 设置(容器, 整数型, 元素)", "设置容器元素"),
+            ("设置", "空型 设置(容器, 整数型, 元素)", "设置容器元素"),
+            ("字符串", "字符串型 字符串(任意值)", "转换为字符串"),
+            ("整数", "整数型 整数(任意值)", "转换为整数"),
+            ("浮点", "浮点型 浮点(任意值)", "转换为浮点数"),
+            ("是空", "布尔型 是空(容器)", "检查是否为空"),
+            ("包含", "布尔型 包含(容器, 元素)", "检查是否包含元素"),
         ]
 
-        for func, signature, doc in builtin_funcs:
+        for func, signature, doc_str in builtin_funcs:
             if func.startswith(current_word):
                 completions.append(CompletionItem(
                     label=func,
                     kind=CompletionItemKind.FUNCTION,
                     detail=signature,
-                    documentation=doc,
+                    documentation=doc_str,
                     insert_text=func
                 ))
 
@@ -659,6 +816,123 @@ class Document:
         self.uri = uri
         self.text = text
         self.version = 0
+        # 符号表
+        self.symbols: Dict[str, "SymbolInfo"] = {}
+        self._parse_symbols()
+
+    def _parse_symbols(self) -> None:
+        """解析文档中的符号"""
+        lines = self.text.split("\n")
+
+        for line_num, line in enumerate(lines):
+            stripped = line.strip()
+
+            # 函数定义: 函数 函数名(...) -> 返回类型
+            if stripped.startswith("函数 "):
+                self._parse_function(line, line_num)
+
+            # 结构体定义: 结构体 结构体名
+            elif stripped.startswith("结构体 "):
+                self._parse_struct(line, line_num)
+
+            # 类定义: 类 类名
+            elif stripped.startswith("类 "):
+                self._parse_class(line, line_num)
+
+            # 枚举定义: 枚举 枚举名
+            elif stripped.startswith("枚举 "):
+                self._parse_enum(line, line_num)
+
+            # 变量声明: 变量类型 变量名 = ...
+            else:
+                self._parse_variables(line, line_num)
+
+    def _parse_function(self, line: str, line_num: int) -> None:
+        """解析函数定义"""
+        # 函数 函数名(...) -> 返回类型 或 函数 函数名(...)
+        if "->" in line:
+            parts = line.split("->")
+            sig_part = parts[0]
+            return_type = parts[1].strip().split("{")[0].strip()
+        else:
+            sig_part = line
+            return_type = "空型"
+
+        # 提取函数名
+        func_match = sig_part.replace("函数 ", "").split("(")[0].strip()
+        if func_match:
+            self.symbols[func_match] = SymbolInfo(
+                name=func_match,
+                kind=SymbolKind.FUNCTION,
+                detail=return_type,
+                line=line_num
+            )
+
+    def _parse_struct(self, line: str, line_num: int) -> None:
+        """解析结构体定义"""
+        name = line.replace("结构体 ", "").split("{")[0].strip()
+        if name:
+            self.symbols[name] = SymbolInfo(
+                name=name,
+                kind=SymbolKind.CLASS,
+                detail="结构体",
+                line=line_num
+            )
+
+    def _parse_class(self, line: str, line_num: int) -> None:
+        """解析类定义"""
+        name = line.replace("类 ", "").split("{")[0].strip()
+        if name:
+            self.symbols[name] = SymbolInfo(
+                name=name,
+                kind=SymbolKind.CLASS,
+                detail="类",
+                line=line_num
+            )
+
+    def _parse_enum(self, line: str, line_num: int) -> None:
+        """解析枚举定义"""
+        name = line.replace("枚举 ", "").split("{")[0].strip()
+        if name:
+            self.symbols[name] = SymbolInfo(
+                name=name,
+                kind=SymbolKind.ENUM,
+                detail="枚举",
+                line=line_num
+            )
+
+    def _parse_variables(self, line: str, line_num: int) -> None:
+        """解析变量声明"""
+        # 匹配: 类型名 变量名 = 或 类型名 变量名;
+        import re
+        # 变量声明模式
+        type_patterns = ["整数型", "浮点型", "字符型", "字符串型", "布尔型", "空型", "字节型", "双精度浮点型"]
+
+        for type_kw in type_patterns:
+            if line.strip().startswith(type_kw):
+                # 提取变量名
+                rest = line.strip()[len(type_kw):].strip()
+                # 变量名是第一个标识符
+                match = re.match(r'^(\w+)\s*', rest)
+                if match:
+                    var_name = match.group(1)
+                    if var_name and var_name not in ("=", "{", "}", "(", ")"):
+                        self.symbols[var_name] = SymbolInfo(
+                            name=var_name,
+                            kind=SymbolKind.VARIABLE,
+                            detail=type_kw,
+                            line=line_num
+                        )
+                break
+
+
+@dataclass
+class SymbolInfo:
+    """符号信息"""
+    name: str
+    kind: SymbolKind
+    detail: str = ""
+    line: int = 0
 
 
 def main():
