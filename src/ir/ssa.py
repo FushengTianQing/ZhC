@@ -18,6 +18,7 @@ from .instructions import IRBasicBlock, IRInstruction
 from .program import IRFunction
 from .values import IRValue, ValueKind
 from .opcodes import Opcode
+from .dominator import LengauerTarjanDominator, build_dominator_tree_iterative
 
 
 # =============================================================================
@@ -223,7 +224,7 @@ class SSABuilder:
     # -------------------------------------------------------------------------
 
     def _compute_dominator_tree(self):
-        """计算支配树（使用 Lengauer-Tarjan 算法的高效版本）"""
+        """计算支配树（使用 Lengauer-Tarjan 算法）"""
         self.dom_tree = DominatorTree()
 
         if not self.current_function.basic_blocks:
@@ -233,75 +234,30 @@ class SSABuilder:
         entry = self.current_function.entry_block
         entry_label = entry.label
 
-        # 初始化：入口块支配自己
-        self.dom_tree.dominators[entry_label] = {entry_label}
-        self.dom_tree.depth[entry_label] = 0
-
-        # 使用迭代算法计算支配者
-        # 对于非入口块：intersection of all predecessors' dominator sets + self
-        changed = True
-        max_iterations = 100  # 防止无限循环
-        iteration = 0
-
-        while changed and iteration < max_iterations:
-            changed = False
-            iteration += 1
-
-            for bb in self.current_function.basic_blocks:
-                if bb.label == entry_label:
-                    continue
-
-                # 获取所有前驱的支配集合
-                pred_labels = bb.predecessors
-
-                if not pred_labels:
-                    continue
-
-                # 新支配者集合 = intersection of all predecessors' dominators + self
-                new_dom_set = set()
-
-                first_pred = True
-                for pred_label in pred_labels:
-                    if pred_label in self.dom_tree.dominators:
-                        if first_pred:
-                            new_dom_set = self.dom_tree.dominators[pred_label].copy()
-                            first_pred = False
-                        else:
-                            new_dom_set &= self.dom_tree.dominators[pred_label]
-
-                # 添加自身
-                new_dom_set.add(bb.label)
-
-                # 检查是否变化
-                old_dom_set = self.dom_tree.dominators.get(bb.label)
-                if old_dom_set != new_dom_set:
-                    self.dom_tree.dominators[bb.label] = new_dom_set
-                    changed = True
-
-        # 计算直接支配者（最近支配者）
+        # 构建控制流图
+        blocks = {}
         for bb in self.current_function.basic_blocks:
-            if bb.label == entry_label:
-                continue
+            blocks[bb.label] = (bb.predecessors, bb.successors)
 
-            doms = self.dom_tree.dominators.get(bb.label, set())
-            if not doms:
-                continue
+        # 使用高效的 Lengauer-Tarjan 算法（O(N α(N))）
+        builder = LengauerTarjanDominator()
+        idom = builder.build(entry_label, blocks)
 
-            # 移除自身，剩下的就是其他支配者
-            doms_minus_self = doms - {bb.label}
+        # 更新 SSABuilder 的支配树
+        for block_label, immediate_dom in idom.items():
+            # 计算支配者集合
+            doms = builder.get_dominators(block_label)
+            self.dom_tree.dominators[block_label] = doms
 
-            if doms_minus_self:
-                # 直接支配者是集合中深度最大的（最接近的）
-                depths = [(d, self.dom_tree.depth.get(d, 0)) for d in doms_minus_self]
-                depths.sort(key=lambda x: -x[1])
+            # 设置直接支配者
+            if block_label != immediate_dom:
+                self.dom_tree.immediate_dominator[block_label] = immediate_dom
+                self.dom_tree.dominated[immediate_dom].append(block_label)
 
-                if depths:
-                    idom = depths[0][0]
-                    self.dom_tree.immediate_dominator[bb.label] = idom
-                    self.dom_tree.dominated[idom].append(bb.label)
-
-                    # 计算深度
-                    self.dom_tree.depth[bb.label] = self.dom_tree.depth.get(idom, 0) + 1
+        # 设置支配树深度
+        depth = builder.get_dominator_depth()
+        for block_label, d in depth.items():
+            self.dom_tree.depth[block_label] = d
 
     # -------------------------------------------------------------------------
     # 步骤 2: 计算支配边界

@@ -43,6 +43,7 @@
 
 ## 新增模块 (2026-04-08)
 - `src/ir/ssa.py` - SSA 构建
+- `src/ir/dominator.py` - Lengauer-Tarjan 支配树算法 (O(N α(N)))
 - `src/ir/dataflow.py` - 数据流分析
 - `src/ir/loop_optimizer.py` - 循环优化
 - `src/ir/inline_optimizer.py` - 内联优化
@@ -63,4 +64,6 @@
   - `tests/test_loop_optimizer.py` - 25 passed
   - `tests/test_inline_optimizer.py` - 31 passed
   - `tests/test_utils.py` - 39 passed
+  - `tests/test_dominator.py` - 20 passed (Lengauer-Tarjan 算法)
+  - `tests/benchmarks/test_dominator_performance.py` - 5 passed (性能对比)
 - **CI 覆盖率门禁**: 15% → 25% (本周更新)
