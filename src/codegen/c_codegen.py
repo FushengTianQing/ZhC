@@ -57,6 +57,9 @@ class CCodeGenerator(ASTVisitor):
         self.indent_str = indent_str
         self.output_lines: list = []
         self._expr_buffer: list = []  # 用于表达式求值
+        
+        # 泛型代码生成器
+        self._generic_generator = None
 
     def generate(self, ast: ProgramNode) -> str:
         """生成完整的 C 代码
@@ -70,7 +73,54 @@ class CCodeGenerator(ASTVisitor):
         self.output_lines = []
         self.indent = 0
         ast.accept(self)
+        
+        # 生成泛型实例化代码
+        if self._generic_generator:
+            generic_code = self._generate_generic_code()
+            if generic_code:
+                # 在输出开头插入泛型定义
+                self.output_lines.insert(0, generic_code)
+        
         return "\n".join(self.output_lines)
+    
+    def set_generic_generator(self, generator):
+        """设置泛型代码生成器
+        
+        Args:
+            generator: GenericCodeGenerator 实例
+        """
+        self._generic_generator = generator
+    
+    def _generate_generic_code(self) -> str:
+        """生成泛型实例化代码
+        
+        Returns:
+            泛型代码字符串
+        """
+        if not self._generic_generator:
+            return ""
+        
+        lines = [
+            "/* ==================== 泛型实例化代码 ==================== */",
+            ""
+        ]
+        
+        # 生成类型定义
+        for gen_type in self._generic_generator.get_generated_types():
+            lines.append(f"/* 类型: {gen_type.original_generic}<{', '.join(gen_type.type_args)}> */")
+            lines.append(gen_type.code)
+            lines.append("")
+        
+        # 生成函数定义
+        for gen_func in self._generic_generator.get_generated_functions():
+            lines.append(f"/* 函数: {gen_func.original_generic}<{', '.join(gen_func.type_args)}> */")
+            lines.append(gen_func.code)
+            lines.append("")
+        
+        lines.append("/* ==================== 泛型实例化代码结束 ==================== */")
+        lines.append("")
+        
+        return "\n".join(lines)
 
     def _emit(self, line: str = ""):
         """输出一行代码（带缩进）"""
