@@ -528,7 +528,7 @@ zhc run
             return 1
         
         # 构建命令
-        build_cmd = ['python3', '-m', 'src.zhpp_v6', '-m']
+        build_cmd = ['python3', '-m', 'src.__main__']
         
         # 添加参数
         if args.release:
@@ -625,7 +625,7 @@ zhc run
             print(f"\n🔧 测试: {test_file.name}")
             
             # 编译测试
-            compile_cmd = ['python3', '-m', 'src.zhpp_v6', '-m', str(test_file), '--output-dir', '构建/测试']
+            compile_cmd = ['python3', '-m', 'src.__main__', str(test_file), '--output-dir', '构建/测试']
             compile_result = subprocess.run(compile_cmd, capture_output=True, text=True)
             
             if compile_result.returncode != 0:
@@ -897,7 +897,7 @@ TODO: 自动生成API文档
         """编译单个文件"""
         print(f"🔧 编译文件: {args.file}")
         
-        compile_cmd = ['python3', '-m', 'src.zhpp_v6']
+        compile_cmd = ['python3', '-m', 'src.__main__']
         
         if args.output:
             compile_cmd.extend(['-o', args.output])
@@ -912,7 +912,7 @@ TODO: 自动生成API文档
     def _compile_direct(self, args):
         """直接编译文件（快捷方式）"""
         # 这里假设args有file属性
-        compile_cmd = ['python3', '-m', 'src.zhpp_v6', args.file]
+        compile_cmd = ['python3', '-m', 'src.__main__', args.file]
         
         import subprocess
         result = subprocess.run(compile_cmd)
