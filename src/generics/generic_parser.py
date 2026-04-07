@@ -11,6 +11,24 @@ from typing import Dict, List, Optional, Tuple, Set
 from enum import Enum
 
 
+def substitute_type_params(text: str, type_args: Dict[str, str]) -> str:
+    """
+    替换文本中的类型参数 - 通用辅助函数
+    
+    Args:
+        text: 包含类型参数的文本
+        type_args: 类型参数映射（如{"T": "整数型"}）
+        
+    Returns:
+        替换后的文本
+    """
+    result = text
+    for param_name, actual_type in type_args.items():
+        pattern = r'\b' + re.escape(param_name) + r'\b'
+        result = re.sub(pattern, actual_type, result)
+    return result
+
+
 class GenericConstraint(Enum):
     """泛型约束类型"""
     NONE = "无约束"
@@ -63,14 +81,7 @@ class GenericType:
         Returns:
             实例化后的代码
         """
-        # 替换类型参数
-        result = self.body
-        for param_name, actual_type in type_args.items():
-            # 使用正则表达式替换类型参数
-            pattern = r'\b' + re.escape(param_name) + r'\b'
-            result = re.sub(pattern, actual_type, result)
-        
-        return result
+        return substitute_type_params(self.body, type_args)
 
 
 @dataclass
@@ -102,25 +113,16 @@ class GenericFunction:
         instantiated_name = f"{self.name}_{type_suffix}"
         
         # 替换返回类型中的类型参数
-        result_type = self.return_type
-        for param_name, actual_type in type_args.items():
-            pattern = r'\b' + re.escape(param_name) + r'\b'
-            result_type = re.sub(pattern, actual_type, result_type)
+        result_type = substitute_type_params(self.return_type, type_args)
         
         # 替换参数类型中的类型参数
         params = []
         for param_type, param_name in self.parameters:
-            actual_param_type = param_type
-            for tp_name, actual_type in type_args.items():
-                pattern = r'\b' + re.escape(tp_name) + r'\b'
-                actual_param_type = re.sub(pattern, actual_type, actual_param_type)
+            actual_param_type = substitute_type_params(param_type, type_args)
             params.append(f"{actual_param_type} {param_name}")
         
         # 替换函数体中的类型参数
-        body = self.body
-        for param_name, actual_type in type_args.items():
-            pattern = r'\b' + re.escape(param_name) + r'\b'
-            body = re.sub(pattern, actual_type, body)
+        body = substitute_type_params(self.body, type_args)
         
         # 构建函数定义（使用实例化名称）
         func_def = f"{result_type} {instantiated_name}({', '.join(params)}) {{\n{body}\n}}"
@@ -394,38 +396,33 @@ class GenericParser:
     
     def _check_constraint(self, type_name: str, constraint: GenericConstraint) -> bool:
         """
-        检查类型是否满足约束
+        检查类型是否满足约束 - 使用 dispatch table 模式
         
         Args:
-type_name: 类型名
+            type_name: 类型名
             constraint: 约束
             
         Returns:
             是否满足约束
         """
-        # 数值类型
+        # 数值类型集合
         number_types = {'整数型', '浮点型', '双精度型', '短整数型', '长整数型'}
         
-        if constraint == GenericConstraint.NUMBER:
-            return type_name in number_types
+        # 约束检查函数映射表
+        constraint_checkers = {
+            GenericConstraint.NUMBER: lambda t: t in number_types,
+            GenericConstraint.COMPARABLE: lambda t: True,  # 简化实现，假设所有类型都可比较
+            GenericConstraint.ADDABLE: lambda t: t in number_types or t == '字符串型',
+            GenericConstraint.ITERABLE: lambda t: '数组' in t or '[' in t,
+            GenericConstraint.CALLABLE: lambda t: '(' in t or '函数' in t,
+        }
         
-        # 可比较类型（基本类型都支持）
-        if constraint == GenericConstraint.COMPARABLE:
-            return True  # 简化实现，假设所有类型都可比较
+        # 使用 dispatch table 查找并执行检查函数
+        checker = constraint_checkers.get(constraint)
+        if checker:
+            return checker(type_name)
         
-        # 可加法类型
-        if constraint == GenericConstraint.ADDABLE:
-            return type_name in number_types or type_name == '字符串型'
-        
-        # 可迭代类型（数组）
-        if constraint == GenericConstraint.ITERABLE:
-            return '数组' in type_name or '[' in type_name
-        
-        # 可调用类型（函数指针）
-        if constraint == GenericConstraint.CALLABLE:
-            return '(' in type_name or '函数' in type_name
-        
-        return True  # 默认满足
+        return True  # 默认满足（包括 GenericConstraint.NONE）
     
     def get_all_generic_names(self) -> Tuple[Set[str], Set[str]]:
         """

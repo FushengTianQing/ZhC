@@ -15,6 +15,9 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
+from .config import CompilerConfig
+from .cli_parser import build_arg_parser, validate_input
+
 # 尝试导入高级功能
 HAS_MODULE_SYSTEM = False
 try:
@@ -25,67 +28,6 @@ try:
     HAS_MODULE_SYSTEM = True
 except ImportError:
     pass
-
-
-class CompilerConfig:
-    """编译器配置（从命令行参数构建）"""
-
-    # 语义分析相关配置
-    MAX_DISPLAY_ERRORS = 20  # 最多显示的错误数
-
-    def __init__(
-        self,
-        verbose: bool = False,
-        use_ast: bool = True,
-        skip_semantic: bool = False,
-        warning_level: str = "normal",
-        no_uninit: bool = False,
-        no_unreachable: bool = False,
-        no_dataflow: bool = False,
-        no_interprocedural: bool = False,
-        no_alias: bool = False,
-        no_pointer: bool = False,
-        optimize_symbol_lookup: bool = False,
-        profile: bool = False,
-        backend: str = "ast",
-        dump_ir: bool = False,
-        optimize_ir: bool = True,
-        enable_cache: bool = True,
-    ):
-        self.enable_cache = enable_cache
-        self.verbose = verbose
-        self.use_ast = use_ast
-        self.skip_semantic = skip_semantic
-        self.warning_level = warning_level
-        self.no_uninit = no_uninit
-        self.no_unreachable = no_unreachable
-        self.no_dataflow = no_dataflow
-        self.no_interprocedural = no_interprocedural
-        self.no_alias = no_alias
-        self.no_pointer = no_pointer
-        self.optimize_symbol_lookup = optimize_symbol_lookup
-        self.profile_enabled = profile
-        self.backend = backend
-        self.dump_ir = dump_ir
-        self.optimize_ir = optimize_ir
-
-    @classmethod
-    def from_args(cls, args: argparse.Namespace) -> "CompilerConfig":
-        """从命令行参数创建配置"""
-        return cls(
-            verbose=args.verbose,
-            use_ast=not args.legacy,
-            skip_semantic=args.skip_semantic,
-            warning_level=args.warning_level,
-            no_uninit=args.no_uninit,
-            no_unreachable=args.no_unreachable,
-            no_dataflow=args.no_dataflow,
-            no_interprocedural=args.no_interprocedural,
-            no_alias=args.no_alias,
-            no_pointer=args.no_pointer,
-            optimize_symbol_lookup=args.optimize_symbol_lookup,
-            profile=args.profile,
-        )
 
 
 class ZHCCompiler:
@@ -123,24 +65,29 @@ class ZHCCompiler:
         cfg = self.config
         try:
             self.cache = CompilationCache(max_size_mb=100) if cfg.enable_cache else None
-            self.pipeline = CompilationPipeline(
-                enable_cache=cfg.enable_cache,
-                skip_semantic=cfg.skip_semantic,
-                warning_level=cfg.warning_level,
-                no_uninit=cfg.no_uninit,
-                no_unreachable=cfg.no_unreachable,
-                no_dataflow=cfg.no_dataflow,
-                no_interprocedural=cfg.no_interprocedural,
-                no_alias=cfg.no_alias,
-                no_pointer=cfg.no_pointer,
-                optimize_symbol_lookup=cfg.optimize_symbol_lookup,
-            )
+            self.pipeline = self._create_pipeline()
             self.performance_monitor = PerformanceMonitor()
             if cfg.verbose:
                 print("✅ 模块系统支持已启用（AST 模式）")
         except Exception as e:
             if cfg.verbose:
                 print(f"⚠️ 高级功能初始化失败: {e}")
+
+    def _create_pipeline(self):
+        """创建 CompilationPipeline 实例 - 工厂方法，消除重复代码"""
+        cfg = self.config
+        return CompilationPipeline(
+            enable_cache=cfg.enable_cache,
+            skip_semantic=cfg.skip_semantic,
+            warning_level=cfg.warning_level,
+            no_uninit=cfg.no_uninit,
+            no_unreachable=cfg.no_unreachable,
+            no_dataflow=cfg.no_dataflow,
+            no_interprocedural=cfg.no_interprocedural,
+            no_alias=cfg.no_alias,
+            no_pointer=cfg.no_pointer,
+            optimize_symbol_lookup=cfg.optimize_symbol_lookup,
+        )
 
     def compile_single_file(
         self, input_file: Path, output_dir: Optional[Path] = None
@@ -298,13 +245,7 @@ class ZHCCompiler:
         from zhc.semantic import SemanticAnalyzer
 
         validator = SemanticAnalyzer()
-        validator.cfg_enabled = not self.config.no_unreachable
-        validator.uninit_enabled = not self.config.no_uninit
-        validator.dataflow_enabled = not self.config.no_dataflow
-        validator.interprocedural_enabled = not self.config.no_interprocedural
-        validator.alias_enabled = not self.config.no_alias
-        validator.pointer_enabled = not self.config.no_pointer
-        validator.symbol_lookup_enabled = self.config.optimize_symbol_lookup
+        self._configure_validator(validator)
         validator.analyze_file(ast, input_file.name)
 
         # 检查错误
@@ -332,6 +273,24 @@ class ZHCCompiler:
                 f"符号 {stats['symbols_added']} 个)"
             )
         return True
+
+    def _configure_validator(self, validator) -> None:
+        """配置语义分析器 - 使用 dispatch table 模式"""
+        # 配置映射表：配置项 -> validator 属性
+        config_map = {
+            'no_unreachable': ('cfg_enabled', False),
+            'no_uninit': ('uninit_enabled', False),
+            'no_dataflow': ('dataflow_enabled', False),
+            'no_interprocedural': ('interprocedural_enabled', False),
+            'no_alias': ('alias_enabled', False),
+            'no_pointer': ('pointer_enabled', False),
+            'optimize_symbol_lookup': ('symbol_lookup_enabled', True),
+        }
+        
+        for config_key, (attr_name, enabled_when_true) in config_map.items():
+            config_value = getattr(self.config, config_key)
+            # enabled_when_true 表示当 config_value 为 True 时启用该功能
+            setattr(validator, attr_name, enabled_when_true if config_value else not enabled_when_true)
 
     def _generate_code(self, ast):
         """阶段3：代码生成，返回C代码字符串或None（IR验证失败时）"""
@@ -437,112 +396,13 @@ class ZHCCompiler:
         """确保Pipeline已初始化（延迟创建）"""
         if self.pipeline:
             return self.pipeline
-        cfg = self.config
-        self.pipeline = CompilationPipeline(
-            enable_cache=cfg.enable_cache,
-            skip_semantic=cfg.skip_semantic,
-            warning_level=cfg.warning_level,
-            no_uninit=cfg.no_uninit,
-            no_unreachable=cfg.no_unreachable,
-            no_dataflow=cfg.no_dataflow,
-            no_interprocedural=cfg.no_interprocedural,
-            no_alias=cfg.no_alias,
-            no_pointer=cfg.no_pointer,
-            optimize_symbol_lookup=cfg.optimize_symbol_lookup,
-        )
+        self.pipeline = self._create_pipeline()
         return self.pipeline
 
 
 # ------------------------------------------------------------------
-# 命令行参数解析
+# 命令行入口
 # ------------------------------------------------------------------
-
-
-def build_arg_parser() -> argparse.ArgumentParser:
-    """构建命令行参数解析器
-
-    Returns:
-        配置好的ArgumentParser实例
-    """
-    parser = argparse.ArgumentParser(
-        description="中文C编译器 - 将中文语法的C代码编译为标准C代码",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-示例:
-  %(prog)s hello.zhc                  # 编译单文件
-  %(prog)s hello.zhc -o hello.c       # 指定输出文件
-  %(prog)s --project main.zhc         # 编译模块项目
-  %(prog)s --clean-cache              # 清理缓存
-        """,
-    )
-
-    parser.add_argument("input", nargs="?", help="输入文件 (.zhc)")
-    parser.add_argument("-o", "--output", help="输出文件或目录")
-    parser.add_argument("--project", action="store_true", help="编译模块项目")
-    parser.add_argument(
-        "--legacy",
-        action="store_true",
-        help="[已废弃] AST 是唯一编译路径，此选项不再生效",
-    )
-    parser.add_argument(
-        "--skip-semantic",
-        action="store_true",
-        help="跳过语义验证（仅执行语法分析和代码生成）",
-    )
-    parser.add_argument(
-        "-W",
-        dest="warning_level",
-        default="normal",
-        choices=["none", "normal", "all", "error"],
-        help="警告级别: none=无警告, normal=默认, all=全部, error=警告当错误",
-    )
-    parser.add_argument("--no-uninit", action="store_true", help="禁用未初始化变量检查")
-    parser.add_argument(
-        "--no-unreachable", action="store_true", help="禁用不可达代码检测"
-    )
-    parser.add_argument("--no-dataflow", action="store_true", help="禁用数据流分析")
-    parser.add_argument(
-        "--no-interprocedural", action="store_true", help="禁用过程间分析"
-    )
-    parser.add_argument("--no-alias", action="store_true", help="禁用别名分析")
-    parser.add_argument("--no-pointer", action="store_true", help="禁用指针分析")
-    parser.add_argument(
-        "--optimize-symbol-lookup",
-        action="store_true",
-        help="启用符号查找优化器（热点缓存 + O(1)查找）",
-    )
-    parser.add_argument(
-        "--profile", action="store_true", help="启用性能分析（测量各编译阶段耗时）"
-    )
-    parser.add_argument("--clean-cache", action="store_true", help="清理编译缓存")
-    parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
-    parser.add_argument("--version", action="version", version="%(prog)s 3.0.0")
-
-    return parser
-
-
-def validate_input(
-    args: argparse.Namespace, parser: argparse.ArgumentParser
-) -> Optional[Path]:
-    """验证输入参数并返回输入文件路径
-
-    Args:
-        args: 解析后的命令行参数
-        parser: 参数解析器（用于打印帮助信息）
-
-    Returns:
-        有效的输入文件Path，或None（表示验证失败）
-    """
-    if not args.input:
-        parser.print_help()
-        return None
-
-    input_file = Path(args.input)
-    if not input_file.exists():
-        print(f"❌ 文件不存在: {input_file}")
-        return None
-
-    return input_file
 
 
 def main() -> int:

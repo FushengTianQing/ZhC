@@ -22,6 +22,7 @@ import re
 from typing import List, Dict, Tuple, Optional, Set
 
 from .conversion_error_handler import ConversionErrorHandler
+from .type_converter import TypeConverter
 
 
 class ConversionType:
@@ -71,6 +72,9 @@ class CodeConverter:
 
         # 错误处理器
         self._error_handler = error_handler or ConversionErrorHandler()
+        
+        # 类型转换器
+        self._type_converter = TypeConverter()
 
     @property
     def errors(self) -> List[Dict]:
@@ -403,21 +407,8 @@ class CodeConverter:
         # 简单的替换转换
         converted = line
 
-        # 替换类型关键字
-        type_keywords = {
-            '整数型': 'int',
-            '字符型': 'char',
-            '浮点型': 'float',
-            '双精度浮点型': 'double',
-            '逻辑型': '_Bool',
-            '长整数型': 'long',
-            '短整数型': 'short',
-            '无类型': 'void',
-            '结构体': 'struct',
-            '共用体': 'union',
-            '枚举': 'enum'
-        }
-
+        # 使用 TypeConverter 替换类型关键字
+        type_keywords = self._type_converter.get_all_type_keywords()
         for zh_type, c_type in type_keywords.items():
             converted = converted.replace(zh_type, c_type)
 
@@ -477,26 +468,7 @@ class CodeConverter:
         Returns:
             C类型关键字
         """
-        type_map = {
-            '整数型': 'int',
-            '字符型': 'char',
-            '浮点型': 'float',
-            '双精度浮点型': 'double',
-            '逻辑型': '_Bool',
-            '长整数型': 'long',
-            '短整数型': 'short',
-            '无类型': 'void',
-            '有符号': 'signed',
-            '无符号': 'unsigned',
-        }
-
-        # 检查是否包含中文前缀
-        if zh_type.startswith('中文'):
-            base_type = zh_type[2:]
-            if base_type in type_map:
-                return type_map[base_type]
-
-        return type_map.get(zh_type, zh_type)  # 如果找不到映射，返回原值
+        return self._type_converter.convert_type(zh_type)
 
     def convert_parameter_list(self, params: str) -> str:
         """
@@ -508,26 +480,7 @@ class CodeConverter:
         Returns:
             转换后的C参数列表
         """
-        if not params.strip():
-            return 'void'
-
-        # 分割参数
-        param_parts = []
-        for param in params.split(','):
-            param = param.strip()
-            if not param:
-                continue
-
-            # 解析 "类型 参数名"
-            words = param.split()
-            if len(words) >= 2:
-                param_type = self.convert_type_keyword(words[0])
-                param_name = words[1]
-                param_parts.append(f"{param_type} {param_name}")
-            else:
-                param_parts.append(param)  # 保持原样
-
-        return ', '.join(param_parts)
+        return self._type_converter.convert_parameter_list(params)
 
     def process_file(self, input_file: str, output_header: Optional[str] = None,
                     output_source: Optional[str] = None) -> bool:

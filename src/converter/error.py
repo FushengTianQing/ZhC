@@ -11,8 +11,10 @@
 """
 
 from typing import List, Dict, Optional, Tuple
+from dataclasses import dataclass, field
 from enum import Enum
 import re
+
 
 class ErrorSeverity(Enum):
     """错误严重程度"""
@@ -20,6 +22,7 @@ class ErrorSeverity(Enum):
     WARNING = "警告"   # 警告，可能有问题但不阻止编译
     ERROR = "错误"     # 错误，阻止正确编译
     FATAL = "致命错误" # 致命错误，无法继续处理
+
 
 class ErrorType(Enum):
     """错误类型枚举"""
@@ -54,38 +57,19 @@ class ErrorType(Enum):
     FILE_NOT_FOUND = "文件不存在"
     FILE_READ_ERROR = "文件读取错误"
 
+
+@dataclass
 class ErrorRecord:
-    """错误记录"""
+    """错误记录 - 使用 dataclass 简化"""
+    error_type: ErrorType
+    message: str
+    line_no: int = -1
+    column: int = -1
+    severity: ErrorSeverity = ErrorSeverity.ERROR
+    context: str = ""
+    suggestion: str = ""
+    timestamp: Optional[float] = None
     
-    def __init__(self, 
-                 error_type: ErrorType,
-                 message: str,
-                 line_no: int = -1,
-                 column: int = -1,
-                 severity: ErrorSeverity = ErrorSeverity.ERROR,
-                 context: str = "",
-                 suggestion: str = ""):
-        """
-        初始化错误记录
-        
-        Args:
-            error_type: 错误类型
-            message: 错误消息
-            line_no: 行号
-            column: 列号
-            severity: 严重程度
-            context: 上下文信息
-            suggestion: 修复建议
-        """
-        self.error_type = error_type
-        self.message = message
-        self.line_no = line_no
-        self.column = column
-        self.severity = severity
-        self.context = context
-        self.suggestion = suggestion
-        self.timestamp: Optional[float] = None  # 可以添加时间戳
-        
     def __str__(self) -> str:
         """字符串表示"""
         location = f"行{self.line_no}" if self.line_no > 0 else "未知位置"
@@ -106,8 +90,17 @@ class ErrorRecord:
             'suggestion': self.suggestion
         }
 
+
 class ErrorHandler:
     """错误处理器主类"""
+    
+    # 严重程度到计数属性的映射
+    _severity_counters = {
+        ErrorSeverity.ERROR: 'total_errors',
+        ErrorSeverity.WARNING: 'total_warnings',
+        ErrorSeverity.INFO: 'total_infos',
+        ErrorSeverity.FATAL: 'fatal_errors',
+    }
     
     def __init__(self, max_errors: int = 100, max_warnings: int = 200):
         """
@@ -121,7 +114,7 @@ class ErrorHandler:
         self.max_errors = max_errors
         self.max_warnings = max_warnings
         
-        # 错误统计 - 分离int和dict避免Union类型问题
+        # 错误统计
         self.total_errors: int = 0
         self.total_warnings: int = 0
         self.total_infos: int = 0
@@ -136,98 +129,64 @@ class ErrorHandler:
         self.total_infos = 0
         self.fatal_errors = 0
         self.errors_by_type = {}
+    
+    def _add_record(self, severity: ErrorSeverity, error_type: ErrorType, 
+                    message: str, line_no: int = -1, column: int = -1,
+                    context: str = "", suggestion: str = "") -> bool:
+        """
+        添加错误记录 - 统一的内部方法
+        
+        Returns:
+            是否添加成功
+        """
+        # 检查限制
+        if severity == ErrorSeverity.ERROR and self.total_errors >= self.max_errors:
+            return False
+        if severity == ErrorSeverity.WARNING and self.total_warnings >= self.max_warnings:
+            return False
+        
+        # 创建并添加错误记录
+        error = ErrorRecord(
+            error_type=error_type,
+            message=message,
+            line_no=line_no,
+            column=column,
+            severity=severity,
+            context=context,
+            suggestion=suggestion
+        )
+        
+        self.errors.append(error)
+        self._update_stats(error)
+        return True
         
     def add_error(self, error_type: ErrorType, message: str, 
                   line_no: int = -1, column: int = -1,
                   context: str = "", suggestion: str = "") -> bool:
-        """
-        添加错误记录
-        
-        Returns:
-            是否添加成功（如果达到最大错误数则返回False）
-        """
-        if self.total_errors >= self.max_errors:
-            return False
-            
-        error = ErrorRecord(
-            error_type=error_type,
-            message=message,
-            line_no=line_no,
-            column=column,
-            severity=ErrorSeverity.ERROR,
-            context=context,
-            suggestion=suggestion
-        )
-        
-        self.errors.append(error)
-        self._update_stats(error)
-        return True
+        """添加错误记录"""
+        return self._add_record(ErrorSeverity.ERROR, error_type, message, 
+                               line_no, column, context, suggestion)
         
     def add_warning(self, error_type: ErrorType, message: str,
                    line_no: int = -1, column: int = -1,
                    context: str = "", suggestion: str = "") -> bool:
-        """
-        添加警告记录
-        
-        Returns:
-            是否添加成功（如果达到最大警告数则返回False）
-        """
-        if self.total_warnings >= self.max_warnings:
-            return False
-            
-        error = ErrorRecord(
-            error_type=error_type,
-            message=message,
-            line_no=line_no,
-            column=column,
-            severity=ErrorSeverity.WARNING,
-            context=context,
-            suggestion=suggestion
-        )
-        
-        self.errors.append(error)
-        self._update_stats(error)
-        return True
+        """添加警告记录"""
+        return self._add_record(ErrorSeverity.WARNING, error_type, message,
+                               line_no, column, context, suggestion)
         
     def add_info(self, error_type: ErrorType, message: str,
                 line_no: int = -1, column: int = -1,
                 context: str = "", suggestion: str = "") -> bool:
-        """
-        添加信息记录
-        """
-        error = ErrorRecord(
-            error_type=error_type,
-            message=message,
-            line_no=line_no,
-            column=column,
-            severity=ErrorSeverity.INFO,
-            context=context,
-            suggestion=suggestion
-        )
-        
-        self.errors.append(error)
-        self._update_stats(error)
-        return True
+        """添加信息记录"""
+        return self._add_record(ErrorSeverity.INFO, error_type, message,
+                               line_no, column, context, suggestion)
         
     def add_fatal(self, error_type: ErrorType, message: str,
                  line_no: int = -1, column: int = -1,
                  context: str = "", suggestion: str = "") -> bool:
-        """
-        添加致命错误记录
-        """
-        error = ErrorRecord(
-            error_type=error_type,
-            message=message,
-            line_no=line_no,
-            column=column,
-            severity=ErrorSeverity.FATAL,
-            context=context,
-            suggestion=suggestion
-        )
-        
-        self.errors.append(error)
-        self._update_stats(error)
-        return True
+        """添加致命错误记录"""
+        return self._add_record(ErrorSeverity.FATAL, error_type, message,
+                               line_no, column, context, suggestion)
     
     def report_error(self, error_type_str: str, message: str, 
                     line_no: int = -1, severity_str: str = "错误") -> bool:
@@ -238,52 +197,33 @@ class ErrorHandler:
             error_type_str: 错误类型字符串
             message: 错误消息
             line_no: 行号
-            severity_str: 严重程度字符串（"信息"、"警告"、"错误"、"致命错误"）
+            severity_str: 严重程度字符串
             
         Returns:
             是否添加成功
         """
-        # 将字符串转换为枚举
-        if severity_str == "信息":
-            severity = ErrorSeverity.INFO
-        elif severity_str == "警告":
-            severity = ErrorSeverity.WARNING
-        elif severity_str == "致命错误":
-            severity = ErrorSeverity.FATAL
-        else:
-            severity = ErrorSeverity.ERROR
+        # 严重程度分派表
+        severity_map = {
+            "信息": ErrorSeverity.INFO,
+            "警告": ErrorSeverity.WARNING,
+            "致命错误": ErrorSeverity.FATAL,
+        }
+        severity = severity_map.get(severity_str, ErrorSeverity.ERROR)
         
-        # 创建自定义错误类型 - 使用固定ErrorType避免类型不兼容
-        fallback_type = ErrorType.COMPILE_UNSUPPORTED_FEATURE
-
-        # 根据严重程度调用相应的方法
-        if severity == ErrorSeverity.INFO:
-            return self.add_info(fallback_type, message, line_no)
-        elif severity == ErrorSeverity.WARNING:
-            return self.add_warning(fallback_type, message, line_no)
-        elif severity == ErrorSeverity.FATAL:
-            return self.add_fatal(fallback_type, message, line_no)
-        else:
-            return self.add_error(fallback_type, message, line_no)
+        return self._add_record(severity, ErrorType.COMPILE_UNSUPPORTED_FEATURE, 
+                               message, line_no)
         
     def _update_stats(self, error: ErrorRecord):
         """更新统计信息"""
-        error_type_str = error.error_type.value
-        
-        # 更新总数
-        if error.severity == ErrorSeverity.ERROR:
-            self.total_errors += 1
-        elif error.severity == ErrorSeverity.WARNING:
-            self.total_warnings += 1
-        elif error.severity == ErrorSeverity.INFO:
-            self.total_infos += 1
-        elif error.severity == ErrorSeverity.FATAL:
-            self.fatal_errors += 1
+        # 更新总数 - 使用分派表
+        counter_attr = self._severity_counters.get(error.severity)
+        if counter_attr:
+            current = getattr(self, counter_attr)
+            setattr(self, counter_attr, current + 1)
             
         # 更新类型统计
-        if error_type_str not in self.errors_by_type:
-            self.errors_by_type[error_type_str] = 0
-        self.errors_by_type[error_type_str] += 1
+        error_type_str = error.error_type.value
+        self.errors_by_type[error_type_str] = self.errors_by_type.get(error_type_str, 0) + 1
         
     def has_errors(self) -> bool:
         """是否有错误"""
