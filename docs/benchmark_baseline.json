@@ -1,0 +1,62 @@
+{
+  "timestamp": "2026-04-07T21:53:15.795891",
+  "python_version": "3.9.6 (default, Mar  6 2026, 16:22:43) \n[Clang 21.0.0 (clang-2100.0.123.102)]",
+  "platform": "macOS-26.4-arm64-arm-64bit",
+  "metrics": {
+    "lexer": {
+      "stage": "Lexer",
+      "iterations": 50,
+      "total_time": 0.050365495999999996,
+      "avg_time": 0.0010073099199999999,
+      "min_time": 0.0009156250000000032,
+      "max_time": 0.0011730409999999997,
+      "std_dev": 4.889219772145748e-05,
+      "ops_per_second": 992.7431271599114,
+      "memory_mb": null
+    },
+    "parser": {
+      "stage": "Parser",
+      "iterations": 50,
+      "total_time": 0.09539391599999986,
+      "avg_time": 0.0019078783199999972,
+      "min_time": 0.0017557500000000004,
+      "max_time": 0.0023667920000000064,
+      "std_dev": 0.00016083775107325813,
+      "ops_per_second": 524.1424411175244,
+      "memory_mb": null
+    },
+    "semantic": {
+      "stage": "Semantic",
+      "iterations": 50,
+      "total_time": 0.023823377999999784,
+      "avg_time": 0.0004764675599999957,
+      "min_time": 0.0004343339999999807,
+      "max_time": 0.0007344999999999713,
+      "std_dev": 5.1558294795013e-05,
+      "ops_per_second": 2098.7787710038624,
+      "memory_mb": null
+    },
+    "codegen": {
+      "stage": "CodeGen",
+      "iterations": 50,
+      "total_time": 0.003777244000000013,
+      "avg_time": 7.554488000000026e-05,
+      "min_time": 6.80000000000125e-05,
+      "max_time": 8.929199999996307e-05,
+      "std_dev": 4.710127835863181e-06,
+      "ops_per_second": 13237.164451118284,
+      "memory_mb": null
+    },
+    "full_pipeline": {
+      "stage": "FullPipeline",
+      "iterations": 50,
+      "total_time": 0.18088841800000022,
+      "avg_time": 0.003617768360000004,
+      "min_time": 0.003292750000000011,
+      "max_time": 0.005809500000000023,
+      "std_dev": 0.0003735205289169547,
+      "ops_per_second": 276.41349597075885,
+      "memory_mb": null
+    }
+  }
+}

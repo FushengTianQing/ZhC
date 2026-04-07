@@ -11,8 +11,8 @@ ZHC 编译器统一异常处理模块
 - codegen_error.py: 代码生成异常
 
 使用示例:
-    >>> from zhpp.errors import LexerError, ParserError, SemanticError
-    >>> from zhpp.errors import SourceLocation, ErrorCollection
+    >>> from zhc.errors import LexerError, ParserError, SemanticError
+    >>> from zhc.errors import SourceLocation, ErrorCollection
     >>> 
     >>> # 创建错误
     >>> error = LexerError(
