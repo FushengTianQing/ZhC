@@ -285,77 +285,77 @@ class Parser:
     # ========================================================================
     
     def parse_declaration(self) -> Optional[ASTNode]:
-        """解析声明"""
-        # 模块声明
+        """解析声明（dispatch table 分派）"""
+        # --- 直接分派的 token ---
         if self.match(TokenType.MODULE):
             return self.parse_module_decl()
-        
-        # 导入声明
         if self.match(TokenType.IMPORT):
             return self.parse_import_decl()
-        
-        # 结构体声明 或 结构体变量声明
-        # 结构体 名字 { ... }  → 定义
-        # 结构体 名字 变量名 ; → 变量声明
-        if self.match(TokenType.STRUCT):
-            # lookahead: peek(1)=结构体名, peek(2)={  → 定义; peek(2)=标识符  → 变量声明
-            next_tok = self.peek_token(1)  # 结构体名
-            next_next_tok = self.peek_token(2)
-            if next_tok.type == TokenType.IDENTIFIER and next_next_tok.type == TokenType.LBRACE:
-                return self.parse_struct_decl()
-            else:
-                return self.parse_variable_decl()
-        
-        # 共用体声明 或 共用体变量声明（与结构体类似）
-        if self.match(TokenType.UNION):
-            next_tok = self.peek_token(1)
-            next_next_tok = self.peek_token(2)
-            if next_tok.type == TokenType.IDENTIFIER and next_next_tok.type == TokenType.LBRACE:
-                return self.parse_union_decl()
-            else:
-                return self.parse_variable_decl()
-        
-        # 枚举声明
-        if self.match(TokenType.ENUM):
-            next_tok = self.peek_token(1)
-            if next_tok.type == TokenType.IDENTIFIER:
-                next_next_tok = self.peek_token(2)
-                if next_next_tok.type == TokenType.LBRACE:
-                    return self.parse_enum_decl()
-                # 枚举变量声明：枚举 类型名 变量名;
-                self.advance()  # 消耗 '枚举'
-                return self.parse_variable_decl()
-            elif next_tok.type == TokenType.LBRACE:
-                # 匿名枚举：枚举 { A, B, C }
-                return self.parse_enum_decl()
-            else:
-                self.advance()  # 消耗 '枚举'
-                return self.parse_variable_decl()
-        
-        # 别名声明 (typedef)
         if self.match(TokenType.TYPEDEF):
             return self.parse_typedef_decl()
-        
-        # 函数声明或变量声明
-        # 检查是否是类型关键字
+        if self.match(TokenType.CONST):
+            return self.parse_const_decl()
+
+        # --- 需要 lookahead 的 token ---
+        if self.match(TokenType.STRUCT):
+            return self._dispatch_struct_or_var()
+        if self.match(TokenType.UNION):
+            return self._dispatch_union_or_var()
+        if self.match(TokenType.ENUM):
+            return self._dispatch_enum_or_var()
+
+        # --- 类型关键字：函数声明 vs 变量声明 ---
         if self.match(TokenType.INT, TokenType.FLOAT, TokenType.CHAR,
                      TokenType.BOOL, TokenType.VOID, TokenType.STRING,
                      TokenType.BYTE,
                      TokenType.DOUBLE, TokenType.BOOL_TYPE, TokenType.LONG, TokenType.SHORT,
                      TokenType.UNSIGNED, TokenType.SIGNED):
-            # 向前查看：如果是 类型 标识符(，则是函数声明
-            if self.peek_token().type == TokenType.IDENTIFIER and \
-               self.peek_token(2).type == TokenType.LPAREN:
-                return self.parse_function_decl_with_type()
-            else:
-                return self.parse_variable_decl()
-        
-        # 常量声明
-        if self.match(TokenType.CONST):
-            return self.parse_const_decl()
-        
+            return self._dispatch_func_or_var()
+
         # 其他情况：表达式语句
         return self.parse_statement()
+
+    # =========================================================================
+    # parse_declaration 的 lookahead 分派辅助方法
+    # =========================================================================
+
+    def _dispatch_struct_or_var(self) -> Optional[ASTNode]:
+        """STRUCT lookahead: 结构体定义 vs 变量声明"""
+        next_tok = self.peek_token(1)
+        next_next_tok = self.peek_token(2)
+        if next_tok.type == TokenType.IDENTIFIER and next_next_tok.type == TokenType.LBRACE:
+            return self.parse_struct_decl()
+        return self.parse_variable_decl()
+
+    def _dispatch_union_or_var(self) -> Optional[ASTNode]:
+        """UNION lookahead: 共用体定义 vs 变量声明"""
+        next_tok = self.peek_token(1)
+        next_next_tok = self.peek_token(2)
+        if next_tok.type == TokenType.IDENTIFIER and next_next_tok.type == TokenType.LBRACE:
+            return self.parse_union_decl()
+        return self.parse_variable_decl()
+
+    def _dispatch_enum_or_var(self) -> Optional[ASTNode]:
+        """ENUM lookahead: 枚举定义 / 枚举变量 / 匿名枚举"""
+        next_tok = self.peek_token(1)
+        if next_tok.type == TokenType.IDENTIFIER:
+            next_next_tok = self.peek_token(2)
+            if next_next_tok.type == TokenType.LBRACE:
+                return self.parse_enum_decl()
+            self.advance()
+            return self.parse_variable_decl()
+        elif next_tok.type == TokenType.LBRACE:
+            return self.parse_enum_decl()
+        else:
+            self.advance()
+            return self.parse_variable_decl()
+
+    def _dispatch_func_or_var(self) -> Optional[ASTNode]:
+        """类型关键字 lookahead: 函数声明 vs 变量声明"""
+        if self.peek_token().type == TokenType.IDENTIFIER and \
+           self.peek_token(2).type == TokenType.LPAREN:
+            return self.parse_function_decl_with_type()
+        return self.parse_variable_decl()
     
     def parse_module_decl(self) -> ModuleDeclNode:
         """解析模块声明"""

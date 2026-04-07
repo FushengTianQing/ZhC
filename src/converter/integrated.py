@@ -40,35 +40,70 @@ class IntegratedConverter:
             'total_warnings': 0
         }
         
-    def process_single_file(self, input_file: str, 
+    def process_single_file(self, input_file: str,
                            output_dir: str = '.') -> Tuple[bool, Dict]:
         """
-        处理单个文件
-        
-        Args:
-            input_file: 输入文件路径
-            output_dir: 输出目录
-            
+        处理单个文件（6步骤编排）
+
         Returns:
             (success, statistics) 元组
         """
         if self.verbose:
             print(f"\n📄 处理文件: {input_file}")
-            
+
         # 重置解析器和转换器
         self.parser = ModuleParser()
         self.converter = CodeConverter()
-        
-        # 读取文件
+
+        # Step 1: 读取源文件
+        lines, read_ok = self._read_source(input_file)
+        if not read_ok:
+            return False, self.stats.copy()
+
+        # Step 2: 解析行
+        parse_errors, parse_summary = self._parse_lines(lines)
+        if self.verbose:
+            print("\n" + parse_summary)
+
+        # Step 3: 转换模块
+        base_name = os.path.splitext(os.path.basename(input_file))[0]
+        header_file = os.path.join(output_dir, f"{base_name}.h")
+        source_file = os.path.join(output_dir, f"{base_name}.c")
+        modules_converted = self._convert_modules(lines, header_file, source_file)
+
+        # Step 4: 处理导入
+        imports_converted = self._handle_imports(source_file)
+
+        # Step 5: 更新统计
+        self._update_stats(len(self.parser.modules), modules_converted, imports_converted)
+
+        # Step 6: 输出结果
+        if self.verbose:
+            print(f"\n✅ 转换完成:")
+            print(f"  输入文件: {input_file}")
+            print(f"  输出头文件: {header_file}")
+            print(f"  输出源文件: {source_file}")
+            print(f"  转换模块数: {len(self.parser.modules)}")
+            print(f"  处理导入数: {imports_converted}")
+
+        success = len(self.converter.get_errors()) == 0
+        return success, self.stats.copy()
+
+    # =========================================================================
+    # process_single_file 的6个步骤方法
+    # =========================================================================
+
+    def _read_source(self, input_file: str) -> Tuple[List[str], bool]:
+        """Step 1: 读取源文件"""
         try:
             with open(input_file, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-                
+                return f.readlines(), True
         except Exception as e:
             print(f"✗ 读取文件失败: {e}")
-            return False, self.stats.copy()
-            
-        # 解析文件
+            return [], False
+
+    def _parse_lines(self, lines: List[str]) -> Tuple[List[Dict], str]:
+        """Step 2: 解析行，返回 (parse_errors, parse_summary)"""
         parse_errors = []
         for i, line in enumerate(lines, 1):
             try:
@@ -79,93 +114,64 @@ class IntegratedConverter:
                     'error': str(e),
                     'content': line.strip()
                 })
-                
-        # 获取解析摘要
+
         parse_summary = self.parser.get_summary()
-        if self.verbose:
-            print("\n" + parse_summary)
-            
-        # 检查解析错误
         if parse_errors:
             print(f"\n⚠️  解析过程中发现 {len(parse_errors)} 个错误:")
             for error in parse_errors:
                 print(f"  行{error['line']}: {error['error']}")
                 print(f"    内容: {error['content']}")
             self.stats['total_errors'] += len(parse_errors)
-            
-        # 确定输出文件名
-        base_name = os.path.splitext(os.path.basename(input_file))[0]
-        header_file = os.path.join(output_dir, f"{base_name}.h")
-        source_file = os.path.join(output_dir, f"{base_name}.c")
-        
-        # 转换每个模块
+
+        return parse_errors, parse_summary
+
+    def _convert_modules(self, lines: List[str], header_file: str, source_file: str) -> int:
+        """Step 3: 转换每个模块到 header/source 文件"""
         modules_converted = 0
         for module_name, module_info in self.parser.modules.items():
-            # 构建模块内容（简化版本）
-            # 在实际实现中，需要从原始代码中提取模块的具体内容
-            module_content = self._extract_module_content(
-                module_name, lines, module_info
-            )
-            
-            # 转换模块
+            module_content = self._extract_module_content(module_name, lines, module_info)
             header_code, source_code = self.converter.convert_module_declaration(
                 module_name, module_content, -1
             )
-            
-            # 写入文件（追加模式，多个模块合并到同一文件）
             mode = 'w' if modules_converted == 0 else 'a'
             with open(header_file, mode, encoding='utf-8') as f:
                 if modules_converted > 0:
                     f.write('\n\n')
                 f.write(header_code)
-                
             with open(source_file, mode, encoding='utf-8') as f:
                 if modules_converted > 0:
                     f.write('\n\n')
                 f.write(source_code)
-                
             modules_converted += 1
-            
-        # 处理导入语句 - 收集所有模块的导入
+        return modules_converted
+
+    def _handle_imports(self, source_file: str) -> int:
+        """Step 4: 收集并写入所有模块的导入语句"""
         imports_converted = 0
         all_imports: List[str] = []
         for module_info in self.parser.modules.values():
             for imported_module in module_info.imports:
                 if imported_module not in all_imports:
                     all_imports.append(imported_module)
+
         for imported_module in all_imports:
-            import_code = self.converter.convert_import_statement(
-                imported_module, -1
-            )
-            
-            # 在源文件开头添加导入
+            import_code = self.converter.convert_import_statement(imported_module, -1)
             with open(source_file, 'r+', encoding='utf-8') as f:
                 content = f.read()
                 f.seek(0, 0)
                 f.write(f"{import_code}\n{content}")
-                
             imports_converted += 1
-            
-        # 更新统计
+
+        return imports_converted
+
+    def _update_stats(self, modules_count: int, modules_converted: int, imports_count: int) -> None:
+        """Step 5: 更新统计"""
         self.stats['files_processed'] += 1
-        self.stats['modules_found'] += len(self.parser.modules)
-        self.stats['imports_processed'] += imports_converted
+        self.stats['modules_found'] += modules_count
+        self.stats['imports_processed'] += imports_count
         self.stats['symbols_converted'] += self.converter.conversion_stats['symbols_converted']
         self.stats['total_errors'] += len(self.converter.get_errors())
         self.stats['total_warnings'] += len(self.converter.get_warnings())
-        
-        # 输出结果
-        if self.verbose:
-            print(f"\n✅ 转换完成:")
-            print(f"  输入文件: {input_file}")
-            print(f"  输出头文件: {header_file}")
-            print(f"  输出源文件: {source_file}")
-            print(f"  转换模块数: {len(self.parser.modules)}")
-            print(f"  处理导入数: {imports_converted}")
-            
-        success = len(self.converter.get_errors()) == 0
-        
-        return success, self.stats.copy()
         
     def _extract_module_content(self, module_name: str, 
                                lines: List[str], 

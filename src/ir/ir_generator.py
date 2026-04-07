@@ -241,11 +241,15 @@ class IRGenerator(ASTVisitor):
 
     # ========== P1: 表达式 ==========
 
+    # =========================================================================
+    # 表达式求值 — _eval_expr 分派 + 10个子方法
+    # =========================================================================
+
     def _eval_expr(self, node: ASTNode) -> Optional[IRValue]:
         """
-        求值表达式，返回结果 IRValue
+        求值表达式，返回结果 IRValue。
 
-        将表达式结果存储到临时寄存器中。
+        将表达式分派到具体的求值方法。
         """
         if node is None:
             return None
@@ -254,135 +258,167 @@ class IRGenerator(ASTVisitor):
 
         # 字面量
         if nt == 'INT_LITERAL':
-            val = getattr(node, 'value', 0)
-            return IRValue(str(val), self._get_type_name(None), ValueKind.CONST, const_value=val)
-
+            return self._eval_literal(node, '整数型', int(getattr(node, 'value', 0)))
         if nt == 'FLOAT_LITERAL':
-            val = getattr(node, 'value', 0.0)
-            return IRValue(str(val), '双精度浮点型', ValueKind.CONST, const_value=val)
-
+            return self._eval_literal(node, '双精度浮点型', float(getattr(node, 'value', 0.0)))
         if nt == 'STRING_LITERAL':
             val = getattr(node, 'value', '')
-            return IRValue(f'"{val}"', '字符串型', ValueKind.CONST, const_value=val)
-
+            return self._eval_literal(node, '字符串型', f'"{val}"', is_string=True)
         if nt == 'CHAR_LITERAL':
             val = getattr(node, 'value', '0')
-            return IRValue(f"'{val}'", '字符型', ValueKind.CONST, const_value=val)
-
+            return self._eval_literal(node, '字符型', f"'{val}'", is_string=True)
         if nt == 'BOOL_LITERAL':
-            val = getattr(node, 'value', False)
-            return IRValue(str(val), '布尔型', ValueKind.CONST, const_value=val)
-
+            return self._eval_literal(node, '布尔型', getattr(node, 'value', False))
         if nt == 'NULL_LITERAL':
-            return IRValue('0', '空型', ValueKind.CONST, const_value=0)
+            return self._eval_literal(node, '空型', 0)
 
-        # 标识符 → LOAD
+        # 标识符
         if nt == 'IDENTIFIER_EXPR':
-            name = getattr(node, 'name', '')
-            ty = getattr(node, 'inferred_type', '整数型')
-            return IRValue(name, ty, ValueKind.VAR)
+            return self._eval_identifier(node)
 
         # 二元表达式
         if nt == 'BINARY_EXPR':
-            left = self._eval_expr(getattr(node, 'left', None))
-            right = self._eval_expr(getattr(node, 'right', None))
-            op = getattr(node, 'operator', getattr(node, 'op', '+'))
-            op = op.upper() if isinstance(op, str) else str(op)
-            try:
-                opcode = Opcode[op]
-            except (KeyError, ValueError):
-                opcode = Opcode.ADD
-            result = self._new_temp()
-            self._emit(opcode, [left, right], [result])
-            return result
+            return self._eval_binary(node)
 
         # 一元表达式
         if nt == 'UNARY_EXPR':
-            operand = self._eval_expr(getattr(node, 'operand', None))
-            op = getattr(node, 'operator', getattr(node, 'op', '-'))
-            if op in ('-', '!'):
-                opcode = Opcode.NEG if op == '-' else Opcode.L_NOT
-                result = self._new_temp()
-                self._emit(opcode, [operand] if operand else [], [result])
-                return result
+            return self._eval_unary(node)
 
         # 赋值表达式
         if nt == 'ASSIGN_EXPR':
-            value = self._eval_expr(getattr(node, 'value', None))
-            target = self._eval_expr(getattr(node, 'target', None))
-            if value:
-                self._emit(Opcode.STORE, [value, target] if target else [value])
-            return value
+            return self._eval_assignment(node)
 
         # 函数调用
         if nt == 'CALL_EXPR':
-            callee = getattr(node, 'callee', None)
-            func_name = getattr(callee, 'name', 'unknown') if callee else 'unknown'
-            args = []
-            for arg in getattr(node, 'args', []):
-                arg_val = self._eval_expr(arg)
-                if arg_val:
-                    args.append(arg_val)
-            result = self._new_temp()
-            func_val = IRValue(func_name, kind=ValueKind.FUNCTION)
-            self._emit(Opcode.CALL, [func_val] + args, [result])
-            return result
+            return self._eval_call(node)
 
         # 成员访问
         if nt == 'MEMBER_EXPR':
-            obj = self._eval_expr(getattr(node, 'obj', None))
-            member = getattr(node, 'member', '')
-            result = self._new_temp()
-            self._emit(Opcode.GETPTR, [obj] if obj else [], [result])
-            return result
+            return self._eval_member(node)
 
         # 数组访问
         if nt == 'ARRAY_EXPR':
-            base = self._eval_expr(getattr(node, 'object', None))
-            index = self._eval_expr(getattr(node, 'index', None))
-            result = self._new_temp()
-            self._emit(Opcode.GEP, [base, index] if index else [base], [result])
-            return result
+            return self._eval_array(node)
 
         # 三元表达式
         if nt == 'TERNARY_EXPR':
-            cond = self._eval_expr(getattr(node, 'condition', None))
-            then_val = self._eval_expr(getattr(node, 'then_expr', None))
-            else_val = self._eval_expr(getattr(node, 'else_expr', None))
-            result = self._new_temp()
-            # 实现为条件跳转
-            then_bb_label = self._new_bb_label("ternary_then")
-            else_bb_label = self._new_bb_label("ternary_else")
-            merge_bb_label = self._new_bb_label("ternary_merge")
-            self.current_function.basic_blocks.append(IRBasicBlock(then_bb_label))
-            self.current_function.basic_blocks.append(IRBasicBlock(else_bb_label))
-            self.current_function.basic_blocks.append(IRBasicBlock(merge_bb_label))
-            self._emit(Opcode.JZ, [cond, else_bb_label] if cond else [])
-            self._emit(Opcode.JMP, [then_bb_label])
-            # then 块
-            self._switch_block(self.current_function.find_basic_block(then_bb_label))
-            if then_val:
-                self._emit(Opcode.STORE, [then_val], [result])
-            self._emit(Opcode.JMP, [merge_bb_label])
-            # else 块
-            self._switch_block(self.current_function.find_basic_block(else_bb_label))
-            if else_val:
-                self._emit(Opcode.STORE, [else_val], [result])
-            self._emit(Opcode.JMP, [merge_bb_label])
-            # merge 块
-            self._switch_block(self.current_function.find_basic_block(merge_bb_label))
-            return result
+            return self._eval_ternary(node)
 
         # 类型转换
         if nt == 'CAST_EXPR':
-            operand = self._eval_expr(getattr(node, 'operand', None))
-            target_type = self._get_type_name(getattr(node, 'target_type', None))
-            result = self._new_temp(target_type)
-            if operand:
-                self._emit(Opcode.BITCAST, [operand], [result])
-            return result
+            return self._eval_cast(node)
 
         return None
+
+    def _eval_literal(self, node: ASTNode, type_name: str, value: Any, is_string: bool = False) -> IRValue:
+        """求值字面量：INT/FLOAT/STRING/CHAR/BOOL/NULL"""
+        return IRValue(str(value), type_name, ValueKind.CONST, const_value=value)
+
+    def _eval_identifier(self, node: ASTNode) -> IRValue:
+        """求值标识符表达式"""
+        name = getattr(node, 'name', '')
+        ty = getattr(node, 'inferred_type', '整数型')
+        return IRValue(name, ty, ValueKind.VAR)
+
+    def _eval_binary(self, node: ASTNode) -> Optional[IRValue]:
+        """求值二元表达式"""
+        left = self._eval_expr(getattr(node, 'left', None))
+        right = self._eval_expr(getattr(node, 'right', None))
+        op = getattr(node, 'operator', getattr(node, 'op', '+'))
+        op = op.upper() if isinstance(op, str) else str(op)
+        try:
+            opcode = Opcode[op]
+        except (KeyError, ValueError):
+            opcode = Opcode.ADD
+        result = self._new_temp()
+        self._emit(opcode, [left, right], [result])
+        return result
+
+    def _eval_unary(self, node: ASTNode) -> Optional[IRValue]:
+        """求值一元表达式"""
+        operand = self._eval_expr(getattr(node, 'operand', None))
+        op = getattr(node, 'operator', getattr(node, 'op', '-'))
+        if op in ('-', '!'):
+            opcode = Opcode.NEG if op == '-' else Opcode.L_NOT
+            result = self._new_temp()
+            self._emit(opcode, [operand] if operand else [], [result])
+            return result
+        return None
+
+    def _eval_assignment(self, node: ASTNode) -> Optional[IRValue]:
+        """求值赋值表达式"""
+        value = self._eval_expr(getattr(node, 'value', None))
+        target = self._eval_expr(getattr(node, 'target', None))
+        if value:
+            self._emit(Opcode.STORE, [value, target] if target else [value])
+        return value
+
+    def _eval_call(self, node: ASTNode) -> Optional[IRValue]:
+        """求值函数调用表达式"""
+        callee = getattr(node, 'callee', None)
+        func_name = getattr(callee, 'name', 'unknown') if callee else 'unknown'
+        args = []
+        for arg in getattr(node, 'args', []):
+            arg_val = self._eval_expr(arg)
+            if arg_val:
+                args.append(arg_val)
+        result = self._new_temp()
+        func_val = IRValue(func_name, kind=ValueKind.FUNCTION)
+        self._emit(Opcode.CALL, [func_val] + args, [result])
+        return result
+
+    def _eval_member(self, node: ASTNode) -> Optional[IRValue]:
+        """求值成员访问表达式"""
+        obj = self._eval_expr(getattr(node, 'obj', None))
+        result = self._new_temp()
+        self._emit(Opcode.GETPTR, [obj] if obj else [], [result])
+        return result
+
+    def _eval_array(self, node: ASTNode) -> Optional[IRValue]:
+        """求值数组访问表达式"""
+        base = self._eval_expr(getattr(node, 'object', None))
+        index = self._eval_expr(getattr(node, 'index', None))
+        result = self._new_temp()
+        self._emit(Opcode.GEP, [base, index] if index else [base], [result])
+        return result
+
+    def _eval_ternary(self, node: ASTNode) -> Optional[IRValue]:
+        """求值三元表达式（条件 ? then : else）"""
+        cond = self._eval_expr(getattr(node, 'condition', None))
+        then_val = self._eval_expr(getattr(node, 'then_expr', None))
+        else_val = self._eval_expr(getattr(node, 'else_expr', None))
+        result = self._new_temp()
+        # 实现为条件跳转
+        then_bb_label = self._new_bb_label("ternary_then")
+        else_bb_label = self._new_bb_label("ternary_else")
+        merge_bb_label = self._new_bb_label("ternary_merge")
+        self.current_function.basic_blocks.append(IRBasicBlock(then_bb_label))
+        self.current_function.basic_blocks.append(IRBasicBlock(else_bb_label))
+        self.current_function.basic_blocks.append(IRBasicBlock(merge_bb_label))
+        self._emit(Opcode.JZ, [cond, else_bb_label] if cond else [])
+        self._emit(Opcode.JMP, [then_bb_label])
+        # then 块
+        self._switch_block(self.current_function.find_basic_block(then_bb_label))
+        if then_val:
+            self._emit(Opcode.STORE, [then_val], [result])
+        self._emit(Opcode.JMP, [merge_bb_label])
+        # else 块
+        self._switch_block(self.current_function.find_basic_block(else_bb_label))
+        if else_val:
+            self._emit(Opcode.STORE, [else_val], [result])
+        self._emit(Opcode.JMP, [merge_bb_label])
+        # merge 块
+        self._switch_block(self.current_function.find_basic_block(merge_bb_label))
+        return result
+
+    def _eval_cast(self, node: ASTNode) -> Optional[IRValue]:
+        """求值类型转换表达式"""
+        operand = self._eval_expr(getattr(node, 'operand', None))
+        target_type = self._get_type_name(getattr(node, 'target_type', None))
+        result = self._new_temp(target_type)
+        if operand:
+            self._emit(Opcode.BITCAST, [operand], [result])
+        return result
 
     def visit_binary_expr(self, node: BinaryExprNode):
         """二元表达式"""
@@ -525,21 +561,12 @@ class IRGenerator(ASTVisitor):
         """for 循环"""
         self._ensure_block()
 
-        old_block = self.current_block
-
         # 初始化
         if node.init:
             node.init.accept(self)
 
-        cond_bb = IRBasicBlock(self._new_bb_label("for_cond"))
-        body_bb = IRBasicBlock(self._new_bb_label("for_body"))
-        update_bb = IRBasicBlock(self._new_bb_label("for_update"))
-        end_bb = IRBasicBlock(self._new_bb_label("for_end"))
-
-        self.current_function.basic_blocks.append(cond_bb)
-        self.current_function.basic_blocks.append(body_bb)
-        self.current_function.basic_blocks.append(update_bb)
-        self.current_function.basic_blocks.append(end_bb)
+        # 创建 for 循环的 4 个基本块
+        cond_bb, body_bb, update_bb, end_bb = self._create_for_loop_blocks()
 
         # 跳转到条件块
         self._emit(Opcode.JMP, [cond_bb.label])
@@ -580,6 +607,20 @@ class IRGenerator(ASTVisitor):
 
         # 结束块
         self._switch_block(end_bb)
+
+    def _create_for_loop_blocks(self):
+        """创建 for 循环的 4 个基本块：cond / body / update / end"""
+        cond_bb = IRBasicBlock(self._new_bb_label("for_cond"))
+        body_bb = IRBasicBlock(self._new_bb_label("for_body"))
+        update_bb = IRBasicBlock(self._new_bb_label("for_update"))
+        end_bb = IRBasicBlock(self._new_bb_label("for_end"))
+
+        self.current_function.basic_blocks.append(cond_bb)
+        self.current_function.basic_blocks.append(body_bb)
+        self.current_function.basic_blocks.append(update_bb)
+        self.current_function.basic_blocks.append(end_bb)
+
+        return cond_bb, body_bb, update_bb, end_bb
 
     def visit_do_while_stmt(self, node: DoWhileStmtNode):
         """do-while 循环"""
