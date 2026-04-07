@@ -79,6 +79,23 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="生成 DWARF 调试信息（支持 GDB/LLDB 调试）"
     )
+    parser.add_argument(
+        "--analyze",
+        action="store_true",
+        help="运行静态分析（代码质量检查、安全漏洞检测等）"
+    )
+    parser.add_argument(
+        "--analyze-format",
+        dest="analyze_format",
+        default="text",
+        choices=["text", "markdown", "json", "html"],
+        help="静态分析报告格式 (默认: text)"
+    )
+    parser.add_argument(
+        "--analyze-output",
+        dest="analyze_output",
+        help="静态分析报告输出文件（默认输出到控制台）"
+    )
     parser.add_argument("--clean-cache", action="store_true", help="清理编译缓存")
     parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
     parser.add_argument("--version", action="version", version="%(prog)s 3.0.0")

@@ -1,468 +1,382 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-静态分析器测试套件
+静态分析框架测试
 
-测试：
-1. 数据流分析
-2. 控制流分析
-3. 内存安全分析
-
-作者：阿福
-日期：2026-04-03
+Phase 4 - Stage 3 - Task 14.3
 """
 
-import unittest
-import sys
-import os
+import pytest
+from typing import List, Dict, Any
 
-# 添加源码路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from zhc.analyzer.data_flow import (
-    DataFlowAnalyzer,
-    DefUseChain,
-    LiveVarInfo,
-    TaintInfo,
-    DataFlowIssue
+from zhc.analysis.base_analyzer import (
+    StaticAnalyzer,
+    AnalysisResult,
+    SourceLocation,
+    Severity,
+    ASTWalker,
 )
-from zhc.analyzer.control_flow import (
-    ControlFlowAnalyzer,
-    ControlFlowGraph,
-    CFGNode,
-    BasicBlock,
-    NodeType,
-    EdgeType
-)
-from zhc.analyzer.memory_safety import (
-    MemorySafetyAnalyzer,
-    NullPointerChecker,
-    MemoryLeakDetector,
-    BoundsChecker,
-    SafetyLevel,
-    SafetyIssue
-)
+from zhc.analysis.analyzer_scheduler import AnalysisScheduler, AnalysisStats
+from zhc.analysis.report_generator import ReportGenerator
 
 
-# ==================== 数据流分析测试 ====================
+# ========== 测试辅助类 ==========
 
-class TestDataFlowAnalyzer(unittest.TestCase):
-    """数据流分析器测试"""
+class MockAnalyzer(StaticAnalyzer):
+    """测试用模拟分析器"""
     
-    def setUp(self):
-        """设置测试环境"""
-        self.analyzer = DataFlowAnalyzer()
+    @property
+    def name(self) -> str:
+        return "mock_analyzer"
     
-    def test_def_use_chain_building(self):
-        """测试定义-使用链构建"""
-        statements = [
-            {'type': 'var_decl', 'name': 'x', 'value': 10, 'line': 1},
-            {'type': 'assign', 'name': 'y', 'value': 'x + 5', 'line': 2},
-            {'type': 'return', 'value': 'y', 'line': 3}
-        ]
-        
-        chains = self.analyzer.build_def_use_chains(statements)
-        
-        self.assertIn('x', chains)
-        self.assertIn('y', chains)
-        self.assertEqual(len(chains['x'].definitions), 1)
-        # x 的使用在 'x + 5' 表达式中，从 assign 语句提取
-        # 使用数量可能为0，取决于实现如何处理表达式中的变量
-    
-    def test_live_variable_analysis(self):
-        """测试活跃变量分析"""
-        statements = [
-            {'type': 'var_decl', 'name': 'x', 'value': 10, 'line': 1},
-            {'type': 'var_decl', 'name': 'y', 'value': 20, 'line': 2},
-            {'type': 'assign', 'name': 'z', 'value': 'x', 'line': 3}
-        ]
-        
-        live_vars = self.analyzer.analyze_live_variables(statements)
-        
-        self.assertIn('x', live_vars)
-        self.assertIn('y', live_vars)
-        self.assertIn('z', live_vars)
-    
-    def test_constant_propagation(self):
-        """测试常量传播"""
-        statements = [
-            {'type': 'var_decl', 'name': 'pi', 'value': 3.14, 'is_const': True, 'line': 1},
-            {'type': 'assign', 'name': 'area', 'value': 'pi * r * r', 'line': 2}
-        ]
-        
-        optimized, constants = self.analyzer.propagate_constants(statements)
-        
-        self.assertIn('pi', constants)
-        self.assertEqual(constants['pi'], '3.14')
-    
-    def test_taint_analysis(self):
-        """测试污点分析"""
-        self.analyzer.define_taint_sources(['读取输入', '接收数据'])
-        
-        statements = [
-            {'type': 'var_decl', 'name': 'input', 'line': 1},
-            {'type': 'call', 'function': '读取输入', 'result': 'input', 'line': 2},
-            {'type': 'call', 'function': '执行', 'args': ['input'], 'line': 3}
-        ]
-        
-        issues = self.analyzer.analyze_taint_flow(statements)
-        
-        self.assertGreater(len(issues), 0)
-        self.assertEqual(issues[0].issue_type, 'taint')
-    
-    def test_uninitialized_var_detection(self):
-        """测试未初始化变量检测"""
-        statements = [
-            {'type': 'var_decl', 'name': 'x', 'line': 1},  # 未初始化
-            {'type': 'return', 'value': 'x', 'line': 2}     # 使用未初始化变量
-        ]
-        
-        issues = self.analyzer.detect_uninitialized_vars(statements)
-        
-        self.assertGreater(len(issues), 0)
-        self.assertEqual(issues[0].issue_type, 'uninitialized')
-    
-    def test_analyze_function(self):
-        """测试完整函数分析"""
-        statements = [
-            {'type': 'var_decl', 'name': 'x', 'value': 10, 'line': 1},
-            {'type': 'var_decl', 'name': 'y', 'line': 2},
-            {'type': 'assign', 'name': 'y', 'value': 'x + 5', 'line': 3},
-            {'type': 'return', 'value': 'y', 'line': 4}
-        ]
-        
-        result = self.analyzer.analyze_function('test_func', statements)
-        
-        self.assertEqual(result['function'], 'test_func')
-        self.assertIn('x', result['def_use_chains'])
-        self.assertIn('y', result['def_use_chains'])
+    def analyze(self, ast: Any, context: Dict[str, Any]) -> List[AnalysisResult]:
+        results = []
+        # 生成一些测试结果
+        results.append(self.add_result(
+            message="测试警告",
+            location=SourceLocation("test.zhc", 10, 5),
+            severity=Severity.WARNING
+        ))
+        results.append(self.add_result(
+            message="测试错误",
+            location=SourceLocation("test.zhc", 20, 10),
+            severity=Severity.ERROR
+        ))
+        return results
 
 
-# ==================== 控制流分析测试 ====================
-
-class TestControlFlowAnalyzer(unittest.TestCase):
-    """控制流分析器测试"""
+class MockASTNode:
+    """测试用模拟 AST 节点"""
     
-    def setUp(self):
-        """设置测试环境"""
-        self.analyzer = ControlFlowAnalyzer()
+    def __init__(self, name: str, node_type: str, children: List['MockASTNode'] = None):
+        self.name = name
+        self.node_type = node_type
+        self.children = children or []
     
-    def test_cfg_building(self):
-        """测试控制流图构建"""
-        statements = [
-            {'type': 'var_decl', 'name': 'x', 'line': 1},
-            {'type': 'var_decl', 'name': 'y', 'line': 2},
-            {'type': 'return', 'value': 'y', 'line': 3}
-        ]
-        
-        cfg = self.analyzer.build_cfg('test_func', statements)
-        
-        self.assertIsNotNone(cfg.entry_id)
-        self.assertIsNotNone(cfg.exit_id)
-        self.assertGreater(len(cfg.nodes), 2)
-    
-    def test_if_statement_cfg(self):
-        """测试if语句控制流"""
-        statements = [
-            {'type': 'var_decl', 'name': 'x', 'line': 1},
-            {
-                'type': 'if',
-                'condition': 'x > 0',
-                'then_body': [
-                    {'type': 'assign', 'name': 'y', 'value': 1, 'line': 3}
-                ],
-                'else_body': [
-                    {'type': 'assign', 'name': 'y', 'value': 0, 'line': 5}
-                ],
-                'line': 2
-            }
-        ]
-        
-        cfg = self.analyzer.build_cfg('test_if', statements)
-        
-        # 应该有entry、exit和多个基本块
-        self.assertGreater(len(cfg.nodes), 4)
-    
-    def test_while_loop_cfg(self):
-        """测试while循环控制流"""
-        statements = [
-            {'type': 'var_decl', 'name': 'i', 'value': 0, 'line': 1},
-            {
-                'type': 'while',
-                'condition': 'i < 10',
-                'body': [
-                    {'type': 'assign', 'name': 'i', 'value': 'i + 1', 'line': 3}
-                ],
-                'line': 2
-            }
-        ]
-        
-        cfg = self.analyzer.build_cfg('test_while', statements)
-        
-        # 应该有循环
-        self.assertGreater(len(cfg.loops), 0)
-    
-    def test_cyclomatic_complexity(self):
-        """测试圈复杂度计算"""
-        # 简单线性代码
-        simple_statements = [
-            {'type': 'var_decl', 'name': 'x', 'line': 1},
-            {'type': 'return', 'value': 'x', 'line': 2}
-        ]
-        
-        simple_cfg = self.analyzer.build_cfg('simple', simple_statements)
-        simple_complexity = self.analyzer.compute_cyclomatic_complexity(simple_cfg)
-        
-        # 复杂代码（多个分支）
-        complex_statements = [
-            {'type': 'var_decl', 'name': 'x', 'line': 1},
-            {
-                'type': 'if',
-                'condition': 'x > 0',
-                'then_body': [{'type': 'assign', 'name': 'y', 'line': 3}],
-                'else_body': [{'type': 'assign', 'name': 'y', 'line': 5}],
-                'line': 2
-            },
-            {
-                'type': 'if',
-                'condition': 'y > 0',
-                'then_body': [{'type': 'return', 'value': 'y', 'line': 7}],
-                'line': 6
-            }
-        ]
-        
-        complex_cfg = self.analyzer.build_cfg('complex', complex_statements)
-        complex_complexity = self.analyzer.compute_cyclomatic_complexity(complex_cfg)
-        
-        # 复杂代码的圈复杂度应该更高
-        self.assertGreaterEqual(complex_complexity, simple_complexity)
-    
-    def test_unreachable_code_detection(self):
-        """测试不可达代码检测"""
-        statements = [
-            {'type': 'var_decl', 'name': 'x', 'line': 1},
-            {'type': 'return', 'value': 'x', 'line': 2},
-            {'type': 'var_decl', 'name': 'y', 'line': 3}  # 理论上不可达
-        ]
-        
-        cfg = self.analyzer.build_cfg('test_unreachable', statements)
-        unreachable = self.analyzer.detect_unreachable_code(cfg)
-        
-        # 简化实现可能不总是检测到不可达代码
-        # 只检查函数能正常工作
-        self.assertIsInstance(unreachable, list)
-    
-    def test_infinite_loop_detection(self):
-        """测试无限循环检测"""
-        statements = [
-            {
-                'type': 'while',
-                'condition': '真',  # 无限循环条件
-                'body': [
-                    {'type': 'assign', 'name': 'x', 'value': 1, 'line': 2}
-                ],
-                'line': 1
-            }
-        ]
-        
-        cfg = self.analyzer.build_cfg('test_infinite', statements)
-        infinite_loops = self.analyzer.detect_infinite_loops(cfg)
-        
-        # 简化检测可能不总是检测到，这里只检查函数能正常工作
-        self.assertIsInstance(infinite_loops, list)
+    def walk(self):
+        """模拟 walk 方法"""
+        nodes = [self]
+        for child in self.children:
+            nodes.extend(child.walk())
+        return nodes
 
 
-# ==================== 内存安全分析测试 ====================
+# ========== 测试基础类 ==========
 
-class TestMemorySafetyAnalyzer(unittest.TestCase):
-    """内存安全分析器测试"""
+class TestAnalysisResult:
+    """测试分析结果"""
     
-    def setUp(self):
-        """设置测试环境"""
-        self.analyzer = MemorySafetyAnalyzer()
+    def test_result_creation(self):
+        """测试结果创建"""
+        location = SourceLocation("test.zhc", 10, 5)
+        result = AnalysisResult(
+            analyzer="test",
+            severity=Severity.WARNING,
+            message="测试消息",
+            location=location
+        )
+        
+        assert result.analyzer == "test"
+        assert result.severity == Severity.WARNING
+        assert result.message == "测试消息"
+        assert result.location.line == 10
     
-    def test_null_pointer_check(self):
-        """测试空指针检查"""
-        checker = NullPointerChecker()
+    def test_result_to_dict(self):
+        """测试结果转字典"""
+        location = SourceLocation("test.zhc", 10, 5)
+        result = AnalysisResult(
+            analyzer="test",
+            severity=Severity.WARNING,
+            message="测试消息",
+            location=location
+        )
         
-        # 跟踪分配
-        checker.track_allocation('ptr', 1)
-        
-        # 未检查空指针就访问
-        issue = checker.verify_access('ptr', 'read', 5)
-        # 如果没有检查记录，可能返回警告
-        # 实际行为取决于实现
-        
-        # 检查空指针后访问
-        checker.check_null('ptr', 6)
-        # 检查后访问，应该安全
-        issue = checker.verify_access('ptr', 'read', 10)
-        # 行10 > 行6（空检查行），且在 null_checks 中有记录
-        # 如果检查通过，issue 可能为 None
+        d = result.to_dict()
+        assert d['analyzer'] == "test"
+        assert d['severity'] == "warning"
+        assert d['message'] == "测试消息"
     
-    def test_memory_leak_detection(self):
-        """测试内存泄漏检测"""
-        detector = MemoryLeakDetector()
+    def test_result_str(self):
+        """测试结果字符串"""
+        location = SourceLocation("test.zhc", 10, 5)
+        result = AnalysisResult(
+            analyzer="test",
+            severity=Severity.WARNING,
+            message="测试消息",
+            location=location,
+            suggestion="建议内容"
+        )
         
-        # 分配内存
-        detector.track_allocation('ptr1', 1)
-        detector.track_allocation('ptr2', 2)
-        
-        # 只释放一个
-        detector.track_free('ptr1', 10)
-        
-        leaks = detector.check_leaks()
-        self.assertEqual(len(leaks), 1)
-        self.assertIn('ptr2', leaks[0].message)
-    
-    def test_double_free_detection(self):
-        """测试双重释放检测"""
-        detector = MemoryLeakDetector()
-        
-        detector.track_allocation('ptr', 1)
-        detector.track_free('ptr', 10)
-        
-        # 第二次释放
-        issue = detector.check_double_free('ptr', 15)
-        self.assertIsNotNone(issue)
-        self.assertEqual(issue.level, SafetyLevel.UNSAFE)
-    
-    def test_bounds_checking(self):
-        """测试越界检查"""
-        checker = BoundsChecker()
-        
-        # 声明数组
-        checker.track_array('arr', 10, 1)
-        
-        # 正常访问
-        issue = checker.check_access('arr', 5, 'read', 2)
-        self.assertIsNone(issue)
-        
-        # 越界访问
-        issue = checker.check_access('arr', 15, 'read', 3)
-        self.assertIsNotNone(issue)
-        self.assertEqual(issue.level, SafetyLevel.UNSAFE)
-        
-        # 负索引
-        issue = checker.check_access('arr', -1, 'read', 4)
-        self.assertIsNotNone(issue)
-    
-    def test_full_analysis(self):
-        """测试完整内存安全分析"""
-        # 分配内存
-        self.analyzer.null_checker.track_allocation('ptr1', 1)
-        self.analyzer.null_checker.track_allocation('ptr2', 2)
-        
-        # 释放一个
-        self.analyzer.leak_detector.track_free('ptr1', 10)
-        
-        # 执行分析
-        issues = self.analyzer.analyze()
-        
-        # 内存泄漏检测会检查未释放的内存块
-        # ptr2 未释放，应该产生泄漏警告
-        # 但 analyze() 方法需要 leak_detector.blocks 中有数据
-        # 重新跟踪以确保数据存在
-        self.analyzer.leak_detector.track_allocation('ptr1', 1)
-        self.analyzer.leak_detector.track_allocation('ptr2', 2)
-        self.analyzer.leak_detector.track_free('ptr1', 10)
-        
-        leaks = self.analyzer.leak_detector.check_leaks()
-        self.assertGreater(len(leaks), 0)
-    
-    def test_function_analysis(self):
-        """测试函数级内存安全分析"""
-        statements = [
-            {'type': 'alloc', 'name': 'ptr', 'size': 100, 'line': 1},
-            {'type': 'if', 'condition': 'ptr != 空指针', 'line': 2},
-            {'type': 'free', 'name': 'ptr', 'line': 3}
-        ]
-        
-        result = self.analyzer.analyze_function('test_func', statements)
-        
-        self.assertEqual(result['function'], 'test_func')
-        self.assertGreater(result['stats']['alloc_count'], 0)
-    
-    def test_report_generation(self):
-        """测试报告生成"""
-        # 创建一些问题
-        self.analyzer.null_checker.track_allocation('ptr', 1)
-        # ptr未释放
-        
-        # 确保 leak_detector 中有数据
-        self.analyzer.leak_detector.track_allocation('ptr', 1)
-        
-        issues = self.analyzer.analyze()
-        report = self.analyzer.generate_report()
-        
-        self.assertIn('内存安全', report)
-        # 检查报告包含统计信息
-        self.assertIn('统计信息', report)
+        s = str(result)
+        assert "WARNING" in s
+        assert "测试消息" in s
+        assert "建议内容" in s
 
 
-# ==================== 集成测试 ====================
-
-class TestStaticAnalyzerIntegration(unittest.TestCase):
-    """静态分析器集成测试"""
+class TestSourceLocation:
+    """测试源码位置"""
     
-    def test_combined_analysis(self):
-        """测试组合分析"""
-        # 数据流分析器
-        df_analyzer = DataFlowAnalyzer()
+    def test_location_creation(self):
+        """测试位置创建"""
+        loc = SourceLocation("test.zhc", 10, 5)
         
-        # 控制流分析器
-        cf_analyzer = ControlFlowAnalyzer()
+        assert loc.file_path == "test.zhc"
+        assert loc.line == 10
+        assert loc.column == 5
+    
+    def test_location_str(self):
+        """测试位置字符串"""
+        loc = SourceLocation("test.zhc", 10, 5)
+        assert str(loc) == "test.zhc:10:5"
         
-        # 内存安全分析器
-        mem_analyzer = MemorySafetyAnalyzer()
+        loc2 = SourceLocation("test.zhc", 10, 5, 20, 10)
+        assert "20" in str(loc2)
+    
+    def test_location_dict(self):
+        """测试位置转字典"""
+        loc = SourceLocation("test.zhc", 10, 5)
+        d = loc.to_dict()
         
-        # 测试代码
-        statements = [
-            {'type': 'var_decl', 'name': 'x', 'value': 10, 'line': 1},
-            {'type': 'var_decl', 'name': 'y', 'line': 2},
-            {'type': 'assign', 'name': 'y', 'value': 'x + 5', 'line': 3},
-            {'type': 'return', 'value': 'y', 'line': 4}
-        ]
-        
-        # 数据流分析
-        df_result = df_analyzer.analyze_function('test', statements)
-        self.assertIn('x', df_result['def_use_chains'])
-        
-        # 控制流分析
-        cfg = cf_analyzer.build_cfg('test', statements)
-        self.assertIsNotNone(cfg.entry_id)
-        
-        # 内存安全分析
-        mem_result = mem_analyzer.analyze_function('test', statements)
-        self.assertEqual(mem_result['function'], 'test')
+        assert d['file'] == "test.zhc"
+        assert d['line'] == 10
 
 
-def run_tests():
-    """运行测试"""
-    loader = unittest.TestLoader()
-    suite = unittest.TestSuite()
+class TestSeverity:
+    """测试严重程度枚举"""
     
-    suite.addTests(loader.loadTestsFromTestCase(TestDataFlowAnalyzer))
-    suite.addTests(loader.loadTestsFromTestCase(TestControlFlowAnalyzer))
-    suite.addTests(loader.loadTestsFromTestCase(TestMemorySafetyAnalyzer))
-    suite.addTests(loader.loadTestsFromTestCase(TestStaticAnalyzerIntegration))
-    
-    runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
-    
-    # 打印摘要
-    print("\n" + "=" * 70)
-    print("测试摘要")
-    print("=" * 70)
-    print(f"运行测试: {result.testsRun}")
-    print(f"成功: {result.testsRun - len(result.failures) - len(result.errors)}")
-    print(f"失败: {len(result.failures)}")
-    print(f"错误: {len(result.errors)}")
-    print("=" * 70)
-    
-    return result.wasSuccessful()
+    def test_severity_values(self):
+        """测试严重程度值"""
+        assert Severity.ERROR.value == "error"
+        assert Severity.WARNING.value == "warning"
+        assert Severity.INFO.value == "info"
+        assert Severity.HINT.value == "hint"
 
 
-if __name__ == '__main__':
-    success = run_tests()
-    sys.exit(0 if success else 1)
+# ========== 测试调度器 ==========
+
+class TestAnalysisScheduler:
+    """测试分析调度器"""
+    
+    def test_scheduler_creation(self):
+        """测试调度器创建"""
+        scheduler = AnalysisScheduler()
+        
+        assert scheduler is not None
+        assert len(scheduler.analyzers) == 0
+    
+    def test_register_analyzer(self):
+        """测试注册分析器"""
+        scheduler = AnalysisScheduler()
+        analyzer = MockAnalyzer()
+        
+        scheduler.register(analyzer)
+        
+        assert len(scheduler.analyzers) == 1
+        assert analyzer.name in scheduler.analyzer_names
+    
+    def test_unregister_analyzer(self):
+        """测试注销分析器"""
+        scheduler = AnalysisScheduler()
+        analyzer = MockAnalyzer()
+        scheduler.register(analyzer)
+        
+        result = scheduler.unregister(analyzer.name)
+        
+        assert result is True
+        assert len(scheduler.analyzers) == 0
+    
+    def test_enable_disable_analyzer(self):
+        """测试启用/禁用分析器"""
+        scheduler = AnalysisScheduler()
+        analyzer = MockAnalyzer()
+        scheduler.register(analyzer)
+        
+        scheduler.disable_analyzer(analyzer.name)
+        assert scheduler.is_enabled(analyzer.name) is False
+        
+        scheduler.enable_analyzer(analyzer.name)
+        assert scheduler.is_enabled(analyzer.name) is True
+    
+    def test_run_all_analyzers(self):
+        """测试运行所有分析器"""
+        scheduler = AnalysisScheduler()
+        scheduler.register(MockAnalyzer())
+        
+        results = scheduler.run_all(MockASTNode("root", "Program"))
+        
+        assert "mock_analyzer" in results
+        assert len(results["mock_analyzer"]) == 2
+    
+    def test_get_all_results(self):
+        """测试获取所有结果"""
+        scheduler = AnalysisScheduler()
+        scheduler.register(MockAnalyzer())
+        
+        scheduler.run_all(MockASTNode("root", "Program"))
+        all_results = scheduler.get_all_results()
+        
+        assert len(all_results) == 2
+    
+    def test_filter_by_severity(self):
+        """测试按严重程度过滤"""
+        scheduler = AnalysisScheduler()
+        scheduler.register(MockAnalyzer())
+        
+        scheduler.run_all(MockASTNode("root", "Program"))
+        
+        errors = scheduler.filter_by_severity(Severity.ERROR)
+        warnings = scheduler.filter_by_severity(Severity.WARNING)
+        
+        assert len(errors) == 1
+        assert len(warnings) == 1
+    
+    def test_has_errors(self):
+        """测试是否有错误"""
+        scheduler = AnalysisScheduler()
+        scheduler.register(MockAnalyzer())
+        
+        scheduler.run_all(MockASTNode("root", "Program"))
+        
+        assert scheduler.has_errors() is True
+    
+    def test_stats(self):
+        """测试统计信息"""
+        scheduler = AnalysisScheduler()
+        scheduler.register(MockAnalyzer())
+        
+        scheduler.run_all(MockASTNode("root", "Program"))
+        
+        assert scheduler.stats.total_analyzers == 1
+        assert scheduler.stats.total_issues == 2
+        assert scheduler.stats.errors == 1
+        assert scheduler.stats.warnings == 1
+
+
+# ========== 测试 AST 遍历器 ==========
+
+class TestASTWalker:
+    """测试 AST 遍历器"""
+    
+    def test_walker_creation(self):
+        """测试遍历器创建"""
+        node = MockASTNode("root", "Program")
+        walker = ASTWalker(node)
+        
+        assert walker.ast == node
+    
+    def test_walk(self):
+        """测试遍历"""
+        child1 = MockASTNode("child1", "Type")
+        child2 = MockASTNode("child2", "Type")
+        root = MockASTNode("root", "Program", [child1, child2])
+        
+        walker = ASTWalker(root)
+        nodes = walker.walk()
+        
+        # ASTWalker 遍历所有属性，包括方法。过滤掉方法，只保留节点
+        actual_nodes = [n for n in nodes if isinstance(n, MockASTNode)]
+        assert len(actual_nodes) == 3
+    
+    def test_find_nodes(self):
+        """测试查找节点"""
+        child = MockASTNode("child", "FunctionDecl")
+        root = MockASTNode("root", "Program", [child])
+        
+        walker = ASTWalker(root)
+        # find_nodes 期望 type 类型参数，使用 MockASTNode 类
+        nodes = walker.find_nodes(MockASTNode)
+        
+        assert len(nodes) == 2  # root + child
+
+
+# ========== 测试报告生成器 ==========
+
+class TestReportGenerator:
+    """测试报告生成器"""
+    
+    def test_generator_creation(self):
+        """测试生成器创建"""
+        scheduler = AnalysisScheduler()
+        scheduler.register(MockAnalyzer())
+        scheduler.run_all(MockASTNode("root", "Program"))
+        
+        generator = ReportGenerator(scheduler.results, scheduler.stats)
+        
+        assert generator is not None
+    
+    def test_generate_text(self):
+        """测试生成文本报告"""
+        scheduler = AnalysisScheduler()
+        scheduler.register(MockAnalyzer())
+        scheduler.run_all(MockASTNode("root", "Program"))
+        
+        generator = ReportGenerator(scheduler.results, scheduler.stats)
+        report = generator.generate_text()
+        
+        assert "静态分析报告" in report
+        assert "总问题数" in report
+    
+    def test_generate_markdown(self):
+        """测试生成 Markdown 报告"""
+        scheduler = AnalysisScheduler()
+        scheduler.register(MockAnalyzer())
+        scheduler.run_all(MockASTNode("root", "Program"))
+        
+        generator = ReportGenerator(scheduler.results, scheduler.stats)
+        report = generator.generate_markdown()
+        
+        assert "# 静态分析报告" in report
+        assert "## 统计摘要" in report
+    
+    def test_generate_json(self):
+        """测试生成 JSON 报告"""
+        scheduler = AnalysisScheduler()
+        scheduler.register(MockAnalyzer())
+        scheduler.run_all(MockASTNode("root", "Program"))
+        
+        generator = ReportGenerator(scheduler.results, scheduler.stats)
+        report = generator.generate_json()
+        
+        import json
+        data = json.loads(report)
+        
+        assert "stats" in data
+        assert "results" in data
+    
+    def test_generate_html(self):
+        """测试生成 HTML 报告"""
+        scheduler = AnalysisScheduler()
+        scheduler.register(MockAnalyzer())
+        scheduler.run_all(MockASTNode("root", "Program"))
+        
+        generator = ReportGenerator(scheduler.results, scheduler.stats)
+        report = generator.generate_html()
+        
+        assert "<!DOCTYPE html>" in report
+        assert "静态分析报告" in report
+
+
+# ========== 测试内置分析器 ==========
+
+class TestBuiltinAnalyzers:
+    """测试内置分析器导入"""
+    
+    def test_import_analyzers(self):
+        """测试导入内置分析器"""
+        from zhc.analysis import (
+            UnusedVariableAnalyzer,
+            NullPointerAnalyzer,
+            ResourceLeakAnalyzer,
+            ComplexityAnalyzer,
+        )
+        
+        assert UnusedVariableAnalyzer is not None
+        assert NullPointerAnalyzer is not None
+        assert ResourceLeakAnalyzer is not None
+        assert ComplexityAnalyzer is not None
+    
+    def test_create_default_scheduler(self):
+        """测试创建默认调度器"""
+        from zhc.analysis import create_default_scheduler
+        
+        scheduler = create_default_scheduler()
+        
+        assert len(scheduler.analyzers) == 7

@@ -1,0 +1,432 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>src.errors.codegen_error &mdash; ZHC 6.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css?v=fd3f3429" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/custom.css?v=5ae362fb" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=12958129"></script>
+      <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search"  style="background: #2980B9" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            ZHC
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">目录:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../guides/getting_started.html">快速开始</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../guides/developer_guide.html">开发者指南</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/index.html">API 参考</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../reference/index.html">参考手册</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">资源:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/FushengTianQing/ZhC">GitHub 仓库</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/FushengTianQing/ZhC/issues">问题反馈</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu"  style="background: #2980B9" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">ZHC</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">src.errors.codegen_error</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for src.errors.codegen_error</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">CodeGenerator 异常类</span>
+
+<span class="sd">代码生成阶段的异常定义。</span>
+
+<span class="sd">创建日期: 2026-04-07</span>
+<span class="sd">最后更新: 2026-04-07</span>
+<span class="sd">维护者: ZHC开发团队</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Any</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ZHCError</span><span class="p">,</span> <span class="n">SourceLocation</span>
+
+
+<div class="viewcode-block" id="CodeGenerationError">
+<a class="viewcode-back" href="../../../api/index.html#src.errors.codegen_error.CodeGenerationError">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">CodeGenerationError</span><span class="p">(</span><span class="n">ZHCError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    代码生成错误</span>
+<span class="sd">    </span>
+<span class="sd">    在代码生成阶段发生的错误，例如：</span>
+<span class="sd">    - IR转换错误</span>
+<span class="sd">    - 目标代码生成错误</span>
+<span class="sd">    - 不支持的特性</span>
+<span class="sd">    - 后端编译错误</span>
+<span class="sd">    </span>
+<span class="sd">    Attributes:</span>
+<span class="sd">        ir_node_type: 相关的IR节点类型（可选）</span>
+<span class="sd">        target_backend: 目标后端（可选）</span>
+<span class="sd">        feature_name: 不支持的特性名称（可选）</span>
+<span class="sd">        backend_error: 后端编译器的错误信息（可选）</span>
+<span class="sd">    </span>
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; error = CodeGenerationError(</span>
+<span class="sd">        ...     &quot;不支持的内联汇编&quot;,</span>
+<span class="sd">        ...     location=SourceLocation(&quot;test.zhc&quot;, 20, 5),</span>
+<span class="sd">        ...     error_code=&quot;C001&quot;,</span>
+<span class="sd">        ...     feature_name=&quot;内联汇编&quot;,</span>
+<span class="sd">        ...     target_backend=&quot;LLVM&quot;,</span>
+<span class="sd">        ...     suggestion=&quot;请使用标准C代码替代内联汇编&quot;</span>
+<span class="sd">        ... )</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+<div class="viewcode-block" id="CodeGenerationError.__init__">
+<a class="viewcode-back" href="../../../api/index.html#src.errors.codegen_error.CodeGenerationError.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">location</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">SourceLocation</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">error_code</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">severity</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">ZHCError</span><span class="o">.</span><span class="n">SEVERITY_ERROR</span><span class="p">,</span>
+        <span class="n">context</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">suggestion</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">ir_node_type</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">target_backend</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">feature_name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_error</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        初始化代码生成错误</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            message: 错误消息</span>
+<span class="sd">            location: 错误位置</span>
+<span class="sd">            error_code: 错误代码</span>
+<span class="sd">            severity: 错误严重程度</span>
+<span class="sd">            context: 错误上下文</span>
+<span class="sd">            suggestion: 修复建议</span>
+<span class="sd">            ir_node_type: 相关的IR节点类型</span>
+<span class="sd">            target_backend: 目标后端</span>
+<span class="sd">            feature_name: 不支持的特性名称</span>
+<span class="sd">            backend_error: 后端编译器的错误信息</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ir_node_type</span> <span class="o">=</span> <span class="n">ir_node_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">target_backend</span> <span class="o">=</span> <span class="n">target_backend</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">feature_name</span> <span class="o">=</span> <span class="n">feature_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">backend_error</span> <span class="o">=</span> <span class="n">backend_error</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">location</span><span class="p">,</span> <span class="n">error_code</span><span class="p">,</span> <span class="n">severity</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">suggestion</span><span class="p">)</span></div>
+
+    
+    <span class="k">def</span><span class="w"> </span><span class="nf">_format_message</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;格式化错误消息，添加后端信息&quot;&quot;&quot;</span>
+        <span class="n">base_message</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_format_message</span><span class="p">()</span>
+        
+        <span class="c1"># 添加IR节点类型</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ir_node_type</span><span class="p">:</span>
+            <span class="n">base_message</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">IR节点: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ir_node_type</span><span class="si">}</span><span class="s2">&quot;</span>
+        
+        <span class="c1"># 添加目标后端</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_backend</span><span class="p">:</span>
+            <span class="n">base_message</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">目标后端: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">target_backend</span><span class="si">}</span><span class="s2">&quot;</span>
+        
+        <span class="c1"># 添加特性名称</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">feature_name</span><span class="p">:</span>
+            <span class="n">base_message</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">特性: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">feature_name</span><span class="si">}</span><span class="s2">&quot;</span>
+        
+        <span class="c1"># 添加后端错误</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">backend_error</span><span class="p">:</span>
+            <span class="n">base_message</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">后端错误: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">backend_error</span><span class="si">}</span><span class="s2">&quot;</span>
+        
+        <span class="k">return</span> <span class="n">base_message</span>
+    
+<div class="viewcode-block" id="CodeGenerationError.to_dict">
+<a class="viewcode-back" href="../../../api/index.html#src.errors.codegen_error.CodeGenerationError.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;转换为字典格式&quot;&quot;&quot;</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+        <span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="s2">&quot;ir_node_type&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">ir_node_type</span><span class="p">,</span>
+            <span class="s2">&quot;target_backend&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_backend</span><span class="p">,</span>
+            <span class="s2">&quot;feature_name&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">feature_name</span><span class="p">,</span>
+            <span class="s2">&quot;backend_error&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">backend_error</span><span class="p">,</span>
+        <span class="p">})</span>
+        <span class="k">return</span> <span class="n">data</span></div>
+</div>
+
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># 预定义的代码生成错误代码</span>
+<span class="c1"># ============================================================================</span>
+
+<span class="c1"># C001-C010: IR 相关错误</span>
+<span class="n">CODEGEN_INVALID_IR</span> <span class="o">=</span> <span class="s2">&quot;C001&quot;</span>  <span class="c1"># 无效的IR节点</span>
+<span class="n">CODEGEN_IR_CONVERSION_FAILED</span> <span class="o">=</span> <span class="s2">&quot;C002&quot;</span>  <span class="c1"># IR转换失败</span>
+<span class="n">CODEGEN_MISSING_IR_NODE</span> <span class="o">=</span> <span class="s2">&quot;C003&quot;</span>  <span class="c1"># 缺少IR节点</span>
+<span class="n">CODEGEN_IR_TYPE_MISMATCH</span> <span class="o">=</span> <span class="s2">&quot;C004&quot;</span>  <span class="c1"># IR类型不匹配</span>
+
+<span class="c1"># C011-C020: 目标代码相关错误</span>
+<span class="n">CODEGEN_UNSUPPORTED_FEATURE</span> <span class="o">=</span> <span class="s2">&quot;C011&quot;</span>  <span class="c1"># 不支持的特性</span>
+<span class="n">CODEGEN_BACKEND_ERROR</span> <span class="o">=</span> <span class="s2">&quot;C012&quot;</span>  <span class="c1"># 后端编译错误</span>
+<span class="n">CODEGEN_LINKER_ERROR</span> <span class="o">=</span> <span class="s2">&quot;C013&quot;</span>  <span class="c1"># 链接器错误</span>
+<span class="n">CODEGEN_OPTIMIZATION_ERROR</span> <span class="o">=</span> <span class="s2">&quot;C014&quot;</span>  <span class="c1"># 优化错误</span>
+
+<span class="c1"># C021-C030: 平台相关错误</span>
+<span class="n">CODEGEN_UNSUPPORTED_PLATFORM</span> <span class="o">=</span> <span class="s2">&quot;C021&quot;</span>  <span class="c1"># 不支持的平台</span>
+<span class="n">CODEGEN_PLATFORM_SPECIFIC_ERROR</span> <span class="o">=</span> <span class="s2">&quot;C022&quot;</span>  <span class="c1"># 平台特定错误</span>
+<span class="n">CODEGEN_ABI_ERROR</span> <span class="o">=</span> <span class="s2">&quot;C023&quot;</span>  <span class="c1"># ABI错误</span>
+
+<span class="c1"># C031-C040: 内存相关错误</span>
+<span class="n">CODEGEN_MEMORY_ALLOCATION_ERROR</span> <span class="o">=</span> <span class="s2">&quot;C031&quot;</span>  <span class="c1"># 内存分配错误</span>
+<span class="n">CODEGEN_STACK_OVERFLOW</span> <span class="o">=</span> <span class="s2">&quot;C032&quot;</span>  <span class="c1"># 栈溢出</span>
+<span class="n">CODEGEN_INVALID_MEMORY_ACCESS</span> <span class="o">=</span> <span class="s2">&quot;C033&quot;</span>  <span class="c1"># 无效的内存访问</span>
+
+<span class="c1"># C041-C050: 输出相关错误</span>
+<span class="n">CODEGEN_OUTPUT_ERROR</span> <span class="o">=</span> <span class="s2">&quot;C041&quot;</span>  <span class="c1"># 输出错误</span>
+<span class="n">CODEGEN_FILE_WRITE_ERROR</span> <span class="o">=</span> <span class="s2">&quot;C042&quot;</span>  <span class="c1"># 文件写入错误</span>
+<span class="n">CODEGEN_INVALID_OUTPUT_FORMAT</span> <span class="o">=</span> <span class="s2">&quot;C043&quot;</span>  <span class="c1"># 无效的输出格式</span>
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># 便捷工厂函数</span>
+<span class="c1"># ============================================================================</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">unsupported_feature</span><span class="p">(</span>
+    <span class="n">feature_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">target_backend</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">location</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">SourceLocation</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CodeGenerationError</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    创建不支持特性错误</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        feature_name: 不支持的特性名称</span>
+<span class="sd">        target_backend: 目标后端</span>
+<span class="sd">        location: 错误位置</span>
+<span class="sd">        context: 错误上下文</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        CodeGenerationError 实例</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">backend_info</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot; (</span><span class="si">{</span><span class="n">target_backend</span><span class="si">}</span><span class="s2">)&quot;</span> <span class="k">if</span> <span class="n">target_backend</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">CodeGenerationError</span><span class="p">(</span>
+        <span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;不支持的特性: </span><span class="si">{</span><span class="n">feature_name</span><span class="si">}{</span><span class="n">backend_info</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="n">location</span><span class="o">=</span><span class="n">location</span><span class="p">,</span>
+        <span class="n">error_code</span><span class="o">=</span><span class="n">CODEGEN_UNSUPPORTED_FEATURE</span><span class="p">,</span>
+        <span class="n">feature_name</span><span class="o">=</span><span class="n">feature_name</span><span class="p">,</span>
+        <span class="n">target_backend</span><span class="o">=</span><span class="n">target_backend</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+        <span class="n">suggestion</span><span class="o">=</span><span class="s2">&quot;请使用支持的替代方案或等待后续版本支持&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">backend_error</span><span class="p">(</span>
+    <span class="n">backend_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">error_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">location</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">SourceLocation</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CodeGenerationError</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    创建后端编译错误</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        backend_name: 后端名称</span>
+<span class="sd">        error_message: 后端错误信息</span>
+<span class="sd">        location: 错误位置</span>
+<span class="sd">        context: 错误上下文</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        CodeGenerationError 实例</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">CodeGenerationError</span><span class="p">(</span>
+        <span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">backend_name</span><span class="si">}</span><span class="s2"> 后端编译错误&quot;</span><span class="p">,</span>
+        <span class="n">location</span><span class="o">=</span><span class="n">location</span><span class="p">,</span>
+        <span class="n">error_code</span><span class="o">=</span><span class="n">CODEGEN_BACKEND_ERROR</span><span class="p">,</span>
+        <span class="n">target_backend</span><span class="o">=</span><span class="n">backend_name</span><span class="p">,</span>
+        <span class="n">backend_error</span><span class="o">=</span><span class="n">error_message</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+        <span class="n">suggestion</span><span class="o">=</span><span class="s2">&quot;请检查后端编译器配置和输入代码&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">ir_conversion_failed</span><span class="p">(</span>
+    <span class="n">ir_node_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">location</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">SourceLocation</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CodeGenerationError</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    创建IR转换失败错误</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        ir_node_type: IR节点类型</span>
+<span class="sd">        reason: 失败原因</span>
+<span class="sd">        location: 错误位置</span>
+<span class="sd">        context: 错误上下文</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        CodeGenerationError 实例</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">CodeGenerationError</span><span class="p">(</span>
+        <span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;IR节点 &#39;</span><span class="si">{</span><span class="n">ir_node_type</span><span class="si">}</span><span class="s2">&#39; 转换失败: </span><span class="si">{</span><span class="n">reason</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="n">location</span><span class="o">=</span><span class="n">location</span><span class="p">,</span>
+        <span class="n">error_code</span><span class="o">=</span><span class="n">CODEGEN_IR_CONVERSION_FAILED</span><span class="p">,</span>
+        <span class="n">ir_node_type</span><span class="o">=</span><span class="n">ir_node_type</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+        <span class="n">suggestion</span><span class="o">=</span><span class="s2">&quot;请检查IR节点是否正确生成&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">unsupported_platform</span><span class="p">(</span>
+    <span class="n">platform</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">location</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">SourceLocation</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CodeGenerationError</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    创建不支持平台错误</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        platform: 平台名称</span>
+<span class="sd">        location: 错误位置</span>
+<span class="sd">        context: 错误上下文</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        CodeGenerationError 实例</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">CodeGenerationError</span><span class="p">(</span>
+        <span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;不支持的平台: </span><span class="si">{</span><span class="n">platform</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="n">location</span><span class="o">=</span><span class="n">location</span><span class="p">,</span>
+        <span class="n">error_code</span><span class="o">=</span><span class="n">CODEGEN_UNSUPPORTED_PLATFORM</span><span class="p">,</span>
+        <span class="n">target_backend</span><span class="o">=</span><span class="n">platform</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+        <span class="n">suggestion</span><span class="o">=</span><span class="s2">&quot;请使用支持的平台或等待后续版本支持&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">file_write_error</span><span class="p">(</span>
+    <span class="n">file_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">location</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">SourceLocation</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CodeGenerationError</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    创建文件写入错误</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        file_path: 文件路径</span>
+<span class="sd">        reason: 失败原因</span>
+<span class="sd">        location: 错误位置</span>
+<span class="sd">        context: 错误上下文</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        CodeGenerationError 实例</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">CodeGenerationError</span><span class="p">(</span>
+        <span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;无法写入文件 &#39;</span><span class="si">{</span><span class="n">file_path</span><span class="si">}</span><span class="s2">&#39;: </span><span class="si">{</span><span class="n">reason</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="n">location</span><span class="o">=</span><span class="n">location</span><span class="p">,</span>
+        <span class="n">error_code</span><span class="o">=</span><span class="n">CODEGEN_FILE_WRITE_ERROR</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+        <span class="n">suggestion</span><span class="o">=</span><span class="s2">&quot;请检查文件路径是否正确，是否有写入权限&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="c1"># 导出公共API</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;CodeGenerationError&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_INVALID_IR&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_IR_CONVERSION_FAILED&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_MISSING_IR_NODE&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_IR_TYPE_MISMATCH&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_UNSUPPORTED_FEATURE&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_BACKEND_ERROR&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_LINKER_ERROR&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_OPTIMIZATION_ERROR&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_UNSUPPORTED_PLATFORM&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_PLATFORM_SPECIFIC_ERROR&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_ABI_ERROR&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_MEMORY_ALLOCATION_ERROR&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_STACK_OVERFLOW&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_INVALID_MEMORY_ACCESS&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_OUTPUT_ERROR&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_FILE_WRITE_ERROR&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;CODEGEN_INVALID_OUTPUT_FORMAT&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;unsupported_feature&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;backend_error&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;ir_conversion_failed&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;unsupported_platform&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;file_write_error&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, ZHC 开发团队.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,642 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>参考手册 &mdash; ZHC 6.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/graphviz.css?v=fd3f3429" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=5ae362fb" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=12958129"></script>
+      <script src="../_static/doctools.js?v=9a2dae69"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="代码生成模块" href="../api/codegen.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search"  style="background: #2980B9" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            ZHC
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">目录:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../guides/getting_started.html">快速开始</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../guides/developer_guide.html">开发者指南</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API 参考</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">参考手册</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#id2">关键字</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id3">基础类型</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id4">类型修饰符</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id5">控制结构</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id6">类型定义</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id7">其他关键字</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#id8">编译选项</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id9">命令行选项</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id10">子命令</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id11">全局选项</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id12">编译选项</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ir">IR 选项</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id13">配置选项</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#id14">错误代码</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id15">词法错误 (1000-1999)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id16">语法错误 (2000-2999)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id17">语义错误 (3000-3999)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id18">代码生成错误 (4000-4999)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#id19">内置函数</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id20">输入输出</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id21">字符串操作</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id22">内存管理</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id23">数学函数</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#id24">标准头文件</a><ul class="simple">
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">资源:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/FushengTianQing/ZhC">GitHub 仓库</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/FushengTianQing/ZhC/issues">问题反馈</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu"  style="background: #2980B9" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">ZHC</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">参考手册</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/reference/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="id1">
+<h1>参考手册<a class="headerlink" href="#id1" title="Link to this heading"></a></h1>
+<p>本节提供 ZHC 编译器的详细参考信息。</p>
+<section id="id2">
+<h2>关键字<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<p>ZHC 支持以下中文关键字：</p>
+<section id="id3">
+<h3>基础类型<a class="headerlink" href="#id3" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>关键字</p></th>
+<th class="head"><p>说明</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">整数型</span></code></p></td>
+<td><p>32位有符号整数</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">长整数型</span></code></p></td>
+<td><p>64位有符号整数</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">短整数型</span></code></p></td>
+<td><p>16位有符号整数</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">无符号整数型</span></code></p></td>
+<td><p>无符号整数</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">浮点型</span></code></p></td>
+<td><p>双精度浮点数</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">单精度型</span></code></p></td>
+<td><p>单精度浮点数</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">字符型</span></code></p></td>
+<td><p>字符类型</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">双精度型</span></code></p></td>
+<td><p>双精度浮点数</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">逻辑型</span></code></p></td>
+<td><p>布尔类型（真/假）</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">空型</span></code></p></td>
+<td><p>空类型</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id4">
+<h3>类型修饰符<a class="headerlink" href="#id4" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>关键字</p></th>
+<th class="head"><p>说明</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">常量</span></code></p></td>
+<td><p>常量修饰符</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">静态</span></code></p></td>
+<td><p>静态存储期</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">外部</span></code></p></td>
+<td><p>外部链接</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">寄存器</span></code></p></td>
+<td><p>寄存器存储</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id5">
+<h3>控制结构<a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>关键字</p></th>
+<th class="head"><p>说明</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">如果</span></code></p></td>
+<td><p>条件语句</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">否则</span></code></p></td>
+<td><p>条件语句的 else 分支</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">选择</span></code></p></td>
+<td><p>switch 语句</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">情况</span></code></p></td>
+<td><p>case 标签</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">默认</span></code></p></td>
+<td><p>default 标签</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">当</span></code></p></td>
+<td><p>while 循环</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">循环</span></code></p></td>
+<td><p>for 循环</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">遍历</span></code></p></td>
+<td><p>for-each 循环</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">跳出</span></code></p></td>
+<td><p>break 语句</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">继续</span></code></p></td>
+<td><p>continue 语句</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">返回</span></code></p></td>
+<td><p>return 语句</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id6">
+<h3>类型定义<a class="headerlink" href="#id6" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>关键字</p></th>
+<th class="head"><p>说明</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">结构体</span></code></p></td>
+<td><p>结构体定义</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">联合体</span></code></p></td>
+<td><p>联合体定义</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">枚举</span></code></p></td>
+<td><p>枚举定义</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">类型别名</span></code></p></td>
+<td><p>typedef 别名</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id7">
+<h3>其他关键字<a class="headerlink" href="#id7" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>关键字</p></th>
+<th class="head"><p>说明</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">导入</span></code></p></td>
+<td><p>模块导入</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">导出</span></code></p></td>
+<td><p>模块导出</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">为</span></code></p></td>
+<td><p>泛型参数</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">模板</span></code></p></td>
+<td><p>模板定义</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">类</span></code></p></td>
+<td><p>类定义</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">公开</span></code></p></td>
+<td><p>public 成员</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">私有</span></code></p></td>
+<td><p>private 成员</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">保护</span></code></p></td>
+<td><p>protected 成员</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">虚函数</span></code></p></td>
+<td><p>虚函数</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">常量成员</span></code></p></td>
+<td><p>const 成员函数</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">构造</span></code></p></td>
+<td><p>构造函数</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">析构</span></code></p></td>
+<td><p>析构函数</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="id8">
+<h2>编译选项<a class="headerlink" href="#id8" title="Link to this heading"></a></h2>
+<section id="id9">
+<h3>命令行选项<a class="headerlink" href="#id9" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>zhc<span class="w"> </span><span class="o">[</span>子命令<span class="o">]</span><span class="w"> </span><span class="o">[</span>选项<span class="o">]</span><span class="w"> </span><span class="o">[</span>输入文件<span class="o">]</span>
+</pre></div>
+</div>
+<section id="id10">
+<h4>子命令<a class="headerlink" href="#id10" title="Link to this heading"></a></h4>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>子命令</p></th>
+<th class="head"><p>说明</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">compile</span></code></p></td>
+<td><p>编译文件</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">build</span></code></p></td>
+<td><p>构建项目</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">check</span></code></p></td>
+<td><p>类型检查</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ir</span></code></p></td>
+<td><p>生成 IR</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">version</span></code></p></td>
+<td><p>显示版本</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">help</span></code></p></td>
+<td><p>显示帮助</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id11">
+<h4>全局选项<a class="headerlink" href="#id11" title="Link to this heading"></a></h4>
+</section>
+<section id="id12">
+<h4>编译选项<a class="headerlink" href="#id12" title="Link to this heading"></a></h4>
+</section>
+<section id="ir">
+<h4>IR 选项<a class="headerlink" href="#ir" title="Link to this heading"></a></h4>
+</section>
+</section>
+<section id="id13">
+<h3>配置选项<a class="headerlink" href="#id13" title="Link to this heading"></a></h3>
+</section>
+</section>
+<section id="id14">
+<h2>错误代码<a class="headerlink" href="#id14" title="Link to this heading"></a></h2>
+<p>编译错误按阶段分类：</p>
+<section id="id15">
+<h3>词法错误 (1000-1999)<a class="headerlink" href="#id15" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>错误码</p></th>
+<th class="head"><p>说明</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>1001</p></td>
+<td><p>无效字符</p></td>
+</tr>
+<tr class="row-odd"><td><p>1002</p></td>
+<td><p>未闭合的字符串</p></td>
+</tr>
+<tr class="row-even"><td><p>1003</p></td>
+<td><p>未闭合的注释</p></td>
+</tr>
+<tr class="row-odd"><td><p>1004</p></td>
+<td><p>无效的数字格式</p></td>
+</tr>
+<tr class="row-even"><td><p>1005</p></td>
+<td><p>标识符过长</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id16">
+<h3>语法错误 (2000-2999)<a class="headerlink" href="#id16" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>错误码</p></th>
+<th class="head"><p>说明</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>2001</p></td>
+<td><p>语法错误</p></td>
+</tr>
+<tr class="row-odd"><td><p>2002</p></td>
+<td><p>意外的符号</p></td>
+</tr>
+<tr class="row-even"><td><p>2003</p></td>
+<td><p>缺少分号</p></td>
+</tr>
+<tr class="row-odd"><td><p>2004</p></td>
+<td><p>缺少右括号</p></td>
+</tr>
+<tr class="row-even"><td><p>2005</p></td>
+<td><p>缺少右花括号</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id17">
+<h3>语义错误 (3000-3999)<a class="headerlink" href="#id17" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>错误码</p></th>
+<th class="head"><p>说明</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>3001</p></td>
+<td><p>未定义的标识符</p></td>
+</tr>
+<tr class="row-odd"><td><p>3002</p></td>
+<td><p>类型不匹配</p></td>
+</tr>
+<tr class="row-even"><td><p>3003</p></td>
+<td><p>重复定义</p></td>
+</tr>
+<tr class="row-odd"><td><p>3004</p></td>
+<td><p>参数数量不匹配</p></td>
+</tr>
+<tr class="row-even"><td><p>3005</p></td>
+<td><p>作用域错误</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id18">
+<h3>代码生成错误 (4000-4999)<a class="headerlink" href="#id18" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>错误码</p></th>
+<th class="head"><p>说明</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>4001</p></td>
+<td><p>不支持的特性</p></td>
+</tr>
+<tr class="row-odd"><td><p>4002</p></td>
+<td><p>代码生成失败</p></td>
+</tr>
+<tr class="row-even"><td><p>4003</p></td>
+<td><p>内部错误</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="id19">
+<h2>内置函数<a class="headerlink" href="#id19" title="Link to this heading"></a></h2>
+<p>标准库提供以下内置函数：</p>
+<section id="id20">
+<h3>输入输出<a class="headerlink" href="#id20" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>函数</p></th>
+<th class="head"><p>说明</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">打印</span></code></p></td>
+<td><p>格式化输出</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">读取</span></code></p></td>
+<td><p>格式化输入</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">获取字符</span></code></p></td>
+<td><p>读取单个字符</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">输出字符</span></code></p></td>
+<td><p>输出单个字符</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id21">
+<h3>字符串操作<a class="headerlink" href="#id21" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>函数</p></th>
+<th class="head"><p>说明</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">字符串长度</span></code></p></td>
+<td><p>获取字符串长度</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">字符串复制</span></code></p></td>
+<td><p>复制字符串</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">字符串连接</span></code></p></td>
+<td><p>连接字符串</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">字符串比较</span></code></p></td>
+<td><p>比较字符串</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">字符串查找</span></code></p></td>
+<td><p>查找子串</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id22">
+<h3>内存管理<a class="headerlink" href="#id22" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>函数</p></th>
+<th class="head"><p>说明</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">分配</span></code></p></td>
+<td><p>分配内存</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">释放</span></code></p></td>
+<td><p>释放内存</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">重新分配</span></code></p></td>
+<td><p>重新分配内存</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id23">
+<h3>数学函数<a class="headerlink" href="#id23" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>函数</p></th>
+<th class="head"><p>说明</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">绝对值</span></code></p></td>
+<td><p>绝对值</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">平方根</span></code></p></td>
+<td><p>平方根</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">正弦</span></code></p></td>
+<td><p>正弦</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">余弦</span></code></p></td>
+<td><p>余弦</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">正切</span></code></p></td>
+<td><p>正切</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">指数</span></code></p></td>
+<td><p>指数</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">对数</span></code></p></td>
+<td><p>对数</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="id24">
+<h2>标准头文件<a class="headerlink" href="#id24" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>头文件</p></th>
+<th class="head"><p>说明</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&lt;标准io&gt;</span></code></p></td>
+<td><p>标准输入输出</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&lt;字符串&gt;</span></code></p></td>
+<td><p>字符串操作</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&lt;内存&gt;</span></code></p></td>
+<td><p>内存管理</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&lt;数学&gt;</span></code></p></td>
+<td><p>数学函数</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&lt;时间&gt;</span></code></p></td>
+<td><p>时间操作</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&lt;stdlib&gt;</span></code></p></td>
+<td><p>标准库工具</p></td>
+</tr>
+</tbody>
+</table>
+<div class="toctree-wrapper compound">
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../api/codegen.html" class="btn btn-neutral float-left" title="代码生成模块" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, ZHC 开发团队.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

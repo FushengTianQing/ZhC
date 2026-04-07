@@ -119,17 +119,23 @@
 - Task 8.4: 内联优化 ✅
   - 内联成本模型、函数内联器
 
-**Stage 2 (Week 11-13) - 高级语言特性 🚧 进行中**:
-- Task 11.1: 泛型编程支持 ✅ 全部完成
+**Stage 2 (Week 11-13) - 高级语言特性 ✅ 已完成**:
+- Task 11.1: 泛型编程支持 ✅
   - Day 1: 泛型类型系统设计（generics.py, GENERICS_DESIGN.md）
   - Day 2: 泛型解析（lexer.py 扩展, generic_parser.py）
   - Day 3: 泛型实例化（generic_instantiator.py）
   - Day 4: 代码生成（generic_codegen.py）
-- Task 11.2: 模式匹配实现 🚧 Day 1 进行中
+  - 测试覆盖: 113 passed
+- Task 11.2: 模式匹配实现 ✅
   - Day 1: 模式匹配语法设计（pattern_matching.py, pattern_parser.py, lexer.py 扩展）
-  - Day 2: 模式匹配语义分析 - 待开始
-  - Day 3: 模式匹配代码生成 - 待开始
-- Task 11.3: 异步编程支持（3天）- 待开始
+  - Day 2: 模式匹配语义分析（pattern_analyzer.py）
+  - Day 3: 模式匹配代码生成（pattern_codegen.py）
+  - 测试覆盖: 87 passed
+- Task 11.3: 异步编程支持 ✅
+  - Day 1: 异步语法设计（async_parser.py, async_system.py）
+  - Day 2: 异步语义分析（async_analyzer.py）
+  - Day 3: 异步代码生成（async_codegen.py）
+  - 测试覆盖: 79 passed
 
 **泛型系统设计** (2026-04-08):
 - **核心类**: TypeParameter, GenericType, GenericFunction, TypeConstraint
@@ -143,8 +149,19 @@
 - **核心类**: Pattern 基类 + 9 种具体模式
 - **模式类型**: 通配符(_)、变量(x)、字面量(42/"hello")、构造器(Some(x))、解构(点{x,y})、范围(1..10)、元组((x,y))、或(|)、与(&)、守卫(当)
 - **语法解析器**: PatternParser（pattern_parser.py）
+- **语义分析**: PatternAnalyzer（pattern_analyzer.py）
+- **代码生成**: PatternCodeGenerator（pattern_codegen.py）
 - **测试覆盖**: 87 个测试用例全部通过（55+32）
-- **新增文件**: src/semantic/pattern_matching.py, src/semantic/pattern_parser.py
+- **新增文件**: src/semantic/pattern_matching.py, src/semantic/pattern_parser.py, src/semantic/pattern_analyzer.py
+
+**异步编程系统设计** (2026-04-08):
+- **核心类**: AsyncFunctionType, FutureType, AsyncAnalyzer
+- **语法支持**: `异步 函数`, `等待`, `承诺`, `未来型`
+- **解析器**: AsyncParser（async_parser.py）
+- **语义分析**: AsyncAnalyzer（async_system.py）
+- **代码生成**: AsyncCodeGenerator（async_codegen.py）
+- **测试覆盖**: 79 个测试用例全部通过（17+30+32）
+- **新增文件**: src/semantic/async_parser.py, src/semantic/async_system.py
 
 ## Phase 4 Stage 3 - 工具链生态（2026-04-08）
 
@@ -190,27 +207,38 @@
 **Task 14.2: 调试信息生成 ✅ 已完成**
 
 **Day 1: DWARF 格式研究**:
-- `src/codegen/debug_info.py` - DWARF 调试信息生成器
+- `src/debug/debug_generator.py` (998行) - DWARF 调试信息生成器
   - DW_TAG, DW_AT, DW_FORM, DW_LANG, DW_OP 枚举
-  - DebugLocation, DebugVariable, DebugLineEntry, DebugInfoEntry 数据类
-  - DebugInfoGenerator 类（行号程序、类型 DIE、函数 DIE 生成）
-  - DWARFEncoder 类（二进制编码）
-- 26 个单元测试全部通过
+  - 数据类: SourceLocation, AddressRange, CompileUnit
+  - 核心类: LineNumberTable, DebugSymbolTable, TypeInfoGenerator, DWARFGenerator, DebugInfoGenerator
+  - 完整的中文符号支持
 
-**Day 2: 调试信息生成**:
-- 行号信息生成（LineProgram, DebugLineEntry）
-- 变量信息生成（DebugVariable）
-- 函数信息生成（SUBPROGRAM DIE）
-- 类型信息生成（BASE_TYPE, STRUCT_TYPE, ENUMERATION_TYPE, ARRAY_TYPE, POINTER_TYPE）
+**Day 2-3: 调试信息生成和集成**:
+- 模块整合：发现并解决 `src/codegen/debug_info.py` 和 `src/debug/debug_generator.py` 重复问题
+- 创建 `src/codegen/debug_integration.py` - 集成层（DebugInfoManager）
+- 更新编译器配置：DebugConfig 类，debug_enabled 属性
+- 更新 CLI：`-g/--debug` 命令行参数
+- 更新 CCodeGenerator：集成 debug_manager
 
-**Day 3: 调试器集成**:
-- `docs/DEBUG_GUIDE.md` - 调试指南（GDB/LLDB 使用）
-- `examples/debug_example.zhc` - 调试示例程序
-- `tests/test_debug_integration.py` - 调试器集成测试（15 个测试）
-- 中文符号支持（函数名、类型名、变量名）
+**Day 4: 事件驱动架构重构**:
+- 创建 `src/debug/debug_listener.py` - DebugListener 协议接口
+- 创建 `src/debug/debug_manager.py` - DebugManager 事件管理器
+- 重构 `DebugInfoManager` 为 `CDebugListener`（`src/codegen/c_debug_listener.py`）
+- 更新 CCodeGenerator 使用事件驱动方式
+- 删除旧的 `src/codegen/debug_integration.py`
 
 **调试信息模块文件**:
-- `src/codegen/debug_info.py` - DWARF 调试信息生成器
-- `tests/test_debug_info.py` - 26 个调试信息测试
-- `tests/test_debug_integration.py` - 15 个集成测试
-- **总计**: 41 个测试全部通过
+- `src/debug/debug_generator.py` - DWARF 调试信息生成器（核心，998行）
+- `src/debug/debug_listener.py` - DebugListener 协议接口
+- `src/debug/debug_manager.py` - DebugManager 事件管理器
+- `src/codegen/c_debug_listener.py` - C 后端调试监听器
+- `tests/test_debug_generator.py` - 22 个调试信息测试
+- `tests/test_debug_event_driven.py` - 18 个事件驱动架构测试
+- `docs/DEBUG_GUIDE.md` - 调试指南（GDB/LLDB 使用）
+- `examples/debug_example.zhc` - 调试示例程序
+- **总计**: 40 个测试全部通过
+
+**架构优势**:
+- 支持多后端扩展（C、LLVM、WASM）
+- 统一事件接口，易于添加新后端
+- 解耦编译器与调试信息生成

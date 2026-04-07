@@ -1,0 +1,672 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>开发者指南 &mdash; ZHC 6.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/graphviz.css?v=fd3f3429" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=5ae362fb" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=12958129"></script>
+      <script src="../_static/doctools.js?v=9a2dae69"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="API 参考" href="../api/index.html" />
+    <link rel="prev" title="快速开始" href="getting_started.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search"  style="background: #2980B9" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            ZHC
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">目录:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">快速开始</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">开发者指南</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#id2">开发环境搭建</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id3">系统要求</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id4">克隆仓库</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id5">安装依赖</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id6">验证安装</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#id7">项目结构</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id8">核心模块</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id9">编译流水线</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id10">关键文件</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#id11">代码编写规范</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id12">代码风格</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id13">格式化代码</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id14">代码检查</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id15">类型检查</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id16">命名规范</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id17">文档规范</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#id18">测试编写指南</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id19">测试框架</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id20">运行测试</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id21">测试结构</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id22">编写测试</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#fixtures">使用 fixtures</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#id23">调试技巧</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id24">日志调试</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id25">断点调试</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ide">IDE 调试</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id26">常见调试场景</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#faq">常见问题解答（FAQ）</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#q1">Q1: 如何添加新的关键字？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#q2">Q2: 如何添加新的代码生成后端？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#q3">Q3: 如何处理编译错误？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#q4">Q4: 如何运行性能测试？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#q5">Q5: 如何贡献代码？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#q6">Q6: 如何更新文档？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#q7">Q7: 如何处理依赖问题？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#q8">Q8: 如何调试测试失败？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#q9">Q9: 如何添加新的测试？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#q10">Q10: 如何处理类型检查错误？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#id27">下一步</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API 参考</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/index.html">参考手册</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">资源:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/FushengTianQing/ZhC">GitHub 仓库</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/FushengTianQing/ZhC/issues">问题反馈</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu"  style="background: #2980B9" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">ZHC</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">开发者指南</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/guides/developer_guide.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="id1">
+<h1>开发者指南<a class="headerlink" href="#id1" title="Link to this heading"></a></h1>
+<p>本指南面向 ZHC 编译器的开发者，介绍如何参与项目开发。</p>
+<section id="id2">
+<h2>开发环境搭建<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<section id="id3">
+<h3>系统要求<a class="headerlink" href="#id3" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Python 3.8 或更高版本</p></li>
+<li><p>Git</p></li>
+<li><p>Make（可选，用于构建脚本）</p></li>
+</ul>
+</section>
+<section id="id4">
+<h3>克隆仓库<a class="headerlink" href="#id4" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/FushengTianQing/ZhC.git
+<span class="nb">cd</span><span class="w"> </span>ZhC
+</pre></div>
+</div>
+</section>
+<section id="id5">
+<h3>安装依赖<a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 创建虚拟环境（推荐）</span>
+python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>venv
+<span class="nb">source</span><span class="w"> </span>venv/bin/activate<span class="w">  </span><span class="c1"># Linux/macOS</span>
+<span class="c1"># 或 venv\Scripts\activate  # Windows</span>
+
+<span class="c1"># 安装开发依赖</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[dev]&quot;</span>
+
+<span class="c1"># 安装文档依赖</span>
+pip<span class="w"> </span>install<span class="w"> </span>sphinx<span class="w"> </span>sphinx-rtd-theme<span class="w"> </span>myst-parser
+</pre></div>
+</div>
+</section>
+<section id="id6">
+<h3>验证安装<a class="headerlink" href="#id6" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 运行测试</span>
+pytest
+
+<span class="c1"># 检查代码风格</span>
+black<span class="w"> </span>--check<span class="w"> </span>src/
+ruff<span class="w"> </span>check<span class="w"> </span>src/
+
+<span class="c1"># 运行编译器</span>
+python<span class="w"> </span>-m<span class="w"> </span>src<span class="w"> </span>--version
+</pre></div>
+</div>
+</section>
+</section>
+<section id="id7">
+<h2>项目结构<a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ZhC/
+├── src/                  # 源代码
+│   ├── __init__.py       # 包入口
+│   ├── __main__.py       # CLI 入口
+│   ├── cli.py            # 命令行工具
+│   ├── parser/           # 解析器模块
+│   ├── semantic/         # 语义分析模块
+│   ├── ir/               # IR 中间表示
+│   ├── codegen/          # 代码生成模块
+│   ├── api/              # 公共 API
+│   ├── config/           # 配置管理
+│   ├── utils/            # 工具函数
+│   └── errors/           # 异常类
+├── tests/                # 测试代码
+├── docs/                 # 文档
+├── examples/             # 示例代码
+├── scripts/              # 构建脚本
+├── pyproject.toml        # 项目配置
+└── README.md             # 项目说明
+</pre></div>
+</div>
+</section>
+<section id="id8">
+<h2>核心模块<a class="headerlink" href="#id8" title="Link to this heading"></a></h2>
+<section id="id9">
+<h3>编译流水线<a class="headerlink" href="#id9" title="Link to this heading"></a></h3>
+<p>ZHC 编译器采用经典的编译流水线架构：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>源代码 → 词法分析 → 语法分析 → 语义分析 → IR → 代码生成 → 目标代码
+</pre></div>
+</div>
+<p>各阶段职责：</p>
+<ol class="arabic simple">
+<li><p><strong>词法分析 (Lexer)</strong>: 将源代码转换为 Token 序列</p></li>
+<li><p><strong>语法分析 (Parser)</strong>: 构建 AST（抽象语法树）</p></li>
+<li><p><strong>语义分析 (Semantic)</strong>: 类型检查、作用域分析、符号解析</p></li>
+<li><p><strong>IR 生成</strong>: 生成中间表示</p></li>
+<li><p><strong>代码生成 (Codegen)</strong>: 生成目标代码（C/LLVM/WASM）</p></li>
+</ol>
+</section>
+<section id="id10">
+<h3>关键文件<a class="headerlink" href="#id10" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">src/cli.py</span></code>: 主编译器入口，包含 <code class="docutils literal notranslate"><span class="pre">ZHCCompiler</span></code> 类</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">src/parser/parser.py</span></code>: 语法解析器</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">src/semantic/analyzer.py</span></code>: 语义分析器</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">src/ir/ir_generator.py</span></code>: IR 生成器</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">src/codegen/c_codegen.py</span></code>: C 代码生成器</p></li>
+</ul>
+</section>
+</section>
+<section id="id11">
+<h2>代码编写规范<a class="headerlink" href="#id11" title="Link to this heading"></a></h2>
+<section id="id12">
+<h3>代码风格<a class="headerlink" href="#id12" title="Link to this heading"></a></h3>
+<p>ZHC 使用以下代码风格工具：</p>
+<ul class="simple">
+<li><p><strong>Black</strong>: 代码格式化</p></li>
+<li><p><strong>Ruff</strong>: 代码检查</p></li>
+<li><p><strong>MyPy</strong>: 类型检查</p></li>
+</ul>
+<p>配置文件：</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>: Black 和 Ruff 配置</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mypy.ini</span></code>: MyPy 配置</p></li>
+</ul>
+<section id="id13">
+<h4>格式化代码<a class="headerlink" href="#id13" title="Link to this heading"></a></h4>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 格式化所有代码</span>
+black<span class="w"> </span>src/<span class="w"> </span>tests/
+
+<span class="c1"># 检查格式（不修改）</span>
+black<span class="w"> </span>--check<span class="w"> </span>src/<span class="w"> </span>tests/
+</pre></div>
+</div>
+</section>
+<section id="id14">
+<h4>代码检查<a class="headerlink" href="#id14" title="Link to this heading"></a></h4>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 运行 Ruff 检查</span>
+ruff<span class="w"> </span>check<span class="w"> </span>src/<span class="w"> </span>tests/
+
+<span class="c1"># 自动修复</span>
+ruff<span class="w"> </span>check<span class="w"> </span>--fix<span class="w"> </span>src/<span class="w"> </span>tests/
+</pre></div>
+</div>
+</section>
+<section id="id15">
+<h4>类型检查<a class="headerlink" href="#id15" title="Link to this heading"></a></h4>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 运行 MyPy</span>
+mypy<span class="w"> </span>src/
+</pre></div>
+</div>
+</section>
+</section>
+<section id="id16">
+<h3>命名规范<a class="headerlink" href="#id16" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><strong>类名</strong>: PascalCase（如 <code class="docutils literal notranslate"><span class="pre">CompilationResult</span></code>）</p></li>
+<li><p><strong>函数名</strong>: snake_case（如 <code class="docutils literal notranslate"><span class="pre">compile_single_file</span></code>）</p></li>
+<li><p><strong>变量名</strong>: snake_case（如 <code class="docutils literal notranslate"><span class="pre">input_file</span></code>）</p></li>
+<li><p><strong>常量名</strong>: UPPER_SNAKE_CASE（如 <code class="docutils literal notranslate"><span class="pre">MAX_RETRIES</span></code>）</p></li>
+<li><p><strong>私有成员</strong>: 前缀 <code class="docutils literal notranslate"><span class="pre">_``（如</span> <span class="pre">``_run_semantic_check</span></code>）</p></li>
+</ul>
+</section>
+<section id="id17">
+<h3>文档规范<a class="headerlink" href="#id17" title="Link to this heading"></a></h3>
+<p>使用 Google 风格的 docstring：</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">compile_single_file</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span> <span class="n">input_file</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CompilationResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;编译单个文件（AST 模式）。</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        input_file: 输入文件路径。</span>
+<span class="sd">        output_dir: 输出目录路径，默认为输入文件所在目录。</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        CompilationResult: 编译结果对象。</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        FileNotFoundError: 输入文件不存在。</span>
+<span class="sd">        CompilationError: 编译过程中出错。</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; compiler = ZHCCompiler()</span>
+<span class="sd">        &gt;&gt;&gt; result = compiler.compile_single_file(Path(&quot;main.zhc&quot;))</span>
+<span class="sd">        &gt;&gt;&gt; print(result.success)</span>
+<span class="sd">        True</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="o">...</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="id18">
+<h2>测试编写指南<a class="headerlink" href="#id18" title="Link to this heading"></a></h2>
+<section id="id19">
+<h3>测试框架<a class="headerlink" href="#id19" title="Link to this heading"></a></h3>
+<p>ZHC 使用 pytest 作为测试框架。</p>
+<section id="id20">
+<h4>运行测试<a class="headerlink" href="#id20" title="Link to this heading"></a></h4>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 运行所有测试</span>
+pytest
+
+<span class="c1"># 运行特定测试文件</span>
+pytest<span class="w"> </span>tests/test_parser.py
+
+<span class="c1"># 运行特定测试类</span>
+pytest<span class="w"> </span>tests/test_parser.py::TestLexer
+
+<span class="c1"># 运行特定测试方法</span>
+pytest<span class="w"> </span>tests/test_parser.py::TestLexer::test_basic_tokens
+
+<span class="c1"># 显示详细输出</span>
+pytest<span class="w"> </span>-v
+
+<span class="c1"># 显示覆盖率</span>
+pytest<span class="w"> </span>--cov<span class="o">=</span>src<span class="w"> </span>--cov-report<span class="o">=</span>html
+</pre></div>
+</div>
+</section>
+</section>
+<section id="id21">
+<h3>测试结构<a class="headerlink" href="#id21" title="Link to this heading"></a></h3>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>tests/
+├── conftest.py           # 测试配置和 fixtures
+├── test_parser.py        # 解析器测试
+├── test_semantic.py      # 语义分析测试
+├── test_ir.py            # IR 测试
+├── test_codegen.py       # 代码生成测试
+├── test_cli.py           # CLI 测试
+└── fixtures/             # 测试数据
+</pre></div>
+</div>
+<section id="id22">
+<h4>编写测试<a class="headerlink" href="#id22" title="Link to this heading"></a></h4>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">zhpp.parser</span><span class="w"> </span><span class="kn">import</span> <span class="n">Parser</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">zhpp.semantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">SemanticAnalyzer</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TestParser</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;解析器测试类。&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">setup_method</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;每个测试方法前的初始化。&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parser</span> <span class="o">=</span> <span class="n">Parser</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_basic_tokens</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;测试基本 Token 解析。&quot;&quot;&quot;</span>
+        <span class="n">code</span> <span class="o">=</span> <span class="s2">&quot;整数型 x = 10;&quot;</span>
+        <span class="n">tokens</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser</span><span class="o">.</span><span class="n">tokenize</span><span class="p">(</span><span class="n">code</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">tokens</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
+        <span class="k">assert</span> <span class="n">tokens</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s2">&quot;INTEGER_TYPE&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_function_definition</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;测试函数定义解析。&quot;&quot;&quot;</span>
+        <span class="n">code</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">        整数型 加法(整数型 a, 整数型 b) {</span>
+<span class="s2">            返回 a + b;</span>
+<span class="s2">        }</span>
+<span class="s2">        &quot;&quot;&quot;</span>
+        <span class="n">ast</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">code</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">ast</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s2">&quot;FunctionDefinition&quot;</span>
+        <span class="k">assert</span> <span class="n">ast</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;加法&quot;</span>
+
+    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">&quot;code,expected&quot;</span><span class="p">,</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">&quot;整数型 x = 1;&quot;</span><span class="p">,</span> <span class="s2">&quot;INTEGER_TYPE&quot;</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">&quot;浮点型 y = 2.0;&quot;</span><span class="p">,</span> <span class="s2">&quot;FLOAT_TYPE&quot;</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">&quot;字符型 c = &#39;a&#39;;&quot;</span><span class="p">,</span> <span class="s2">&quot;CHAR_TYPE&quot;</span><span class="p">),</span>
+    <span class="p">])</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_type_keywords</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">code</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">expected</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;测试类型关键字（参数化测试）。&quot;&quot;&quot;</span>
+        <span class="n">tokens</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser</span><span class="o">.</span><span class="n">tokenize</span><span class="p">(</span><span class="n">code</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">tokens</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="n">expected</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TestSemanticAnalyzer</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;语义分析器测试类。&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_type_checking</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;测试类型检查。&quot;&quot;&quot;</span>
+        <span class="n">code</span> <span class="o">=</span> <span class="s2">&quot;整数型 x = 10; 浮点型 y = x;&quot;</span>
+        <span class="c1"># 应该报错：类型不匹配</span>
+        <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">SemanticError</span><span class="p">):</span>
+            <span class="n">analyzer</span> <span class="o">=</span> <span class="n">SemanticAnalyzer</span><span class="p">()</span>
+            <span class="n">analyzer</span><span class="o">.</span><span class="n">analyze</span><span class="p">(</span><span class="n">code</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="fixtures">
+<h4>使用 fixtures<a class="headerlink" href="#fixtures" title="Link to this heading"></a></h4>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># conftest.py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">zhpp.cli</span><span class="w"> </span><span class="kn">import</span> <span class="n">ZHCCompiler</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">compiler</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;提供编译器实例。&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">ZHCCompiler</span><span class="p">()</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">sample_file</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;提供示例文件。&quot;&quot;&quot;</span>
+    <span class="n">file</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">&quot;test.zhc&quot;</span>
+    <span class="n">file</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">&quot;整数型 主函数() { 返回 0; }&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">file</span>
+
+
+<span class="c1"># test_cli.py</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_compile_file</span><span class="p">(</span><span class="n">compiler</span><span class="p">,</span> <span class="n">sample_file</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;使用 fixtures 测试文件编译。&quot;&quot;&quot;</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">compiler</span><span class="o">.</span><span class="n">compile_single_file</span><span class="p">(</span><span class="n">sample_file</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">result</span><span class="o">.</span><span class="n">success</span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+<section id="id23">
+<h2>调试技巧<a class="headerlink" href="#id23" title="Link to this heading"></a></h2>
+<section id="id24">
+<h3>日志调试<a class="headerlink" href="#id24" title="Link to this heading"></a></h3>
+<p>启用详细日志：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># CLI 调试</span>
+zhc<span class="w"> </span>compile<span class="w"> </span>main.zhc<span class="w"> </span>-v
+
+<span class="c1"># Python 调试</span>
+import<span class="w"> </span>logging
+logging.basicConfig<span class="o">(</span><span class="nv">level</span><span class="o">=</span>logging.DEBUG<span class="o">)</span>
+</pre></div>
+</div>
+</section>
+<section id="id25">
+<h3>断点调试<a class="headerlink" href="#id25" title="Link to this heading"></a></h3>
+<p>使用 pdb 调试：</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># 在代码中插入断点</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pdb</span><span class="p">;</span> <span class="n">pdb</span><span class="o">.</span><span class="n">set_trace</span><span class="p">()</span>
+
+<span class="c1"># 或使用 breakpoint()（Python 3.7+）</span>
+<span class="nb">breakpoint</span><span class="p">()</span>
+</pre></div>
+</div>
+<section id="ide">
+<h4>IDE 调试<a class="headerlink" href="#ide" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p>VSCode: 使用 Python 扩展的调试功能</p></li>
+<li><p>PyCharm: 内置调试器</p></li>
+</ul>
+</section>
+<section id="id26">
+<h4>常见调试场景<a class="headerlink" href="#id26" title="Link to this heading"></a></h4>
+<ol class="arabic simple">
+<li><p><strong>解析错误</strong>: 检查 Token 序列和 AST 结构</p></li>
+<li><p><strong>语义错误</strong>: 检查符号表和类型信息</p></li>
+<li><p><strong>代码生成错误</strong>: 检查 IR 和目标代码</p></li>
+</ol>
+</section>
+</section>
+</section>
+<section id="faq">
+<h2>常见问题解答（FAQ）<a class="headerlink" href="#faq" title="Link to this heading"></a></h2>
+<section id="q1">
+<h3>Q1: 如何添加新的关键字？<a class="headerlink" href="#q1" title="Link to this heading"></a></h3>
+<p><strong>A</strong>: 在 <code class="docutils literal notranslate"><span class="pre">src/keywords.py</span></code> 中添加：</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">M</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="c1"># 现有关键字...</span>
+    <span class="s2">&quot;新关键字&quot;</span><span class="p">:</span> <span class="s2">&quot;new_keyword&quot;</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>然后更新解析器和语义分析器。</p>
+</section>
+<section id="q2">
+<h3>Q2: 如何添加新的代码生成后端？<a class="headerlink" href="#q2" title="Link to this heading"></a></h3>
+<p><strong>A</strong>: 在 <code class="docutils literal notranslate"><span class="pre">src/codegen/</span></code> 中创建新模块：</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># src/codegen/wasm_codegen.py</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">WasmCodeGenerator</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ir_node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="c1"># 实现 WASM 代码生成</span>
+        <span class="o">...</span>
+</pre></div>
+</div>
+<p>然后在 <code class="docutils literal notranslate"><span class="pre">src/cli.py</span></code> 中注册：</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">compile_with_backend</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">backend</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">backend</span> <span class="o">==</span> <span class="s2">&quot;wasm&quot;</span><span class="p">:</span>
+        <span class="n">generator</span> <span class="o">=</span> <span class="n">WasmCodeGenerator</span><span class="p">()</span>
+        <span class="o">...</span>
+</pre></div>
+</div>
+</section>
+<section id="q3">
+<h3>Q3: 如何处理编译错误？<a class="headerlink" href="#q3" title="Link to this heading"></a></h3>
+<p><strong>A</strong>: 使用 <code class="docutils literal notranslate"><span class="pre">CompilationResult</span></code> 对象：</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">result</span> <span class="o">=</span> <span class="n">compiler</span><span class="o">.</span><span class="n">compile_single_file</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">error</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">errors</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;错误: </span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="c1"># 或抛出异常</span>
+    <span class="k">raise</span> <span class="n">CompilationError</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">errors</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="q4">
+<h3>Q4: 如何运行性能测试？<a class="headerlink" href="#q4" title="Link to this heading"></a></h3>
+<p><strong>A</strong>: 使用 <code class="docutils literal notranslate"><span class="pre">--profile</span></code> 选项：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>zhc<span class="w"> </span>compile<span class="w"> </span>main.zhc<span class="w"> </span>--profile
+</pre></div>
+</div>
+<p>或使用 Python profiler：</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">cProfile</span>
+<span class="n">cProfile</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">&quot;compiler.compile_single_file(file)&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="q5">
+<h3>Q5: 如何贡献代码？<a class="headerlink" href="#q5" title="Link to this heading"></a></h3>
+<p><strong>A</strong>: 参见 <span class="xref std std-doc">../guides/contributing</span> 贡献指南。</p>
+<ol class="arabic simple">
+<li><p>Fork 仓库</p></li>
+<li><p>创建特性分支</p></li>
+<li><p>编写代码和测试</p></li>
+<li><p>提交 Pull Request</p></li>
+</ol>
+</section>
+<section id="q6">
+<h3>Q6: 如何更新文档？<a class="headerlink" href="#q6" title="Link to this heading"></a></h3>
+<p><strong>A</strong>: 修改 <code class="docutils literal notranslate"><span class="pre">docs/</span></code> 目录下的文件：</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">docs/sphinx/</span></code>: Sphinx 文档</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">docs/*.md</span></code>: Markdown 文档</p></li>
+</ul>
+<p>构建文档：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/build_docs.py
+</pre></div>
+</div>
+</section>
+<section id="q7">
+<h3>Q7: 如何处理依赖问题？<a class="headerlink" href="#q7" title="Link to this heading"></a></h3>
+<p><strong>A</strong>: 检查 <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> 中的依赖版本：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 查看依赖</span>
+pip<span class="w"> </span>list
+
+<span class="c1"># 更新依赖</span>
+pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[dev]&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="q8">
+<h3>Q8: 如何调试测试失败？<a class="headerlink" href="#q8" title="Link to this heading"></a></h3>
+<p><strong>A</strong>: 使用 pytest 的调试选项：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 显示详细输出</span>
+pytest<span class="w"> </span>-v<span class="w"> </span>--tb<span class="o">=</span>long
+
+<span class="c1"># 只运行失败的测试</span>
+pytest<span class="w"> </span>--lf
+
+<span class="c1"># 进入 pdb 调试</span>
+pytest<span class="w"> </span>--pdb
+</pre></div>
+</div>
+</section>
+<section id="q9">
+<h3>Q9: 如何添加新的测试？<a class="headerlink" href="#q9" title="Link to this heading"></a></h3>
+<p><strong>A</strong>: 在 <code class="docutils literal notranslate"><span class="pre">tests/</span></code> 中创建测试文件：</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># tests/test_new_feature.py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TestNewFeature</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_basic</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># 测试基本功能</span>
+        <span class="o">...</span>
+</pre></div>
+</div>
+</section>
+<section id="q10">
+<h3>Q10: 如何处理类型检查错误？<a class="headerlink" href="#q10" title="Link to this heading"></a></h3>
+<p><strong>A</strong>: 使用 MyPy 检查：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mypy<span class="w"> </span>src/
+</pre></div>
+</div>
+<p>常见错误：</p>
+<ul class="simple">
+<li><p>缺少类型注解</p></li>
+<li><p>类型不匹配</p></li>
+<li><p>Optional 类型未处理</p></li>
+</ul>
+</section>
+</section>
+<section id="id27">
+<h2>下一步<a class="headerlink" href="#id27" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>阅读 <a class="reference internal" href="../api/index.html"><span class="doc">API 参考</span></a> 了解 API 文档</p></li>
+<li><p>查看 <a class="reference internal" href="../reference/index.html"><span class="doc">参考手册</span></a> 查看参考手册</p></li>
+<li><p>参见 <span class="xref std std-doc">../guides/contributing</span> 了解贡献流程</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="getting_started.html" class="btn btn-neutral float-left" title="快速开始" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../api/index.html" class="btn btn-neutral float-right" title="API 参考" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, ZHC 开发团队.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

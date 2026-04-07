@@ -1,0 +1,301 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>快速开始 &mdash; ZHC 6.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/graphviz.css?v=fd3f3429" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=5ae362fb" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=12958129"></script>
+      <script src="../_static/doctools.js?v=9a2dae69"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="开发者指南" href="developer_guide.html" />
+    <link rel="prev" title="ZHC 中文C编译器" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search"  style="background: #2980B9" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            ZHC
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">目录:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">快速开始</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#id2">安装</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id3">第一个程序</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id4">基础语法</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id5">变量声明</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id6">函数定义</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id7">控制流</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#id8">模块导入</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id9">高级特性</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id10">泛型</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id11">模板</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#id12">命令行工具</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id13">编译选项</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#id14">下一步</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="developer_guide.html">开发者指南</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API 参考</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/index.html">参考手册</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">资源:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/FushengTianQing/ZhC">GitHub 仓库</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/FushengTianQing/ZhC/issues">问题反馈</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu"  style="background: #2980B9" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">ZHC</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">快速开始</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/guides/getting_started.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="id1">
+<h1>快速开始<a class="headerlink" href="#id1" title="Link to this heading"></a></h1>
+<p>本指南将帮助你在 5 分钟内上手 ZHC 编译器。</p>
+<section id="id2">
+<h2>安装<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<p>确保你已安装 Python 3.8 或更高版本：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>--version
+</pre></div>
+</div>
+<p>使用 pip 安装 ZHC：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>zhc
+</pre></div>
+</div>
+<p>或者从源码安装：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/FushengTianQing/ZhC.git
+<span class="nb">cd</span><span class="w"> </span>ZhC
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+</section>
+<section id="id3">
+<h2>第一个程序<a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<p>创建你的第一个 ZHC 程序：</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="c1">// hello.zhc</span>
+<span class="n">整数型</span><span class="w"> </span><span class="nf">主函数</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">中文整数型</span><span class="w"> </span><span class="n">名字</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="p">;</span>
+<span class="w">    </span><span class="n">打印</span><span class="p">(</span><span class="s">&quot;你好，ZHC！</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="n">返回</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>编译并运行：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>zhc<span class="w"> </span>compile<span class="w"> </span>hello.zhc<span class="w"> </span>-o<span class="w"> </span>hello.c
+gcc<span class="w"> </span>hello.c<span class="w"> </span>-o<span class="w"> </span>hello
+./hello
+</pre></div>
+</div>
+<p>输出：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>你好，ZHC！
+</pre></div>
+</div>
+</section>
+<section id="id4">
+<h2>基础语法<a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<section id="id5">
+<h3>变量声明<a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="c1">// 基本类型</span>
+<span class="n">中文整数型</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span><span class="w">           </span><span class="c1">// 整数</span>
+<span class="n">中文浮点型</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">3.14</span><span class="p">;</span><span class="w">         </span><span class="c1">// 浮点数</span>
+<span class="n">中文字符型</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sc">&#39;x&#39;</span><span class="p">;</span><span class="w">          </span><span class="c1">// 字符</span>
+<span class="n">中文逻辑型</span><span class="w"> </span><span class="n">flag</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">真</span><span class="p">;</span><span class="w">        </span><span class="c1">// 布尔值</span>
+
+<span class="c1">// 常量</span>
+<span class="n">中文常量</span><span class="w"> </span><span class="n">中文整数型</span><span class="w"> </span><span class="n">MAX</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">100</span><span class="p">;</span>
+</pre></div>
+</div>
+</section>
+<section id="id6">
+<h3>函数定义<a class="headerlink" href="#id6" title="Link to this heading"></a></h3>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="n">整数型</span><span class="w"> </span><span class="nf">加法</span><span class="p">(</span><span class="n">整数型</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">整数型</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">返回</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">b</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="n">空型</span><span class="w"> </span><span class="nf">打印消息</span><span class="p">(</span><span class="n">中文字符型</span><span class="w"> </span><span class="n">消息</span><span class="p">[])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">打印</span><span class="p">(</span><span class="s">&quot;%s</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">消息</span><span class="p">);</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="id7">
+<h3>控制流<a class="headerlink" href="#id7" title="Link to this heading"></a></h3>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="c1">// 条件语句</span>
+<span class="n">如果</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">打印</span><span class="p">(</span><span class="s">&quot;a 更大</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+<span class="p">}</span><span class="w"> </span><span class="n">否则</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">打印</span><span class="p">(</span><span class="s">&quot;b 更大</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="c1">// 循环</span>
+<span class="n">中文整数型</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="n">当</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">10</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">打印</span><span class="p">(</span><span class="s">&quot;%d</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">);</span>
+<span class="w">    </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="id8">
+<h2>模块导入<a class="headerlink" href="#id8" title="Link to this heading"></a></h2>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="c1">// 导入标准库</span>
+<span class="n">导入</span><span class="w"> </span><span class="o">&lt;</span><span class="n">标准io</span><span class="o">&gt;</span>
+<span class="n">导入</span><span class="w"> </span><span class="o">&lt;</span><span class="n">字符串</span><span class="o">&gt;</span>
+
+<span class="c1">// 使用导入的函数</span>
+<span class="n">整数型</span><span class="w"> </span><span class="n">主函数</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">中文字符型</span><span class="w"> </span><span class="n">消息</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;你好&quot;</span><span class="p">;</span>
+<span class="w">    </span><span class="n">整数型</span><span class="w"> </span><span class="n">长度</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">字符串长度</span><span class="p">(</span><span class="n">消息</span><span class="p">);</span>
+<span class="w">    </span><span class="n">打印</span><span class="p">(</span><span class="s">&quot;长度: %d</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">长度</span><span class="p">);</span>
+<span class="w">    </span><span class="n">返回</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="id9">
+<h2>高级特性<a class="headerlink" href="#id9" title="Link to this heading"></a></h2>
+<section id="id10">
+<h3>泛型<a class="headerlink" href="#id10" title="Link to this heading"></a></h3>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="n">泛型</span><span class="w"> </span><span class="n">T</span><span class="w"> </span><span class="n">取最大值</span><span class="p">(</span><span class="n">泛型</span><span class="w"> </span><span class="n">T</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">泛型</span><span class="w"> </span><span class="n">T</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">如果</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">返回</span><span class="w"> </span><span class="n">a</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">返回</span><span class="w"> </span><span class="n">b</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="n">整数型</span><span class="w"> </span><span class="n">主函数</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">中文整数型</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">取最大值</span><span class="o">&lt;</span><span class="n">中文整数型</span><span class="o">&gt;</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">);</span>
+<span class="w">    </span><span class="n">中文浮点型</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">取最大值</span><span class="o">&lt;</span><span class="n">中文浮点型</span><span class="o">&gt;</span><span class="p">(</span><span class="mf">3.14</span><span class="p">,</span><span class="w"> </span><span class="mf">2.71</span><span class="p">);</span>
+<span class="w">    </span><span class="n">返回</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="id11">
+<h3>模板<a class="headerlink" href="#id11" title="Link to this heading"></a></h3>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="n">模板</span><span class="o">&lt;</span><span class="n">类型名</span><span class="w"> </span><span class="n">T</span><span class="p">,</span><span class="w"> </span><span class="n">整数型</span><span class="w"> </span><span class="n">N</span><span class="o">&gt;</span>
+<span class="n">结构体</span><span class="w"> </span><span class="n">数组</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">T</span><span class="w"> </span><span class="n">数据</span><span class="p">[</span><span class="n">N</span><span class="p">];</span>
+<span class="w">    </span><span class="n">整数型</span><span class="w"> </span><span class="n">长度</span><span class="p">;</span>
+<span class="p">};</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="id12">
+<h2>命令行工具<a class="headerlink" href="#id12" title="Link to this heading"></a></h2>
+<p>ZHC 提供完整的命令行工具：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 编译文件</span>
+zhc<span class="w"> </span>compile<span class="w"> </span>input.zhc<span class="w"> </span>-o<span class="w"> </span>output.c
+
+<span class="c1"># 编译项目</span>
+zhc<span class="w"> </span>compile<span class="w"> </span>--project<span class="w"> </span>main.zhc<span class="w"> </span>-o<span class="w"> </span>build/
+
+<span class="c1"># 查看帮助</span>
+zhc<span class="w"> </span>--help
+
+<span class="c1"># 查看版本</span>
+zhc<span class="w"> </span>--version
+</pre></div>
+</div>
+<section id="id13">
+<h3>编译选项<a class="headerlink" href="#id13" title="Link to this heading"></a></h3>
+</section>
+</section>
+<section id="id14">
+<h2>下一步<a class="headerlink" href="#id14" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>阅读 <a class="reference internal" href="developer_guide.html"><span class="doc">开发者指南</span></a> 了解开发指南</p></li>
+<li><p>查看 <a class="reference internal" href="../api/index.html"><span class="doc">API 参考</span></a> 了解 API 文档</p></li>
+<li><p>浏览 <a class="reference internal" href="../reference/index.html"><span class="doc">参考手册</span></a> 查看参考手册</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../index.html" class="btn btn-neutral float-left" title="ZHC 中文C编译器" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="developer_guide.html" class="btn btn-neutral float-right" title="开发者指南" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, ZHC 开发团队.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

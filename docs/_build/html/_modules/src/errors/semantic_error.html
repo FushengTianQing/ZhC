@@ -1,0 +1,481 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>src.errors.semantic_error &mdash; ZHC 6.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css?v=fd3f3429" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/custom.css?v=5ae362fb" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=12958129"></script>
+      <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search"  style="background: #2980B9" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            ZHC
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">目录:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../guides/getting_started.html">快速开始</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../guides/developer_guide.html">开发者指南</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/index.html">API 参考</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../reference/index.html">参考手册</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">资源:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/FushengTianQing/ZhC">GitHub 仓库</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/FushengTianQing/ZhC/issues">问题反馈</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu"  style="background: #2980B9" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">ZHC</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">src.errors.semantic_error</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for src.errors.semantic_error</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Semantic 异常类</span>
+
+<span class="sd">语义分析阶段的异常定义。</span>
+
+<span class="sd">创建日期: 2026-04-07</span>
+<span class="sd">最后更新: 2026-04-07</span>
+<span class="sd">维护者: ZHC开发团队</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Any</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ZHCError</span><span class="p">,</span> <span class="n">SourceLocation</span>
+
+
+<div class="viewcode-block" id="SemanticError">
+<a class="viewcode-back" href="../../../api/index.html#src.errors.semantic_error.SemanticError">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">SemanticError</span><span class="p">(</span><span class="n">ZHCError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    语义分析错误</span>
+<span class="sd">    </span>
+<span class="sd">    在语义分析阶段发生的错误，例如：</span>
+<span class="sd">    - 类型错误</span>
+<span class="sd">    - 未定义的变量</span>
+<span class="sd">    - 重复定义</span>
+<span class="sd">    - 作用域错误</span>
+<span class="sd">    - 类型不兼容</span>
+<span class="sd">    </span>
+<span class="sd">    Attributes:</span>
+<span class="sd">        symbol_name: 相关的符号名称（可选）</span>
+<span class="sd">        expected_type: 期望的类型（可选）</span>
+<span class="sd">        actual_type: 实际的类型（可选）</span>
+<span class="sd">        scope_info: 作用域信息（可选）</span>
+<span class="sd">    </span>
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; error = SemanticError(</span>
+<span class="sd">        ...     &quot;类型不匹配&quot;,</span>
+<span class="sd">        ...     location=SourceLocation(&quot;test.zhc&quot;, 15, 8),</span>
+<span class="sd">        ...     error_code=&quot;S001&quot;,</span>
+<span class="sd">        ...     expected_type=&quot;整数型&quot;,</span>
+<span class="sd">        ...     actual_type=&quot;浮点型&quot;,</span>
+<span class="sd">        ...     suggestion=&quot;请进行类型转换或检查表达式类型&quot;</span>
+<span class="sd">        ... )</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+<div class="viewcode-block" id="SemanticError.__init__">
+<a class="viewcode-back" href="../../../api/index.html#src.errors.semantic_error.SemanticError.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">location</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">SourceLocation</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">error_code</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">severity</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">ZHCError</span><span class="o">.</span><span class="n">SEVERITY_ERROR</span><span class="p">,</span>
+        <span class="n">context</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">suggestion</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">symbol_name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">expected_type</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">actual_type</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">scope_info</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        初始化语义分析错误</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            message: 错误消息</span>
+<span class="sd">            location: 错误位置</span>
+<span class="sd">            error_code: 错误代码</span>
+<span class="sd">            severity: 错误严重程度</span>
+<span class="sd">            context: 错误上下文</span>
+<span class="sd">            suggestion: 修复建议</span>
+<span class="sd">            symbol_name: 相关的符号名称</span>
+<span class="sd">            expected_type: 期望的类型</span>
+<span class="sd">            actual_type: 实际的类型</span>
+<span class="sd">            scope_info: 作用域信息</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">symbol_name</span> <span class="o">=</span> <span class="n">symbol_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">expected_type</span> <span class="o">=</span> <span class="n">expected_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">actual_type</span> <span class="o">=</span> <span class="n">actual_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scope_info</span> <span class="o">=</span> <span class="n">scope_info</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">location</span><span class="p">,</span> <span class="n">error_code</span><span class="p">,</span> <span class="n">severity</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">suggestion</span><span class="p">)</span></div>
+
+    
+    <span class="k">def</span><span class="w"> </span><span class="nf">_format_message</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;格式化错误消息，添加类型信息&quot;&quot;&quot;</span>
+        <span class="n">base_message</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_format_message</span><span class="p">()</span>
+        
+        <span class="c1"># 添加符号名称</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbol_name</span><span class="p">:</span>
+            <span class="n">base_message</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">符号: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">symbol_name</span><span class="si">}</span><span class="s2">&quot;</span>
+        
+        <span class="c1"># 添加类型信息</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">expected_type</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">actual_type</span><span class="p">:</span>
+            <span class="n">base_message</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">期望类型: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">expected_type</span><span class="si">}</span><span class="s2">, 实际类型: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">actual_type</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">expected_type</span><span class="p">:</span>
+            <span class="n">base_message</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">期望类型: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">expected_type</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">actual_type</span><span class="p">:</span>
+            <span class="n">base_message</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">实际类型: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">actual_type</span><span class="si">}</span><span class="s2">&quot;</span>
+        
+        <span class="k">return</span> <span class="n">base_message</span>
+    
+<div class="viewcode-block" id="SemanticError.to_dict">
+<a class="viewcode-back" href="../../../api/index.html#src.errors.semantic_error.SemanticError.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;转换为字典格式&quot;&quot;&quot;</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+        <span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="s2">&quot;symbol_name&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbol_name</span><span class="p">,</span>
+            <span class="s2">&quot;expected_type&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">expected_type</span><span class="p">,</span>
+            <span class="s2">&quot;actual_type&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">actual_type</span><span class="p">,</span>
+            <span class="s2">&quot;scope_info&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">scope_info</span><span class="p">,</span>
+        <span class="p">})</span>
+        <span class="k">return</span> <span class="n">data</span></div>
+</div>
+
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># 预定义的语义错误代码</span>
+<span class="c1"># ============================================================================</span>
+
+<span class="c1"># S001-S010: 类型相关错误</span>
+<span class="n">SEMANTIC_TYPE_MISMATCH</span> <span class="o">=</span> <span class="s2">&quot;S001&quot;</span>  <span class="c1"># 类型不匹配</span>
+<span class="n">SEMANTIC_INVALID_TYPE</span> <span class="o">=</span> <span class="s2">&quot;S002&quot;</span>  <span class="c1"># 无效的类型</span>
+<span class="n">SEMANTIC_INCOMPATIBLE_TYPES</span> <span class="o">=</span> <span class="s2">&quot;S003&quot;</span>  <span class="c1"># 类型不兼容</span>
+<span class="n">SEMANTIC_MISSING_TYPE</span> <span class="o">=</span> <span class="s2">&quot;S004&quot;</span>  <span class="c1"># 缺少类型声明</span>
+<span class="n">SEMANTIC_INVALID_CAST</span> <span class="o">=</span> <span class="s2">&quot;S005&quot;</span>  <span class="c1"># 无效的类型转换</span>
+
+<span class="c1"># S011-S020: 变量相关错误</span>
+<span class="n">SEMANTIC_UNDEFINED_VARIABLE</span> <span class="o">=</span> <span class="s2">&quot;S011&quot;</span>  <span class="c1"># 未定义的变量</span>
+<span class="n">SEMANTIC_DUPLICATE_VARIABLE</span> <span class="o">=</span> <span class="s2">&quot;S012&quot;</span>  <span class="c1"># 重复定义的变量</span>
+<span class="n">SEMANTIC_VARIABLE_NOT_INITIALIZED</span> <span class="o">=</span> <span class="s2">&quot;S013&quot;</span>  <span class="c1"># 变量未初始化</span>
+<span class="n">SEMANTIC_CONSTANT_MODIFICATION</span> <span class="o">=</span> <span class="s2">&quot;S014&quot;</span>  <span class="c1"># 常量被修改</span>
+
+<span class="c1"># S021-S030: 函数相关错误</span>
+<span class="n">SEMANTIC_UNDEFINED_FUNCTION</span> <span class="o">=</span> <span class="s2">&quot;S021&quot;</span>  <span class="c1"># 未定义的函数</span>
+<span class="n">SEMANTIC_DUPLICATE_FUNCTION</span> <span class="o">=</span> <span class="s2">&quot;S022&quot;</span>  <span class="c1"># 重复定义的函数</span>
+<span class="n">SEMANTIC_INVALID_RETURN_TYPE</span> <span class="o">=</span> <span class="s2">&quot;S023&quot;</span>  <span class="c1"># 无效的返回类型</span>
+<span class="n">SEMANTIC_PARAMETER_MISMATCH</span> <span class="o">=</span> <span class="s2">&quot;S024&quot;</span>  <span class="c1"># 参数不匹配</span>
+<span class="n">SEMANTIC_MISSING_RETURN</span> <span class="o">=</span> <span class="s2">&quot;S025&quot;</span>  <span class="c1"># 缺少返回语句</span>
+
+<span class="c1"># S031-S040: 作用域相关错误</span>
+<span class="n">SEMANTIC_SCOPE_ERROR</span> <span class="o">=</span> <span class="s2">&quot;S031&quot;</span>  <span class="c1"># 作用域错误</span>
+<span class="n">SEMANTIC_VARIABLE_OUT_OF_SCOPE</span> <span class="o">=</span> <span class="s2">&quot;S032&quot;</span>  <span class="c1"># 变量超出作用域</span>
+<span class="n">SEMANTIC_INVALID_ACCESS</span> <span class="o">=</span> <span class="s2">&quot;S033&quot;</span>  <span class="c1"># 无效的访问</span>
+
+<span class="c1"># S041-S050: 结构体/联合体相关错误</span>
+<span class="n">SEMANTIC_UNDEFINED_STRUCT</span> <span class="o">=</span> <span class="s2">&quot;S041&quot;</span>  <span class="c1"># 未定义的结构体</span>
+<span class="n">SEMANTIC_DUPLICATE_STRUCT</span> <span class="o">=</span> <span class="s2">&quot;S042&quot;</span>  <span class="c1"># 重复定义的结构体</span>
+<span class="n">SEMANTIC_INVALID_MEMBER</span> <span class="o">=</span> <span class="s2">&quot;S043&quot;</span>  <span class="c1"># 无效的成员访问</span>
+<span class="n">SEMANTIC_MISSING_MEMBER</span> <span class="o">=</span> <span class="s2">&quot;S044&quot;</span>  <span class="c1"># 缺少成员</span>
+
+<span class="c1"># S051-S060: 数组相关错误</span>
+<span class="n">SEMANTIC_INVALID_ARRAY_INDEX</span> <span class="o">=</span> <span class="s2">&quot;S051&quot;</span>  <span class="c1"># 无效的数组索引</span>
+<span class="n">SEMANTIC_ARRAY_INDEX_OUT_OF_RANGE</span> <span class="o">=</span> <span class="s2">&quot;S052&quot;</span>  <span class="c1"># 数组索引越界</span>
+<span class="n">SEMANTIC_INVALID_ARRAY_SIZE</span> <span class="o">=</span> <span class="s2">&quot;S053&quot;</span>  <span class="c1"># 无效的数组大小</span>
+
+<span class="c1"># S061-S070: 指针相关错误</span>
+<span class="n">SEMANTIC_NULL_POINTER</span> <span class="o">=</span> <span class="s2">&quot;S061&quot;</span>  <span class="c1"># 空指针错误</span>
+<span class="n">SEMANTIC_INVALID_POINTER_OPERATION</span> <span class="o">=</span> <span class="s2">&quot;S062&quot;</span>  <span class="c1"># 无效的指针操作</span>
+<span class="n">SEMANTIC_POINTER_TYPE_MISMATCH</span> <span class="o">=</span> <span class="s2">&quot;S063&quot;</span>  <span class="c1"># 指针类型不匹配</span>
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># 便捷工厂函数</span>
+<span class="c1"># ============================================================================</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">type_mismatch</span><span class="p">(</span>
+    <span class="n">expected</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">actual</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">location</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">SourceLocation</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SemanticError</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    创建类型不匹配错误</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        expected: 期望的类型</span>
+<span class="sd">        actual: 实际的类型</span>
+<span class="sd">        location: 错误位置</span>
+<span class="sd">        context: 错误上下文</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        SemanticError 实例</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">SemanticError</span><span class="p">(</span>
+        <span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;类型不匹配: 期望 </span><span class="si">{</span><span class="n">expected</span><span class="si">}</span><span class="s2">, 实际 </span><span class="si">{</span><span class="n">actual</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="n">location</span><span class="o">=</span><span class="n">location</span><span class="p">,</span>
+        <span class="n">error_code</span><span class="o">=</span><span class="n">SEMANTIC_TYPE_MISMATCH</span><span class="p">,</span>
+        <span class="n">expected_type</span><span class="o">=</span><span class="n">expected</span><span class="p">,</span>
+        <span class="n">actual_type</span><span class="o">=</span><span class="n">actual</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+        <span class="n">suggestion</span><span class="o">=</span><span class="s2">&quot;请进行类型转换或检查表达式类型&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">undefined_variable</span><span class="p">(</span>
+    <span class="n">variable_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">location</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">SourceLocation</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SemanticError</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    创建未定义变量错误</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        variable_name: 未定义的变量名</span>
+<span class="sd">        location: 错误位置</span>
+<span class="sd">        context: 错误上下文</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        SemanticError 实例</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">SemanticError</span><span class="p">(</span>
+        <span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;未定义的变量 &#39;</span><span class="si">{</span><span class="n">variable_name</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="p">,</span>
+        <span class="n">location</span><span class="o">=</span><span class="n">location</span><span class="p">,</span>
+        <span class="n">error_code</span><span class="o">=</span><span class="n">SEMANTIC_UNDEFINED_VARIABLE</span><span class="p">,</span>
+        <span class="n">symbol_name</span><span class="o">=</span><span class="n">variable_name</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+        <span class="n">suggestion</span><span class="o">=</span><span class="s2">&quot;请检查变量是否已声明，或检查作用域是否正确&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">undefined_function</span><span class="p">(</span>
+    <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">location</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">SourceLocation</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SemanticError</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    创建未定义函数错误</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        function_name: 未定义的函数名</span>
+<span class="sd">        location: 错误位置</span>
+<span class="sd">        context: 错误上下文</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        SemanticError 实例</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">SemanticError</span><span class="p">(</span>
+        <span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;未定义的函数 &#39;</span><span class="si">{</span><span class="n">function_name</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="p">,</span>
+        <span class="n">location</span><span class="o">=</span><span class="n">location</span><span class="p">,</span>
+        <span class="n">error_code</span><span class="o">=</span><span class="n">SEMANTIC_UNDEFINED_FUNCTION</span><span class="p">,</span>
+        <span class="n">symbol_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+        <span class="n">suggestion</span><span class="o">=</span><span class="s2">&quot;请检查函数是否已声明，或检查函数名是否正确&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">duplicate_definition</span><span class="p">(</span>
+    <span class="n">symbol_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">symbol_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">location</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">SourceLocation</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SemanticError</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    创建重复定义错误</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        symbol_name: 重复定义的符号名</span>
+<span class="sd">        symbol_type: 符号类型（变量/函数/结构体等）</span>
+<span class="sd">        location: 错误位置</span>
+<span class="sd">        context: 错误上下文</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        SemanticError 实例</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">SemanticError</span><span class="p">(</span>
+        <span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;重复定义的</span><span class="si">{</span><span class="n">symbol_type</span><span class="si">}</span><span class="s2"> &#39;</span><span class="si">{</span><span class="n">symbol_name</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="p">,</span>
+        <span class="n">location</span><span class="o">=</span><span class="n">location</span><span class="p">,</span>
+        <span class="n">error_code</span><span class="o">=</span><span class="n">SEMANTIC_DUPLICATE_VARIABLE</span> <span class="k">if</span> <span class="n">symbol_type</span> <span class="o">==</span> <span class="s2">&quot;变量&quot;</span> <span class="k">else</span> <span class="n">SEMANTIC_DUPLICATE_FUNCTION</span><span class="p">,</span>
+        <span class="n">symbol_name</span><span class="o">=</span><span class="n">symbol_name</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+        <span class="n">suggestion</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;请检查</span><span class="si">{</span><span class="n">symbol_type</span><span class="si">}</span><span class="s2">是否已在当前作用域中定义&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">invalid_member_access</span><span class="p">(</span>
+    <span class="n">struct_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">member_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">location</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">SourceLocation</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SemanticError</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    创建无效成员访问错误</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        struct_name: 结构体名称</span>
+<span class="sd">        member_name: 成员名称</span>
+<span class="sd">        location: 错误位置</span>
+<span class="sd">        context: 错误上下文</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        SemanticError 实例</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">SemanticError</span><span class="p">(</span>
+        <span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;结构体 &#39;</span><span class="si">{</span><span class="n">struct_name</span><span class="si">}</span><span class="s2">&#39; 没有成员 &#39;</span><span class="si">{</span><span class="n">member_name</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="p">,</span>
+        <span class="n">location</span><span class="o">=</span><span class="n">location</span><span class="p">,</span>
+        <span class="n">error_code</span><span class="o">=</span><span class="n">SEMANTIC_INVALID_MEMBER</span><span class="p">,</span>
+        <span class="n">symbol_name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">struct_name</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">member_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+        <span class="n">suggestion</span><span class="o">=</span><span class="s2">&quot;请检查成员名称是否正确&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">parameter_mismatch</span><span class="p">(</span>
+    <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">expected_count</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">actual_count</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">location</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">SourceLocation</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SemanticError</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    创建参数不匹配错误</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        function_name: 函数名称</span>
+<span class="sd">        expected_count: 期望的参数数量</span>
+<span class="sd">        actual_count: 实际的参数数量</span>
+<span class="sd">        location: 错误位置</span>
+<span class="sd">        context: 错误上下文</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        SemanticError 实例</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">SemanticError</span><span class="p">(</span>
+        <span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;函数 &#39;</span><span class="si">{</span><span class="n">function_name</span><span class="si">}</span><span class="s2">&#39; 参数数量不匹配: 期望 </span><span class="si">{</span><span class="n">expected_count</span><span class="si">}</span><span class="s2"> 个, 实际 </span><span class="si">{</span><span class="n">actual_count</span><span class="si">}</span><span class="s2"> 个&quot;</span><span class="p">,</span>
+        <span class="n">location</span><span class="o">=</span><span class="n">location</span><span class="p">,</span>
+        <span class="n">error_code</span><span class="o">=</span><span class="n">SEMANTIC_PARAMETER_MISMATCH</span><span class="p">,</span>
+        <span class="n">symbol_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+        <span class="n">suggestion</span><span class="o">=</span><span class="s2">&quot;请检查函数调用的参数数量是否正确&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="c1"># 导出公共API</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;SemanticError&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_TYPE_MISMATCH&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_INVALID_TYPE&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_INCOMPATIBLE_TYPES&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_MISSING_TYPE&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_INVALID_CAST&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_UNDEFINED_VARIABLE&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_DUPLICATE_VARIABLE&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_VARIABLE_NOT_INITIALIZED&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_CONSTANT_MODIFICATION&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_UNDEFINED_FUNCTION&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_DUPLICATE_FUNCTION&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_INVALID_RETURN_TYPE&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_PARAMETER_MISMATCH&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_MISSING_RETURN&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_SCOPE_ERROR&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_VARIABLE_OUT_OF_SCOPE&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_INVALID_ACCESS&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_UNDEFINED_STRUCT&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_DUPLICATE_STRUCT&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_INVALID_MEMBER&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_MISSING_MEMBER&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_INVALID_ARRAY_INDEX&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_ARRAY_INDEX_OUT_OF_RANGE&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_INVALID_ARRAY_SIZE&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_NULL_POINTER&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_INVALID_POINTER_OPERATION&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;SEMANTIC_POINTER_TYPE_MISMATCH&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;type_mismatch&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;undefined_variable&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;undefined_function&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;duplicate_definition&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;invalid_member_access&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;parameter_mismatch&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, ZHC 开发团队.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

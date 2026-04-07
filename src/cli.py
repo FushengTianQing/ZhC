@@ -250,7 +250,95 @@ class ZHCCompiler:
         print(f"  文件数: {self.stats['files_processed']}")
         print(f"  总行数: {self.stats['total_lines']}")
         print(f"  耗时: {elapsed:.2f}秒")
-
+    
+    def run_static_analysis(self, ast: Any, input_file: Path) -> bool:
+        """
+        运行静态分析
+        
+        Args:
+            ast: AST 树
+            input_file: 输入文件路径
+            
+        Returns:
+            是否成功（无错误）
+        """
+        if not self.config.analyze_enabled:
+            return True
+        
+        if self.config.verbose:
+            print("  🔍 [静态分析] 运行中...")
+        
+        try:
+            # 导入静态分析模块
+            from zhc.analysis import AnalysisScheduler, ReportGenerator, create_default_scheduler
+            
+            # 创建调度器
+            scheduler = create_default_scheduler()
+            
+            # 创建上下文
+            context = {
+                "source_file": str(input_file),
+                "file_name": input_file.name,
+            }
+            
+            # 运行分析
+            scheduler.run_all(ast, context)
+            
+            # 生成报告
+            all_results = scheduler.get_all_results()
+            
+            if all_results:
+                if self.config.verbose or scheduler.has_errors():
+                    generator = ReportGenerator(scheduler.results, scheduler.stats)
+                    
+                    # 根据格式生成报告
+                    format = self.config.analyze_format
+                    if format == "text":
+                        report = generator.generate_text()
+                    elif format == "markdown":
+                        report = generator.generate_markdown()
+                    elif format == "json":
+                        report = generator.generate_json()
+                    elif format == "html":
+                        report = generator.generate_html()
+                    else:
+                        report = generator.generate_text()
+                    
+                    # 输出到文件或控制台
+                    output_file = self.config.analyze_output
+                    if output_file:
+                        Path(output_file).write_text(report, encoding="utf-8")
+                        if self.config.verbose:
+                            print(f"  📄 报告已写入: {output_file}")
+                    else:
+                        print("\n" + report)
+            else:
+                if self.config.verbose:
+                    print("  ✅ [静态分析] 未发现问题")
+            
+            if self.config.verbose:
+                stats = scheduler.stats
+                print(
+                    f"  📊 [静态分析] 完成: "
+                    f"{stats.errors} 错误, {stats.warnings} 警告, "
+                    f"{stats.infos} 提示"
+                )
+            
+            # 如果有错误且 warning_level == "error"，返回 False
+            if scheduler.has_errors() and self.config.warning_level == "error":
+                return False
+            
+            return not scheduler.has_errors()
+            
+        except ImportError as e:
+            if self.config.verbose:
+                print(f"  ⚠️ 静态分析模块未安装: {e}")
+            return True
+        except Exception as e:
+            if self.config.verbose:
+                print(f"  ⚠️ 静态分析执行失败: {e}")
+            return True
+    
     # ------------------------------------------------------------------
     # 私有方法：各编译阶段
     # ------------------------------------------------------------------
@@ -562,6 +650,22 @@ def main() -> int:
 
     # 设置输出路径
     output_dir = Path(args.output) if args.output else None
+
+    # 如果只运行静态分析（不编译）
+    if args.analyze and not args.output:
+        try:
+            content = input_file.read_text(encoding="utf-8")
+            ast, parse_errors = compiler._parse_source(content, input_file)
+            
+            if parse_errors:
+                print(f"解析错误: {parse_errors[:10]}")
+                return 1
+            
+            success = compiler.run_static_analysis(ast, input_file)
+            return 0 if success else 1
+        except Exception as e:
+            print(f"静态分析失败: {e}")
+            return 1
 
     # 执行编译
     if args.project:

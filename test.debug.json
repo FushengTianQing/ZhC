@@ -13,7 +13,7 @@
         "is_prologue_end": false
       },
       {
-        "address": 4176,
+        "address": 4608,
         "line": 10,
         "file": 0,
         "column": 0,
@@ -26,15 +26,26 @@
     "symbols": [
       {
         "tag": "DW_TAG_subprogram",
-        "name": "主函数",
+        "name": "main",
         "type": "空型",
         "low_pc": 4096,
-        "high_pc": 4176,
+        "high_pc": 4608,
         "parameters": [],
         "decl_file": "test.zhc",
         "decl_line": 1,
         "external": false,
         "scope": 0
+      },
+      {
+        "tag": "DW_TAG_variable",
+        "name": "x",
+        "type": "int",
+        "location": 8192,
+        "scope": 0,
+        "decl_file": "test.zhc",
+        "decl_line": 5,
+        "external": false,
+        "artificial": false
       }
     ]
   },

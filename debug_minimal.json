@@ -1,0 +1,87 @@
+{
+  "debug_line": {
+    "file_table": [
+      "test.zhc"
+    ],
+    "line_entries": [
+      {
+        "address": 4096,
+        "line": 1,
+        "file": 0,
+        "column": 0,
+        "is_statement": true,
+        "is_prologue_end": false
+      },
+      {
+        "address": 4608,
+        "line": 10,
+        "file": 0,
+        "column": 0,
+        "is_statement": true,
+        "is_prologue_end": false
+      }
+    ]
+  },
+  "debug_info": {
+    "symbols": [
+      {
+        "tag": "DW_TAG_subprogram",
+        "name": "main",
+        "type": "int",
+        "low_pc": 4096,
+        "high_pc": 4608,
+        "parameters": [],
+        "decl_file": "test.zhc",
+        "decl_line": 1,
+        "external": false,
+        "scope": 0
+      }
+    ]
+  },
+  "debug_abbrev": {
+    "type_table": {
+      "void": {
+        "tag": "DW_TAG_unspecified_type",
+        "name": "void",
+        "byte_size": 0,
+        "encoding": "DW_ATE_void"
+      },
+      "整数型": {
+        "tag": "DW_TAG_base_type",
+        "name": "整数型",
+        "byte_size": 4,
+        "encoding": "DW_ATE_signed"
+      },
+      "浮点型": {
+        "tag": "DW_TAG_base_type",
+        "name": "浮点型",
+        "byte_size": 4,
+        "encoding": "DW_ATE_float"
+      },
+      "双精度型": {
+        "tag": "DW_TAG_base_type",
+        "name": "双精度型",
+        "byte_size": 8,
+        "encoding": "DW_ATE_float"
+      },
+      "字符型": {
+        "tag": "DW_TAG_base_type",
+        "name": "字符型",
+        "byte_size": 1,
+        "encoding": "DW_ATE_signed_char"
+      },
+      "字符串型": {
+        "tag": "DW_TAG_pointer_type",
+        "name": "字符串型",
+        "base_type": "字符型",
+        "byte_size": 8
+      },
+      "布尔型": {
+        "tag": "DW_TAG_base_type",
+        "name": "布尔型",
+        "byte_size": 1,
+        "encoding": "DW_ATE_boolean"
+      }
+    }
+  }
+}

@@ -68,6 +68,14 @@ class DebugConfig:
     dwarf_version: int = 5  # DWARF 版本
 
 
+@dataclass
+class AnalyzeConfig:
+    """静态分析配置"""
+    enabled: bool = False  # 是否运行静态分析
+    format: str = "text"  # 报告格式: text, markdown, json, html
+    output_file: Optional[str] = None  # 输出文件路径（None 表示输出到控制台）
+
+
 # =============================================================================
 # 编译器配置（重构版）
 # =============================================================================
@@ -111,6 +119,9 @@ class CompilerConfig:
     
     # 调试信息配置
     debug: DebugConfig = field(default_factory=DebugConfig)
+    
+    # 静态分析配置
+    analyze: AnalyzeConfig = field(default_factory=AnalyzeConfig)
     
     # 向后兼容参数（仅用于 legacy 模式）
     use_ast: bool = True
@@ -199,6 +210,33 @@ class CompilerConfig:
     @debug_enabled.setter
     def debug_enabled(self, value: bool) -> None:
         self.debug.enabled = value
+    
+    @property
+    def analyze_enabled(self) -> bool:
+        """是否启用静态分析"""
+        return self.analyze.enabled
+    
+    @analyze_enabled.setter
+    def analyze_enabled(self, value: bool) -> None:
+        self.analyze.enabled = value
+    
+    @property
+    def analyze_format(self) -> str:
+        """静态分析报告格式"""
+        return self.analyze.format
+    
+    @analyze_format.setter
+    def analyze_format(self, value: str) -> None:
+        self.analyze.format = value
+    
+    @property
+    def analyze_output(self) -> Optional[str]:
+        """静态分析报告输出文件"""
+        return self.analyze.output_file
+    
+    @analyze_output.setter
+    def analyze_output(self, value: Optional[str]) -> None:
+        self.analyze.output_file = value
     
     @property
     def no_uninit(self) -> bool:
@@ -306,6 +344,11 @@ class CompilerConfig:
             ),
             debug=DebugConfig(
                 enabled=getattr(args, 'debug', False),
+            ),
+            analyze=AnalyzeConfig(
+                enabled=getattr(args, 'analyze', False),
+                format=getattr(args, 'analyze_format', 'text'),
+                output_file=getattr(args, 'analyze_output', None),
             ),
             use_ast=not getattr(args, 'legacy', False),
         )
