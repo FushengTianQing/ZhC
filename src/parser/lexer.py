@@ -142,6 +142,17 @@ class TokenType(Enum):
     COMMA = auto()        # ,
     COLON = auto()        # :
     
+    # 泛型相关分隔符
+    LANGLE = auto()       # < (泛型参数开始)
+    RANGLE = auto()       # > (泛型参数结束)
+    
+    # 泛型关键字
+    GENERIC_TYPE = auto()    # 泛型类型
+    GENERIC_FUNC = auto()    # 泛型函数
+    TYPE_PARAM = auto()      # 类型
+    CONSTRAINT = auto()      # 约束
+    WHERE = auto()           # 其中 (where clause)
+    
     # 特殊
     EOF = auto()          # 文件结束
     UNKNOWN = auto()      # 未知字符
@@ -222,6 +233,13 @@ class Lexer:
         '假': TokenType.FALSE,
         '空': TokenType.NULL,
         '空指针': TokenType.NULL,
+        
+        # 泛型关键字
+        '泛型类型': TokenType.GENERIC_TYPE,
+        '泛型函数': TokenType.GENERIC_FUNC,
+        '类型': TokenType.TYPE_PARAM,
+        '约束': TokenType.CONSTRAINT,
+        '其中': TokenType.WHERE,
     }
     
     def __init__(self, source: str):
@@ -388,7 +406,12 @@ class Lexer:
         return Token(token_type, value, start_line, start_column)
     
     def read_operator(self) -> Optional[Token]:
-        """读取运算符"""
+        """读取运算符
+        
+        注意：< 和 > 在泛型上下文中作为泛型分隔符，
+        在其他上下文中作为比较运算符。
+        词法分析器统一产生 LT/GT Token，由语法分析器根据上下文判断。
+        """
         start_line = self.line
         start_column = self.column
         char = self.current_char()
@@ -422,14 +445,15 @@ class Lexer:
                 return Token(operators[two_char], two_char, start_line, start_column)
         
         # 单字符运算符
+        # < 和 > 统一作为 LT/GT，语法分析器根据上下文判断是否为泛型
         operators = {
             '+': TokenType.PLUS,
             '-': TokenType.MINUS,
             '*': TokenType.STAR,
             '/': TokenType.SLASH,
             '%': TokenType.PERCENT,
-            '<': TokenType.LT,
-            '>': TokenType.GT,
+            '<': TokenType.LT,   # 泛型分隔符或小于运算符
+            '>': TokenType.GT,   # 泛型分隔符或大于运算符
             '=': TokenType.ASSIGN,
             '!': TokenType.NOT,
             '&': TokenType.BIT_AND,
