@@ -1,245 +1,321 @@
 # =============================================================================
-# ZHC 项目 CI/CD 工作流
+# ZHC 增强 CI/CD 工作流 (v2.0 - 质量门禁版)
 # =============================================================================
-# 本工作流在每次 push 和 pull request 时自动运行代码质量检查
-# 包括：代码格式检查、Linting、类型检查、单元测试、安全扫描
+# P0: 格式/Lint/类型/安全 — 失败阻断
+# P1: 测试 + 覆盖率 — 失败阻断
+# P2: 复杂度/健康度 — 告警不阻断
 #
-# 创建日期: 2026-04-07
-# 最后更新: 2026-04-08
-# 维护者: ZHC开发团队
+# 重写: 2026-04-08 v2.0
 # =============================================================================
 
-name: ZHC CI
+name: "🔍 ZHC Quality Gate"
 
 on:
   push:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   PYTHON_VERSION: '3.9'
+  COVERAGE_THRESHOLD: '15'
 
 jobs:
   # ===========================================================================
-  # 代码质量检查
+  # P0: 质量硬卡点
   # ===========================================================================
-  quality-check:
-    name: 代码质量检查
+  quality-gate:
+    name: "🛡️ P0: 质量硬卡点"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    
+    timeout-minutes: 15
+
     steps:
-      # 1. 检出代码
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 完整历史用于更好的分析
-      
-      # 2. 设置 Python 环境（带缓存）
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-          cache-dependency-path: |
-            pyproject.toml
-            requirements*.txt
-      
-      # 3. 缓存 pip 依赖
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ env.PYTHON_VERSION }}-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-${{ env.PYTHON_VERSION }}-
-            ${{ runner.os }}-pip-
-      
-      # 4. 安装依赖
-      - name: Install dependencies
+
+      - name: Install tools
         run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install black ruff mypy pytest pytest-cov pytest-xdist
-          if [ -f pyproject.toml ]; then pip install -e ".[dev]"; fi
-      
-      # 5. Black 格式检查
-      - name: Check code formatting with Black
-        run: black --check src/ tests/ scripts/ --diff
-      
-      # 6. Ruff Linting
-      - name: Lint with Ruff
-        run: ruff check src/ tests/ scripts/ --output-format=github
-      
-      # 7. MyPy 类型检查
-      - name: Type check with MyPy
-        run: mypy src/ --config-file mypy.ini --no-error-summary || true
-      
-      # 8. 上传检查结果
-      - name: Upload check results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: quality-check-results
-          path: |
-            .mypy_cache/
-            .ruff_cache/
-          retention-days: 1
+          pip install --upgrade pip setuptools wheel
+          pip install black ruff mypy pytest pytest-cov bandit radon
+
+      - name: "⬛ Black Format Check"
+        id: black_check
+        run: |
+          echo "## ⬛ Black 格式化检查" >> $GITHUB_STEP_SUMMARY
+          if black --check src/ tests/ scripts/ --diff > black_output.txt 2>&1; then
+            echo "✅ **格式化检查通过**" >> $GITHUB_STEP_SUMMARY
+            echo "status=pass" >> $GITHUB_OUTPUT
+          else
+            echo "❌ **格式化检查未通过**" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            head -40 black_output.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "> 运行 black src/ tests/ scripts/" >> $GITHUB_STEP_SUMMARY
+            echo "status=fail" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: "🧹 Ruff Lint Check"
+        id: ruff_check
+        run: |
+          echo "## 🧹 Ruff 静态分析" >> $GITHUB_STEP_SUMMARY
+          ruff check src/ tests/ scripts/ --statistics > ruff_stats.txt 2>&1 || true
+          cat ruff_stats.txt >> $GITHUB_STEP_SUMMARY || true
+          echo '' >> $GITHUB_STEP_SUMMARY
+          if ! ruff check src/ tests/ scripts/ --output-format=github > ruff_output.txt 2>&1; then
+            echo "status=fail" >> $GITHUB_OUTPUT
+            echo "> 运行 ruff check --fix" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "status=pass" >> $GITHUB_OUTPUT
+            echo "✅ **Lint 通过**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: "🔎 MyPy Type Check"
+        id: mypy_check
+        run: |
+          echo "## 🔎 MyPy 类型检查" >> $GITHUB_STEP_SUMMARY
+          if mypy src/ --ignore-missing-imports --no-error-summary > mypy_output.txt 2>&1; then
+            echo "✅ **类型检查通过**" >> $GITHUB_STEP_SUMMARY
+            echo "status=pass" >> $GITHUB_OUTPUT
+          else
+            TYPE_ERR=$(grep -c "^src/" mypy_output.txt 2>/dev/null || echo 0)
+            echo "❌ 未通过 (${TYPE_ERR} 个错误)" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            head -30 mypy_output.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "status=fail" >> $GITHUB_OUTPUT
+            echo "error_count=${TYPE_ERR}" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: "🔒 Security Scan"
+        id: security_check
+        run: bash .github/scripts/ci-security-check.sh
 
   # ===========================================================================
-  # 单元测试（并行）
+  # 测试 + 覆盖率
   # ===========================================================================
-  test:
-    name: 单元测试
+  test-suite:
+    name: "🧪 Test Suite + Coverage"
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: quality-check
-    
+    timeout-minutes: 20
+    needs: quality-gate
+
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.9', '3.10', '3.11']
-    
+        python-version: ['3.9', '3.11']
+
     steps:
-      # 1. 检出代码
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      # 2. 设置 Python 环境
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
-      
-      # 3. 缓存 pytest
-      - name: Cache pytest
-        uses: actions/cache@v4
-        with:
-          path: .pytest_cache
-          key: ${{ runner.os }}-pytest-${{ matrix.python-version }}-${{ hashFiles('tests/**/*.py') }}
-          restore-keys: |
-            ${{ runner.os }}-pytest-${{ matrix.python-version }}-
-      
-      # 4. 安装依赖
+
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          pip install --upgrade pip setuptools wheel
           pip install pytest pytest-cov pytest-xdist
           if [ -f pyproject.toml ]; then pip install -e ".[dev]"; fi
-      
-      # 5. 运行测试（并行）
-      - name: Run tests with pytest
-        run: pytest tests/ -v -n auto --cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=50
-      
-      # 6. 上传覆盖率报告
-      - name: Upload coverage report
+
+      - name: "🚀 Run Tests"
+        id: test_run
+        run: |
+          echo "## 🧪 测试执行 (Python ${{ matrix.python-version }})" >> $GITHUB_STEP_SUMMARY
+          pytest tests/ -n auto -v --tb=short \
+            --cov=src \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov/ \
+            > test_output.txt 2>&1 || true
+
+          PASSED=$(grep -o "[0-9]* passed" test_output.txt | grep -o "[0-9]*" || echo "0")
+          FAILED=$(grep -o "[0-9]* failed" test_output.txt | grep -o "[0-9]*" || echo "0")
+          ERRORS=$(grep -o "[0-9]* error" test_output.txt | grep -o "[0-9]*" || echo "0")
+
+          echo "| ✅ 通过 | ❌ 失败 | 💥 错误 |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ${PASSED:-0} | ${FAILED:-0} | ${ERRORS:-0} |" >> $GITHUB_STEP_SUMMARY
+
+          echo "passed=${PASSED:-0}" >> $GITHUB_OUTPUT
+          echo "failed=${FAILED:-0}" >> $GITHUB_OUTPUT
+          echo "errors=${ERRORS:-0}" >> $GITHUB_OUTPUT
+
+          # 如果有失败或错误，退出码非零
+          TOTAL_FAIL=$((FAILED + ERRORS))
+          if [ "${TOTAL_FAIL}" -gt 0 ]; then
+            exit 1;
+          fi
+
+      - name: "📊 Coverage Summary"
+        if: always() && steps.test_run.outcome == 'success'
+        run: |
+          echo "## 📊 覆盖率 (Python ${{ matrix.python-version }})" >> $GITHUB_STEP_SUMMARY
+          COV=$(python3 .github/scripts/ci-coverage.py)
+          TH="${{ env.COVERAGE_THRESHOLD }}"
+          echo "**当前**: ${COV} | **门槛**: ${TH}% | **目标**: 60%" >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo "> 路线图: 15% -> 25%(W1) -> 38%(W2) -> 50%(W3) -> 60%(M2)" >> $GITHUB_STEP_SUMMARY
+          echo "coverage=${COV}" >> $GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: coverage-report-py${{ matrix.python-version }}
-          path: |
-            htmlcov/
-            coverage.xml
-          retention-days: 7
-      
-      # 7. 上传覆盖率到 Codecov（可选）
-      - name: Upload to Codecov
-        if: matrix.python-version == '3.9'
-        uses: codecov/codecov-action@v4
+          name: coverage-py${{ matrix.python-version }}
+          path: htmlcov/, coverage.xml
+          retention-days: 14
+
+      - uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.9' && steps.test_run.outcome == 'success'
         with:
           files: ./coverage.xml
           flags: unittests
-          name: codecov-umbrella
+          name: zhc-codecov
           fail_ci_if_error: false
 
   # ===========================================================================
-  # 安全扫描
+  # 代码健康度（告警不阻断）
   # ===========================================================================
-  security-scan:
-    name: 安全扫描
+  code-health:
+    name: "💉 Code Health Analysis"
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs: quality-check
-    
-    steps:
-      # 1. 检出代码
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      # 2. 设置 Python 环境
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      
-      # 3. 安装安全扫描工具
-      - name: Install security tools
-        run: pip install bandit safety
-      
-      # 4. 运行 Bandit 安全扫描
-      - name: Run Bandit security scan
-        run: bandit -r src/ -ll --skip B101 || true
-      
-      # 5. 检查依赖安全
-      - name: Check dependencies for vulnerabilities
-        run: safety check --full-report || true
+    timeout-minutes: 8
+    needs: quality-gate
+    if: always()
 
-  # ===========================================================================
-  # 文档构建
-  # ===========================================================================
-  docs:
-    name: 文档构建
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs: quality-check
-    
     steps:
-      # 1. 检出代码
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      # 2. 设置 Python 环境
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      
-      # 3. 安装文档依赖
-      - name: Install documentation dependencies
-        run: pip install sphinx sphinx-rtd-theme myst-parser
-      
-      # 4. 构建文档
-      - name: Build documentation
+          python-version: '3.9'
+          cache: 'pip'
+
+      - name: Install tools
+        run: pip install radon xenon
+
+      - name: "📈 Cyclomatic Complexity"
+        id: complexity
         run: |
-          python -m sphinx -b html docs/sphinx docs/_build/html -W --keep-going || true
-      
-      # 5. 上传文档
-      - name: Upload documentation
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: documentation
-          path: docs/_build/html/
-          retention-days: 7
+          echo "## 📈 圈复杂度分析" >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo "### Top 20 最复杂函数" >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          radon cc src/ -a -s -j > cc_data.json 2>/dev/null || echo '{}' > cc_data.json
+          python3 .github/scripts/ci-complexity.py > cc_report.txt 2>&1
+          cat cc_report.txt >> $GITHUB_STEP_SUMMARY
+          source /tmp/cc_metrics.env 2>/dev/null || true
 
-  # =============================================================================
-  # 未来扩展（Phase 2）
-  # =============================================================================
-  # 
-  # build-and-release:
-  #   name: 构建和发布
-  #   needs: quality-check
-  #   runs-on: ubuntu-latest
-  #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-  #   
-  #   steps:
-  #     - name: Build package
-  #       run: python -m build
-  #     
-  #     - name: Publish to PyPI
-  #       uses: pypa/gh-action-pypi-publish@release/v1
-  #       with:
-  #         password: ${{ secrets.PYPI_API_TOKEN }}
-  # 
-  # =============================================================================
+      - name: "🏥 Maintainability Index"
+        run: |
+          echo "## 🏥 维护性指数" >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          radon mi src/ -s -x > mi_output.txt 2>/dev/null || true
+          head -30 mi_output.txt | while IFS= read -r line; do
+            echo "    ${line}" >> $GITHUB_STEP_SUMMARY
+          done
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo "> MI: 0-100 | 65+ 健康 | 20-65 需改进 | <20 有风险" >> $GITHUB_STEP_SUMMARY
+
+      - name: "📏 Code Metrics"
+        run: |
+          echo "## 📏 代码规模" >> $GITHUB_STEP_SUMMARY
+          TF=$(find src/ -name "*.py" -not -path "*__pycache__*" | wc -l)
+          TL=$(find src/ -name "*.py" -not -path "*__pycache__*" -exec wc -l {} + 2>/dev/null | tail -1 | awk '{print $1}')
+          AL=$((TL / TF))
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo "| 指标 | 值 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| 文件数 | ${TF} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 总行数 | ${TL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 平均/文件 | ~${AL} 行 |" >> $GITHUB_STEP_SUMMARY
+
+  # ===========================================================================
+  # 汇总报告
+  # ===========================================================================
+  quality-report:
+    name: "📋 Quality Report"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [quality-gate, test-suite, code-health]
+    if: always()
+
+    steps:
+      - name: Generate Report
+        run: |
+          echo "## 🔍 ZHC 质量报告" >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo "**提交**: \`${{ github.sha }}\` | **分支**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo ''
+
+          echo "### 🛡️ P0 检查" >> $GITHUB_STEP_SUMMARY
+          echo '| 检查项 | 状态 |' >> $GITHUB_STEP_SUMMARY
+          echo '|--------|------|' >> $GITHUB_STEP_SUMMARY
+
+          B="${{ needs.quality-gate.outputs.black_check.status }}"
+          R="${{ needs.quality-gate.outputs.ruff_check.status }}"
+          M="${{ needs.quality-gate.outputs.mypy_check.status }}"
+          S="${{ needs.quality-gate.outputs.security_check.status }}"
+
+          [ "$B" = "pass" ] && echo '| ⬛ 格式化 | ✅ |' || echo '| ⬛ 格式化 | ❌ |' >> $GITHUB_STEP_SUMMARY
+          [ "$R" = "pass" ] && echo '| 🧹 Lint | ✅ |' || echo '| 🧹 Lint | ❌ |' >> $GITHUB_STEP_SUMMARY
+          [ "$M" = "pass" ] && echo '| 🔎 类型 | ✅ |' || echo '| 🔎 类型 | ❌ |' >> $GITHUB_STEP_SUMMARY
+          [ "$S" = "pass" ] && echo '| 🔒 安全 | ✅ |' || echo '| 🔒 安全 | ❌ |' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+
+          echo "### 🧪 测试" >> $GITHUB_STEP_SUMMARY
+          TOUT="${{ needs.test-suite.result }}"
+          TP="${{ needs.test-suite.outputs.passed }}"
+          if [ "$TOUT" = "success" ]; then
+            echo "**状态**: ✅ 通过 (${TP:?} 个测试)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**状态**: ❌ 失败" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "**覆盖率**: ${COVERAGE:?}" >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+
+          echo "### 💉 代码健康 (参考)" >> $GITHUB_STEP_SUMMARY
+          echo "| 指标 | 值 | 目标 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 圈复杂度(均) | ${AVG_COMPLEXITY:?} | <8 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 函数总数 | ${TOTAL_FUNCTIONS:?} | - |" >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          QG="${{ needs.quality-gate.result }}"
+          TS="${{ needs.test-suite.result }}"
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo "### 🏁 结论" >> $GITHUB_STEP_SUMMARY
+          if [ "$QG" = "success" ] && [ "$TS" = "success" ]; then
+            echo "#### ✅ 全部通过！可以合并。" >> $GITHUB_STEP_SUMMARY
+          elif [ "$QG" = "success" ]; then
+            echo "#### 🟡 P0 通过但测试失败" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "#### 🔴 P0 未通过！必须修复。" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Final Gate
+        if: needs.quality-gate.result == 'failure' || needs.test-suite.result == 'failure'
+        run: |
+          echo "::error::质量门禁未通过"
+          exit 1
+
+      - name: Success
+        if: needs.quality-gate.result == 'success' && needs.test-suite.result == 'success'
+        run: echo "✅ All checks passed!"

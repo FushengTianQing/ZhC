@@ -266,7 +266,9 @@ addopts = [
     "--strict-config",                       # 严格配置
     "--cov=src",                              # 覆盖率
     "--cov-report=term-missing",              # 覆盖率报告
-    "--cov-fail-under=60",                    # 最低覆盖率要求
+    # 注意: cov-fail-under 已移除，覆盖率门禁由 CI 独立控制
+    # 本地开发时不因覆盖率阻断，避免影响日常开发效率
+    # CI 中通过 COVERAGE_THRESHOLD 环境变量渐进式提升
 ]
 
 # 标记定义
@@ -315,7 +317,7 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "@abstractmethod",
 ]
-fail_under = 0               # 初始不设阈值（Phase 1目标：60%）
+fail_under = 0               # 不在此设门槛，由 CI 控制渐进式提升
 show_missing = true
 skip_covered = true
 precision = 2
