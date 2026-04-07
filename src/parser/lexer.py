@@ -625,6 +625,84 @@ class Lexer:
         """获取错误列表"""
         return self.errors
     
+    def get_source_context(self, line: int, column: int, context_lines: int = 2) -> str:
+        """获取错误位置的源代码上下文
+        
+        Args:
+            line: 行号
+            column: 列号
+            context_lines: 上下文行数（前后各几行）
+        
+        Returns:
+            包含上下文的源代码字符串
+        """
+        source_lines = self.source.split('\n')
+        
+        # 确保行号在有效范围内
+        if line < 1 or line > len(source_lines):
+            return ""
+        
+        # 计算上下文范围
+        start_line = max(0, line - context_lines - 1)
+        end_line = min(len(source_lines), line + context_lines)
+        
+        context_parts = []
+        for i in range(start_line, end_line):
+            line_num = i + 1
+            line_content = source_lines[i]
+            
+            # 标记错误位置
+            if line_num == line:
+                # 在行内容中标记错误列
+                marker = " " * (column - 1) + "^"
+                context_parts.append(f"{line_num:4d}: {line_content}")
+                context_parts.append(f"     {marker}")
+            else:
+                context_parts.append(f"{line_num:4d}: {line_content}")
+        
+        return "\n".join(context_parts)
+    
+    def format_error_message(self, error: LexerError, context_lines: int = 2) -> str:
+        """格式化错误消息，包含源代码上下文
+        
+        Args:
+            error: 词法错误
+            context_lines: 上下文行数
+        
+        Returns:
+            格式化后的错误消息
+        """
+        parts = []
+        
+        # 错误位置
+        if error.location:
+            parts.append(f"--> {error.location.file_path or '<unknown>'}:{error.location.line}:{error.location.column}")
+        else:
+            parts.append(f"--> 行号: {error.location.line if error.location else '?'}:{error.location.column if error.location else '?'}")
+        
+        # 错误代码
+        if error.error_code:
+            parts.append(f"   |")
+        
+        # 源代码上下文
+        if error.location:
+            context = self.get_source_context(error.location.line, error.location.column, context_lines)
+            if context:
+                parts.append(context)
+                parts.append("")
+        
+        # 错误消息
+        parts.append(f"error: {error.message}")
+        
+        # 额外信息
+        if error.character:
+            parts.append(f"  发现的字符: '{error.character}' (U+{ord(error.character):04X})")
+        
+        if error.suggestion:
+            parts.append(f"  建议: {error.suggestion}")
+        
+        return "\n".join(parts)
+    
     def report(self) -> str:
         """生成分析报告"""
         lines = [
