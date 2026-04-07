@@ -16,7 +16,6 @@ from pathlib import Path
 
 # 添加src路径
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "zhpp"))
 
 # 直接导入模块文件
 from opt.function_inline import FunctionInliner, InlineDecision

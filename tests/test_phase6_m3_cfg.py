@@ -521,7 +521,7 @@ class TestCLIIntegration(unittest.TestCase):
         """获取 ZHCCompiler 和 CompilerConfig 类（cli.py 被 cli/ 包目录 shadow，需要特殊导入）"""
         import importlib.util
         spec = importlib.util.spec_from_file_location(
-            'zhpp._cli_impl',
+            'zhc._cli_impl',
             os.path.join(os.path.dirname(__file__), '..', 'src', 'cli.py')
         )
         mod = importlib.util.module_from_spec(spec)

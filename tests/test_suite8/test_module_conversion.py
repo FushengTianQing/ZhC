@@ -34,7 +34,7 @@ except ImportError as e:
     import importlib.util
     
     # 导入模块解析器
-    zhc_path = project_root / 'src/phase3/zhpp_v4_module.py'
+    zhc_path = project_root / 'src/phase3/zhc_v4_module.py'
     spec = importlib.util.spec_from_file_location("zhc_v4_module", zhc_path)
     zhc_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(zhc_module)

@@ -126,7 +126,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, 'src')
 
-from zhpp.parser.module import ModuleParser
+from zhc.parser.module import ModuleParser
 
 test_code = '''
 模块 测试模块 {
@@ -155,7 +155,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, 'src')
 
-from zhpp.parser.scope import ScopeManager, Visibility, ScopeType
+from zhc.parser.scope import ScopeManager, Visibility, ScopeType
 
 print('测试作用域管理器...')
 manager = ScopeManager()

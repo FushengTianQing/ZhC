@@ -10,7 +10,7 @@ import unittest
 import sys
 import os
 
-# 将 src 目录加入 path，以包方式导入 zhpp
+# 将 src 目录加入 path，以包方式导入 zhc
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from zhc.parser.ast_nodes import (

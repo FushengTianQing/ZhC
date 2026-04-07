@@ -1,6 +1,6 @@
 """
 Phase 5 端到端测试
-通过子进程调用 python -m zhpp，验证完整的编译流程
+通过子进程调用 python -m src.__main__，验证完整的编译流程
 """
 import subprocess
 import sys

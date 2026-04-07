@@ -24,13 +24,13 @@ try:
     import importlib.util
     
     spec = importlib.util.spec_from_file_location(
-        "zhpp_v4_module",
-        os.path.join(os.path.dirname(__file__), '../../src/phase3/zhpp_v4_module.py')
+        "zhc_v4_module",
+        os.path.join(os.path.dirname(__file__), '../../src/phase3/zhc_v4_module.py')
     )
-    zhpp_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(zhpp_module)
+    zhc_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(zhc_module)
     
-    from zhpp_v4_module import ModuleParser
+    from zhc_v4_module import ModuleParser
     
     print("✓ 模块解析器导入成功")
     

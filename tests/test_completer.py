@@ -11,7 +11,7 @@ import os
 import tempfile
 
 # 添加模块路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src', 'zhpp'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from package.completion import ZHCCompleter, print_installation_guide
 

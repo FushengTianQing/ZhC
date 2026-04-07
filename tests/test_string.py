@@ -31,7 +31,7 @@ import sys
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(TEST_DIR)
 
-STRING_H_PATH = os.path.join(PROJECT_ROOT, 'src', 'zhpp', 'lib', 'zhc_string.h')
+STRING_H_PATH = os.path.join(PROJECT_ROOT, 'src', 'lib', 'zhc_string.h')
 CLANG = 'clang'
 
 passed = 0

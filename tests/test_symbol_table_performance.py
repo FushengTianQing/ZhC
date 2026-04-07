@@ -27,7 +27,6 @@ if src_path.exists():
     sys.path.insert(0, str(src_path.parent))
     import src
     sys.modules["zhc"] = sys.modules["src"]
-    sys.modules["zhpp"] = sys.modules["src"]
 
 
 class ScopeType(Enum):

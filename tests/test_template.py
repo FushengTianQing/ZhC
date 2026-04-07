@@ -10,7 +10,7 @@ import sys
 import os
 
 # 添加模块路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src', 'zhpp'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from template import TemplateEngine, TemplateVariable, TemplateBlock, TemplateBlockType
 

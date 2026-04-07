@@ -20,7 +20,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _PYTHON = sys.executable
 
 # 使用 python -m src.__main__ 作为编译器入口
-ZHPP_CMD = [_PYTHON, "-m", "src.__main__"]
+ZHC_CMD = [_PYTHON, "-m", "src.__main__"]
 
 
 class TestBasicTypes:
@@ -31,7 +31,7 @@ class TestBasicTypes:
         """每个测试前设置临时目录"""
         self.tmpdir = tmp_path
         # 使用项目入口运行编译器
-        self.zhpp_cmd = list(ZHPP_CMD)
+        self.zhc_cmd = list(ZHC_CMD)
         self.env = os.environ.copy()
     
     def run_compiler(self, zhc_code: str, test_name: str) -> tuple:
@@ -41,7 +41,7 @@ class TestBasicTypes:
         zhc_file.write_text(zhc_code, encoding='utf-8')
         
         # 运行编译器
-        cmd = self.zhpp_cmd + [str(zhc_file)]
+        cmd = self.zhc_cmd + [str(zhc_file)]
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -135,7 +135,7 @@ class TestControlFlow:
     def setup(self, tmp_path):
         """每个测试前设置临时目录"""
         self.tmpdir = tmp_path
-        self.zhpp_cmd = list(ZHPP_CMD)  # 使用统一的编译器入口
+        self.zhc_cmd = list(ZHC_CMD)  # 使用统一的编译器入口
         self.env = os.environ.copy()
     
     def run_compiler(self, zhc_code: str, test_name: str) -> tuple:
@@ -144,7 +144,7 @@ class TestControlFlow:
         zhc_file.write_text(zhc_code, encoding='utf-8')
         
         result = subprocess.run(
-            self.zhpp_cmd + [str(zhc_file)],
+            self.zhc_cmd + [str(zhc_file)],
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
@@ -222,7 +222,7 @@ class TestFunctions:
     def setup(self, tmp_path):
         """每个测试前设置临时目录"""
         self.tmpdir = tmp_path
-        self.zhpp_cmd = list(ZHPP_CMD)  # 使用统一的编译器入口
+        self.zhc_cmd = list(ZHC_CMD)  # 使用统一的编译器入口
         self.env = os.environ.copy()
     
     def run_compiler(self, zhc_code: str, test_name: str) -> tuple:
@@ -231,7 +231,7 @@ class TestFunctions:
         zhc_file.write_text(zhc_code, encoding='utf-8')
         
         result = subprocess.run(
-            self.zhpp_cmd + [str(zhc_file)],
+            self.zhc_cmd + [str(zhc_file)],
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
@@ -297,7 +297,7 @@ class TestAdvancedFeatures:
     def setup(self, tmp_path):
         """每个测试前设置临时目录"""
         self.tmpdir = tmp_path
-        self.zhpp_cmd = list(ZHPP_CMD)  # 使用统一的编译器入口
+        self.zhc_cmd = list(ZHC_CMD)  # 使用统一的编译器入口
         self.env = os.environ.copy()
     
     def run_compiler(self, zhc_code: str, test_name: str) -> tuple:
@@ -306,7 +306,7 @@ class TestAdvancedFeatures:
         zhc_file.write_text(zhc_code, encoding='utf-8')
         
         result = subprocess.run(
-            self.zhpp_cmd + [str(zhc_file)],
+            self.zhc_cmd + [str(zhc_file)],
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,

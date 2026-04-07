@@ -12,7 +12,7 @@ import tempfile
 import shutil
 
 # 添加模块路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src', 'zhpp'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from package import (
     PackageManager,
