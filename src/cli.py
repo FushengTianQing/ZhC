@@ -357,6 +357,7 @@ class ZHCCompiler:
         from zhc.codegen import CCodeGenerator
 
         def run_codegen():
+            """通过 CCodeGenerator 直接从 AST 生成 C 代码"""
             g = CCodeGenerator()
             return g.generate(ast)
 
@@ -373,6 +374,7 @@ class ZHCCompiler:
         from zhc.ir.c_backend import CBackend
 
         def run_ir_gen():
+            """通过 IR 管线生成 C 代码（生成→验证→优化→后端）"""
             gen = IRGenerator()
             ir = gen.generate(ast)
 
