@@ -34,6 +34,22 @@ from .dataflow import (
     analyze_reaching_definitions,
     analyze_available_expressions,
 )
+from .loop_optimizer import (
+    LoopInfo,
+    NaturalLoopDetection,
+    LoopInvariantCodeMotion,
+    StrengthReduction,
+    LoopOptimizer,
+    detect_loops,
+    optimize_loops,
+)
+from .inline_optimizer import (
+    InlineCost,
+    InlineCostModel,
+    FunctionInliner,
+    InlineOptimizer,
+    inline_functions,
+)
 
 __all__ = [
     # Symbol 系统
@@ -87,4 +103,18 @@ __all__ = [
     "analyze_liveness",
     "analyze_reaching_definitions",
     "analyze_available_expressions",
+    # 循环优化
+    "LoopInfo",
+    "NaturalLoopDetection",
+    "LoopInvariantCodeMotion",
+    "StrengthReduction",
+    "LoopOptimizer",
+    "detect_loops",
+    "optimize_loops",
+    # 内联优化
+    "InlineCost",
+    "InlineCostModel",
+    "FunctionInliner",
+    "InlineOptimizer",
+    "inline_functions",
 ]
