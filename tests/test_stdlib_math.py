@@ -98,7 +98,7 @@ int main() {
         
         try:
             # 编译
-            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'zhpp', 'lib')
+            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'lib')
             result = subprocess.run(
                 ['clang', '-o', temp_file.replace('.c', ''), temp_file, '-I', include_dir],
                 capture_output=True,
@@ -206,7 +206,7 @@ int main() {
             temp_file = f.name
         
         try:
-            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'zhpp', 'lib')
+            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'lib')
             result = subprocess.run(
                 ['clang', '-o', temp_file.replace('.c', ''), temp_file, '-I', include_dir],
                 capture_output=True,
@@ -286,7 +286,7 @@ int main() {
             temp_file = f.name
         
         try:
-            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'zhpp', 'lib')
+            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'lib')
             result = subprocess.run(
                 ['clang', '-o', temp_file.replace('.c', ''), temp_file, '-I', include_dir],
                 capture_output=True,
@@ -361,7 +361,7 @@ int main() {
             temp_file = f.name
         
         try:
-            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'zhpp', 'lib')
+            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'lib')
             result = subprocess.run(
                 ['clang', '-o', temp_file.replace('.c', ''), temp_file, '-I', include_dir, '-lm'],
                 capture_output=True,
@@ -470,7 +470,7 @@ int main() {
             temp_file = f.name
         
         try:
-            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'zhpp', 'lib')
+            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'lib')
             result = subprocess.run(
                 ['clang', '-o', temp_file.replace('.c', ''), temp_file, '-I', include_dir, '-lm'],
                 capture_output=True,
@@ -554,7 +554,7 @@ int main() {
             temp_file = f.name
         
         try:
-            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'zhpp', 'lib')
+            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'lib')
             result = subprocess.run(
                 ['clang', '-o', temp_file.replace('.c', ''), temp_file, '-I', include_dir, '-lm'],
                 capture_output=True,
@@ -641,7 +641,7 @@ int main() {
             temp_file = f.name
         
         try:
-            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'zhpp', 'lib')
+            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'lib')
             result = subprocess.run(
                 ['clang', '-o', temp_file.replace('.c', ''), temp_file, '-I', include_dir, '-lm'],
                 capture_output=True,
@@ -740,7 +740,7 @@ int main() {
             temp_file = f.name
         
         try:
-            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'zhpp', 'lib')
+            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'lib')
             result = subprocess.run(
                 ['clang', '-o', temp_file.replace('.c', ''), temp_file, '-I', include_dir, '-lm'],
                 capture_output=True,
@@ -839,7 +839,7 @@ int main() {
             temp_file = f.name
         
         try:
-            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'zhpp', 'lib')
+            include_dir = os.path.join(os.path.dirname(__file__), '..', 'src', 'lib')
             result = subprocess.run(
                 ['clang', '-o', temp_file.replace('.c', ''), temp_file, '-I', include_dir, '-lm'],
                 capture_output=True,

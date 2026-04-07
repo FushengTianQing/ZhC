@@ -518,32 +518,31 @@ class TestCLIIntegration(unittest.TestCase):
     """T3.4: CLI 参数测试"""
 
     def _get_compiler_class(self):
-        """获取 ZHCCompiler 类（cli.py 被 cli/ 包目录 shadow，需要特殊导入）"""
+        """获取 ZHCCompiler 和 CompilerConfig 类（cli.py 被 cli/ 包目录 shadow，需要特殊导入）"""
         import importlib.util
         spec = importlib.util.spec_from_file_location(
             'zhpp._cli_impl',
-            os.path.join(os.path.dirname(__file__), '..', 'src', 'zhpp', 'cli.py')
+            os.path.join(os.path.dirname(__file__), '..', 'src', 'cli.py')
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        return mod.ZHCCompiler
+        return mod.ZHCCompiler, mod.CompilerConfig
 
     def test_cli_args_exist(self):
         """验证 CLI 参数已注册"""
-        ZHCCompiler = self._get_compiler_class()
-        compiler = ZHCCompiler(
-            no_uninit=True,
-            no_unreachable=True
-        )
-        self.assertTrue(compiler.no_uninit)
-        self.assertTrue(compiler.no_unreachable)
+        ZHCCompiler, CompilerConfig = self._get_compiler_class()
+        config = CompilerConfig(no_uninit=True, no_unreachable=True)
+        compiler = ZHCCompiler(config=config)
+        self.assertTrue(compiler.config.no_uninit)
+        self.assertTrue(compiler.config.no_unreachable)
 
     def test_compiler_passes_flags_to_analyzer(self):
         """编译器正确传递标志到 SemanticAnalyzer"""
-        ZHCCompiler = self._get_compiler_class()
-        compiler = ZHCCompiler(no_uninit=True, no_unreachable=True)
-        self.assertTrue(compiler.no_uninit)
-        self.assertTrue(compiler.no_unreachable)
+        ZHCCompiler, CompilerConfig = self._get_compiler_class()
+        config = CompilerConfig(no_uninit=True, no_unreachable=True)
+        compiler = ZHCCompiler(config=config)
+        self.assertTrue(compiler.config.no_uninit)
+        self.assertTrue(compiler.config.no_unreachable)
 
 
 class TestAdapterEdgeCases(unittest.TestCase):

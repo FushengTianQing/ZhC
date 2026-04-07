@@ -19,7 +19,7 @@ def run_compiler(code: str, extra_args=None):
         f.flush()
         tmp_file = f.name
 
-    cmd = [sys.executable, "-m", "zhpp", tmp_file]
+    cmd = [sys.executable, "-m", "src.__main__", tmp_file]
     if extra_args:
         cmd.extend(extra_args)
 
