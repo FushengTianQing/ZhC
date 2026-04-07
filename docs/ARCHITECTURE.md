@@ -1,8 +1,67 @@
 # ZHC 编译器架构设计文档
 
 **版本**: v6.0  
-**更新日期**: 2026-04-03  
+**更新日期**: 2026-04-08  
 **架构师**: 远
+
+---
+
+## 编译流水线架构图
+
+```mermaid
+flowchart TB
+    subgraph 输入
+        A[.zhc 源文件]
+    end
+
+    subgraph 词法分析
+        B[Lexer<br/>Token 分词]
+    end
+
+    subgraph 语法分析
+        C[Parser<br/>AST 构建]
+    end
+
+    subgraph 语义分析
+        D[SemanticAnalyzer<br/>类型检查 + 作用域]
+    end
+
+    subgraph IR 生成
+        E[IRGenerator<br/>AST → IR]
+    end
+
+    subgraph 优化
+        F[IROptimizer<br/>常量折叠 + DCE]
+    end
+
+    subgraph 代码生成
+        G[CBackend<br/>IR → C]
+    end
+
+    subgraph 输出
+        H[.c 文件]
+        I[可执行文件]
+    end
+
+    A --> B --> C --> D --> E --> F --> G
+    G --> H
+    H --> I
+
+    style A fill:#e1f5fe
+    style H fill:#c8e6c9
+    style I fill:#a5d6a7
+```
+
+### 阶段详细说明
+
+| 阶段 | 组件 | 输入 | 输出 | 主要功能 |
+|:-----|:-----|:-----|:-----|:---------|
+| 词法分析 | Lexer | 源代码 | Token 序列 | 识别关键字、标识符、运算符 |
+| 语法分析 | Parser | Token 序列 | AST | 构建抽象语法树 |
+| 语义分析 | SemanticAnalyzer | AST | 带类型的 AST | 类型检查、作用域分析、符号解析 |
+| IR 生成 | IRGenerator | AST | ZHC IR | 生成中间表示 |
+| 优化 | IROptimizer | ZHC IR | 优化后的 IR | 常量折叠、死代码消除 |
+| 代码生成 | CBackend | IR | C 代码 | 生成目标代码 |
 
 ---
 
@@ -283,53 +342,109 @@ python3 -m src.__main__ doc api/
 
 ### 4.1 模块依赖关系图
 
-```
-                  ┌──────────────┐
-                  │   CLI入口    │
-                  │  (__main__)  │
-                  └──────┬───────┘
-                         │
-                  ┌──────▼───────┐
-                  │  编译流水线   │
-                  │  (pipeline)  │
-                  └──────┬───────┘
-                         │
-        ┌────────────────┼────────────────┐
-        │                │                │
-   ┌────▼────┐      ┌────▼────┐      ┌────▼────┐
-   │ 解析器   │      │ 分析器  │      │ 转换器   │
-   │(parser) │      │(analyzer)│     │(converter)│
-   └────┬────┘      └────┬────┘      └────┬────┘
-        │                │                │
-        │         ┌──────▼──────┐         │
-        │         │ 依赖解析器   │         │
-        └────────►│(dependency) │◄────────┘
-                  └──────┬──────┘
-                         │
-                  ┌──────▼───────┐
-                  │   缓存系统   │
-                  │   (cache)    │
-                  └──────────────┘
+```mermaid
+flowchart TB
+    subgraph 前端
+        CLI[CLI 入口<br/>cli.py]
+        KW[关键词映射<br/>keywords.py]
+    end
+
+    subgraph 核心
+        PP[Parser<br/>parser/]
+        SA[SemanticAnalyzer<br/>semantic/]
+        IR[IRGenerator<br/>ir/]
+        CG[CodeGenerator<br/>codegen/]
+    end
+
+    subgraph 支持
+        AP[API 模块<br/>api/]
+        CFG[配置模块<br/>config/]
+        UT[工具模块<br/>utils/]
+        ERR[错误模块<br/>errors/]
+    end
+
+    CLI --> PP
+    CLI --> SA
+    CLI --> IR
+    CLI --> CG
+    CLI --> AP
+    CLI --> CFG
+
+    KW --> PP
+    KW --> SA
+
+    PP --> SA
+    SA --> IR
+    IR --> CG
+
+    SA --> ERR
+    CG --> ERR
+    UT --> CFG
+
+    style CLI fill:#ff9800,color:#fff
+    style PP fill:#2196f3,color:#fff
+    style SA fill:#4caf50,color:#fff
+    style IR fill:#9c27b0,color:#fff
+    style CG fill:#f44336,color:#fff
 ```
 
 ### 4.2 编译数据流
 
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant CLI as CLI
+    participant Lexer as 词法分析
+    participant Parser as 语法分析
+    participant Semantic as 语义分析
+    participant IR as IR 生成
+    participant Codegen as 代码生成
+    participant Output as 输出
+
+    User->>CLI: 编译 hello.zhc
+    CLI->>Lexer: 源代码
+    Lexer->>Parser: Token 序列
+    Parser->>Semantic: AST
+    Semantic->>IR: 带类型的 AST
+    IR->>Codegen: ZHC IR
+    Codegen->>Output: .c 文件
+    Output-->>User: 编译完成
+
+    Note over Lexer,Output: 错误处理：任意阶段失败都返回 CompilationResult
 ```
-输入: main.zhc
-  │
-  ├─► [词法分析] 识别中文关键词
-  │
-  ├─► [语法分析] 构建AST
-  │
-  ├─► [语义分析] 类型检查、作用域检查
-  │
-  ├─► [依赖解析] 确定编译顺序
-  │
-  ├─► [代码转换] 中文语法 → C代码
-  │
-  ├─► [代码生成] 生成 .h 和 .c 文件
-  │
-  └─► [C编译] clang/gcc → 可执行文件
+
+### 4.3 API 数据流
+
+```mermaid
+flowchart LR
+    subgraph 输入层
+        CLI[CLI 入口]
+        API[API 入口]
+    end
+
+    subgraph 配置层
+        CC[CompilerConfig]
+        SC[SemanticConfig]
+        OC[OutputConfig]
+        CAC[CacheConfig]
+    end
+
+    subgraph 结果层
+        CR[CompilationResult]
+        CS[CompilationStats]
+    end
+
+    CLI --> CC
+    API --> CC
+    CC --> SC
+    CC --> OC
+    CC --> CAC
+    SC --> CR
+    OC --> CR
+    CAC --> CS
+
+    style CR fill:#4caf50,color:#fff
+    style CS fill:#2196f3,color:#fff
 ```
 
 ---
@@ -458,4 +573,67 @@ tests/
 ---
 
 **文档维护者**: 远  
-**最后更新**: 2026-04-03
+**最后更新**: 2026-04-08
+
+---
+
+## 十、Phase 1-5 架构演进记录
+
+### Phase 1: 项目初始化
+- **时间**: 2026-03
+- **主要变化**:
+  - 创建基础项目结构
+  - 实现词法分析器 (Lexer)
+  - 实现基础语法分析器 (Parser)
+
+### Phase 2: 类系统支持
+- **时间**: 2026-03
+- **主要变化**:
+  - 添加类语法解析 (`parser/class_.py`)
+  - 实现继承转换 (`converter/inheritance.py`)
+  - 添加虚函数支持 (`converter/virtual.py`)
+  - 添加运算符重载 (`converter/operator.py`)
+
+### Phase 3: 模块系统
+- **时间**: 2026-03
+- **主要变化**:
+  - 实现模块解析 (`parser/module.py`)
+  - 实现导入/导出机制
+  - 添加作用域管理 (`parser/scope.py`)
+  - 实现依赖解析 (`analyzer/dependency.py`)
+
+### Phase 4: 内存安全增强
+- **时间**: 2026-03
+- **主要变化**:
+  - 添加内存语法解析 (`parser/memory.py`)
+  - 实现内存安全分析 (`analyzer/memory_safety.py`)
+  - 添加智能指针支持 (`types/smart_ptr.py`)
+  - 实现内存转换 (`converter/memory.py`)
+
+### Phase 5: 重构与优化
+- **时间**: 2026-04-07 ~ 2026-04-08
+- **主要变化**:
+  - 创建统一 API 模块 (`src/api/`)
+  - 重构配置系统 (Configuration Groups 模式)
+  - 引入 Dispatch Table 模式
+  - 优化圈复杂度 (9.5 → 8.0)
+  - 质量评分提升 (65 → 70)
+  - **新增模块**:
+    - `src/api/` - API 模块 (CompilationResult, CompilationStats)
+    - `src/utils/` - 工具模块 (file_utils, string_utils, error_utils)
+
+### Phase 6: 文档体系（进行中）
+- **时间**: 2026-04-08
+- **主要变化**:
+  - 配置 Sphinx 文档系统
+  - 创建 API 参考文档
+  - 编写开发者指南
+  - 完善架构文档
+
+### Phase 7: DevOps 流程（计划中）
+- **时间**: 2026-04-08 之后
+- **计划变化**:
+  - 增强 CI/CD 流程
+  - 添加 Issue/PR 模板
+  - 实现自动化发布
+  - 添加 CHANGELOG 自动生成

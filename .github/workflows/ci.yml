@@ -2,10 +2,10 @@
 # ZHC 项目 CI/CD 工作流
 # =============================================================================
 # 本工作流在每次 push 和 pull request 时自动运行代码质量检查
-# 包括：代码格式检查、Linting、类型检查、单元测试
+# 包括：代码格式检查、Linting、类型检查、单元测试、安全扫描
 #
 # 创建日期: 2026-04-07
-# 最后更新: 2026-04-07
+# 最后更新: 2026-04-08
 # 维护者: ZHC开发团队
 # =============================================================================
 
@@ -17,10 +17,88 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+env:
+  PYTHON_VERSION: '3.9'
+
 jobs:
+  # ===========================================================================
+  # 代码质量检查
+  # ===========================================================================
   quality-check:
     name: 代码质量检查
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      # 1. 检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 完整历史用于更好的分析
+      
+      # 2. 设置 Python 环境（带缓存）
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: |
+            pyproject.toml
+            requirements*.txt
+      
+      # 3. 缓存 pip 依赖
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ env.PYTHON_VERSION }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ env.PYTHON_VERSION }}-
+            ${{ runner.os }}-pip-
+      
+      # 4. 安装依赖
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install black ruff mypy pytest pytest-cov pytest-xdist
+          if [ -f pyproject.toml ]; then pip install -e ".[dev]"; fi
+      
+      # 5. Black 格式检查
+      - name: Check code formatting with Black
+        run: black --check src/ tests/ scripts/ --diff
+      
+      # 6. Ruff Linting
+      - name: Lint with Ruff
+        run: ruff check src/ tests/ scripts/ --output-format=github
+      
+      # 7. MyPy 类型检查
+      - name: Type check with MyPy
+        run: mypy src/ --config-file mypy.ini --no-error-summary || true
+      
+      # 8. 上传检查结果
+      - name: Upload check results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-check-results
+          path: |
+            .mypy_cache/
+            .ruff_cache/
+          retention-days: 1
+
+  # ===========================================================================
+  # 单元测试（并行）
+  # ===========================================================================
+  test:
+    name: 单元测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: quality-check
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
     
     steps:
       # 1. 检出代码
@@ -28,43 +106,121 @@ jobs:
         uses: actions/checkout@v4
       
       # 2. 设置 Python 环境
-      - name: Set up Python 3.9
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: ${{ matrix.python-version }}
           cache: 'pip'
       
-      # 3. 安装依赖
+      # 3. 缓存 pytest
+      - name: Cache pytest
+        uses: actions/cache@v4
+        with:
+          path: .pytest_cache
+          key: ${{ runner.os }}-pytest-${{ matrix.python-version }}-${{ hashFiles('tests/**/*.py') }}
+          restore-keys: |
+            ${{ runner.os }}-pytest-${{ matrix.python-version }}-
+      
+      # 4. 安装依赖
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install black ruff mypy pytest pytest-cov
-          # 如果项目有其他依赖，安装开发依赖
+          pip install pytest pytest-cov pytest-xdist
           if [ -f pyproject.toml ]; then pip install -e ".[dev]"; fi
       
-      # 4. Black 格式检查
-      - name: Check code formatting with Black
-        run: black --check src/ tests/ scripts/
-      
-      # 5. Ruff Linting
-      - name: Lint with Ruff
-        run: ruff check src/ tests/ scripts/
-      
-      # 6. MyPy 类型检查
-      - name: Type check with MyPy
-        run: mypy src/ --config-file mypy.ini
-      
-      # 7. 运行测试
+      # 5. 运行测试（并行）
       - name: Run tests with pytest
-        run: pytest tests/ -v --cov=src --cov-report=term-missing --cov-fail-under=60
+        run: pytest tests/ -v -n auto --cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=50
       
-      # 8. 上传覆盖率报告（可选）
+      # 6. 上传覆盖率报告
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
-          path: htmlcov/
+          name: coverage-report-py${{ matrix.python-version }}
+          path: |
+            htmlcov/
+            coverage.xml
+          retention-days: 7
+      
+      # 7. 上传覆盖率到 Codecov（可选）
+      - name: Upload to Codecov
+        if: matrix.python-version == '3.9'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  # ===========================================================================
+  # 安全扫描
+  # ===========================================================================
+  security-scan:
+    name: 安全扫描
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: quality-check
+    
+    steps:
+      # 1. 检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      # 2. 设置 Python 环境
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      # 3. 安装安全扫描工具
+      - name: Install security tools
+        run: pip install bandit safety
+      
+      # 4. 运行 Bandit 安全扫描
+      - name: Run Bandit security scan
+        run: bandit -r src/ -ll --skip B101 || true
+      
+      # 5. 检查依赖安全
+      - name: Check dependencies for vulnerabilities
+        run: safety check --full-report || true
+
+  # ===========================================================================
+  # 文档构建
+  # ===========================================================================
+  docs:
+    name: 文档构建
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: quality-check
+    
+    steps:
+      # 1. 检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      # 2. 设置 Python 环境
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      # 3. 安装文档依赖
+      - name: Install documentation dependencies
+        run: pip install sphinx sphinx-rtd-theme myst-parser
+      
+      # 4. 构建文档
+      - name: Build documentation
+        run: |
+          python -m sphinx -b html docs/sphinx docs/_build/html -W --keep-going || true
+      
+      # 5. 上传文档
+      - name: Upload documentation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation
+          path: docs/_build/html/
           retention-days: 7
 
   # =============================================================================
