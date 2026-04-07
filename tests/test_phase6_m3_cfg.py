@@ -531,7 +531,9 @@ class TestCLIIntegration(unittest.TestCase):
     def test_cli_args_exist(self):
         """验证 CLI 参数已注册"""
         ZHCCompiler, CompilerConfig = self._get_compiler_class()
-        config = CompilerConfig(no_uninit=True, no_unreachable=True)
+        # 使用新的配置分组方式
+        from src.config import SemanticConfig
+        config = CompilerConfig(semantic=SemanticConfig(check_uninit=False, check_unreachable=False))
         compiler = ZHCCompiler(config=config)
         self.assertTrue(compiler.config.no_uninit)
         self.assertTrue(compiler.config.no_unreachable)
@@ -539,7 +541,9 @@ class TestCLIIntegration(unittest.TestCase):
     def test_compiler_passes_flags_to_analyzer(self):
         """编译器正确传递标志到 SemanticAnalyzer"""
         ZHCCompiler, CompilerConfig = self._get_compiler_class()
-        config = CompilerConfig(no_uninit=True, no_unreachable=True)
+        # 使用新的配置分组方式
+        from src.config import SemanticConfig
+        config = CompilerConfig(semantic=SemanticConfig(check_uninit=False, check_unreachable=False))
         compiler = ZHCCompiler(config=config)
         self.assertTrue(compiler.config.no_uninit)
         self.assertTrue(compiler.config.no_unreachable)

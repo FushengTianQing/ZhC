@@ -13,10 +13,11 @@ import sys
 import argparse
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, List
 
 from .config import CompilerConfig
 from .cli_parser import build_arg_parser, validate_input
+from .api.result import CompilationResult
 
 # 尝试导入高级功能
 HAS_MODULE_SYSTEM = False
@@ -91,7 +92,7 @@ class ZHCCompiler:
 
     def compile_single_file(
         self, input_file: Path, output_dir: Optional[Path] = None
-    ) -> bool:
+    ) -> CompilationResult:
         """编译单个文件（AST 模式）
 
         完整流水线：读取源码 → 词法/语法分析 → 语义验证 → 代码生成 → 写入文件
@@ -101,8 +102,12 @@ class ZHCCompiler:
             output_dir: 输出目录（None则输出到同目录）
 
         Returns:
-            编译是否成功
+            CompilationResult 包含编译结果、错误、警告等信息
         """
+        start_time = time.time()
+        errors: List[str] = []
+        warnings: List[str] = []
+        
         if self.config.verbose:
             print(f"📄 [AST] 编译: {input_file}")
 
@@ -110,22 +115,42 @@ class ZHCCompiler:
             content = input_file.read_text(encoding="utf-8")
 
             # 阶段1：词法 + 语法分析 → AST
-            ast, errors = self._parse_source(content, input_file)
-            if errors:
-                self._report_parse_errors(errors)
-                return False
+            ast, parse_errors = self._parse_source(content, input_file)
+            if parse_errors:
+                errors.extend(str(e) for e in parse_errors[:10])
+                self._report_parse_errors(parse_errors)
+                return CompilationResult.failure_result(
+                    input_file=input_file,
+                    errors=errors,
+                    elapsed_time=time.time() - start_time
+                )
 
             # 阶段1.5：增量AST diff（与上次编译结果对比）
             self._run_incremental_diff(input_file, ast)
 
             # 阶段2：语义验证
-            if not self._run_semantic_check(ast, input_file):
-                return False
+            semantic_result = self._run_semantic_check_with_result(ast, input_file)
+            if not semantic_result["success"]:
+                errors.extend(semantic_result.get("errors", []))
+                warnings.extend(semantic_result.get("warnings", []))
+                return CompilationResult.failure_result(
+                    input_file=input_file,
+                    errors=errors,
+                    warnings=warnings,
+                    elapsed_time=time.time() - start_time
+                )
+            warnings.extend(semantic_result.get("warnings", []))
 
             # 阶段3：代码生成 (AST→C 或 AST→IR→C)
             c_code = self._generate_code(ast)
             if c_code is None:
-                return False
+                errors.append("代码生成失败")
+                return CompilationResult.failure_result(
+                    input_file=input_file,
+                    errors=errors,
+                    warnings=warnings,
+                    elapsed_time=time.time() - start_time
+                )
 
             # 阶段4：写入输出
             output_file = self._resolve_output_path(input_file, output_dir)
@@ -138,15 +163,26 @@ class ZHCCompiler:
                 print(f"  [AST] 转换完成: {input_file} -> {output_file}")
 
             self._update_stats(len(content.splitlines()))
-            return True
+            
+            return CompilationResult.success_result(
+                input_file=input_file,
+                output_files=[output_file],
+                elapsed_time=time.time() - start_time,
+                stats={"lines_processed": len(content.splitlines())}
+            )
 
         except Exception as e:
             self._handle_compile_error(e, input_file)
-            return False
+            errors.append(str(e))
+            return CompilationResult.failure_result(
+                input_file=input_file,
+                errors=errors,
+                elapsed_time=time.time() - start_time
+            )
 
     def compile_module_project(
         self, input_file: Path, output_dir: Optional[Path] = None
-    ) -> bool:
+    ) -> CompilationResult:
         """编译模块项目（AST 模式）
 
         使用 CompilationPipeline 处理多文件模块项目。
@@ -156,8 +192,10 @@ class ZHCCompiler:
             output_dir: 输出目录
 
         Returns:
-            编译是否成功
+            CompilationResult 包含编译结果、错误、警告等信息
         """
+        start_time = time.time()
+        
         if self.config.verbose:
             print(f"📁 [AST 模块项目] 编译: {input_file}")
 
@@ -167,14 +205,35 @@ class ZHCCompiler:
             success = pipeline.compile_project([str(input_file)])
             if self.config.verbose:
                 print(f"  [AST 模块项目] {'成功' if success else '失败'}")
-            return success
+            
+            if success:
+                output_files = []
+                if output_dir:
+                    output_files = [output_dir / input_file.name.replace(".zhc", ".c")]
+                else:
+                    output_files = [input_file.with_suffix(".c")]
+                    
+                return CompilationResult.success_result(
+                    input_file=input_file,
+                    output_files=output_files,
+                    elapsed_time=time.time() - start_time
+                )
+            else:
+                return CompilationResult.failure_result(
+                    input_file=input_file,
+                    errors=["模块项目编译失败"],
+                    elapsed_time=time.time() - start_time
+                )
         except Exception as e:
             if self.config.verbose:
                 import traceback
-
                 traceback.print_exc()
             print(f"  [AST 模块项目] 编译失败: {e}")
-            return False
+            return CompilationResult.failure_result(
+                input_file=input_file,
+                errors=[str(e)],
+                elapsed_time=time.time() - start_time
+            )
 
     def clean_cache(self) -> None:
         """清理编译缓存（包括增量AST缓存）"""
@@ -273,6 +332,56 @@ class ZHCCompiler:
                 f"符号 {stats['symbols_added']} 个)"
             )
         return True
+
+    def _run_semantic_check_with_result(self, ast, input_file: Path) -> dict:
+        """阶段2：语义验证，返回包含错误和警告的结果字典
+        
+        Returns:
+            dict: {"success": bool, "errors": List[str], "warnings": List[str]}
+        """
+        result = {"success": True, "errors": [], "warnings": []}
+        
+        if self.config.skip_semantic:
+            return result
+
+        if self.config.verbose:
+            print("  🔍 [语义验证] 分析中...")
+
+        from zhc.semantic import SemanticAnalyzer
+
+        validator = SemanticAnalyzer()
+        self._configure_validator(validator)
+        validator.analyze_file(ast, input_file.name)
+
+        # 检查错误
+        errors = validator.get_errors()
+        if errors:
+            result["errors"] = [str(e) for e in errors[:10]]
+            print(validator.format_errors())
+            if len(errors) > CompilerConfig.MAX_DISPLAY_ERRORS:
+                print(
+                    f"  ... 还有 {len(errors) - CompilerConfig.MAX_DISPLAY_ERRORS} 个错误未显示"
+                )
+            result["success"] = False
+
+        # 检查警告
+        warnings = validator.get_warnings()
+        if warnings:
+            result["warnings"] = [str(w) for w in warnings]
+        if self.config.warning_level != "none" and warnings:
+            print(validator.format_warnings())
+            if self.config.warning_level == "error":
+                print("  ❌ -Werror: 警告被当作错误处理")
+                result["errors"].append("-Werror: 警告被当作错误处理")
+                result["success"] = False
+
+        if result["success"] and self.config.verbose:
+            stats = validator.get_statistics()
+            print(
+                f"  ✅ [语义验证] 通过 (访问 {stats['nodes_visited']} 个节点, "
+                f"符号 {stats['symbols_added']} 个)"
+            )
+        return result
 
     def _configure_validator(self, validator) -> None:
         """配置语义分析器 - 使用 dispatch table 模式"""
@@ -433,14 +542,15 @@ def main() -> int:
 
     # 执行编译
     if args.project:
-        success = compiler.compile_module_project(input_file, output_dir)
+        result = compiler.compile_module_project(input_file, output_dir)
     else:
-        success = compiler.compile_single_file(input_file, output_dir)
+        result = compiler.compile_single_file(input_file, output_dir)
 
     if args.verbose:
         compiler.show_stats()
+        print(result.summary())
 
-    return 0 if success else 1
+    return 0 if result.success else 1
 
 
 if __name__ == "__main__":
