@@ -12,7 +12,7 @@ Phase 4 - Stage 2 - Task 11.2
 import pytest
 from typing import List, Set, Dict, Any
 
-from src.semantic.pattern_matching import (
+from zhc.semantic.pattern_matching import (
     PatternMatcher,
     Pattern,
     WildcardPattern,

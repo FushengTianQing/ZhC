@@ -8,12 +8,12 @@
 """
 
 import pytest
-from src.semantic.pattern_parser import (
+from zhc.semantic.pattern_parser import (
     PatternParser,
     PatternParserError,
     parse_pattern_from_string,
 )
-from src.semantic.pattern_matching import (
+from zhc.semantic.pattern_matching import (
     WildcardPattern,
     VariablePattern,
     LiteralPattern,
