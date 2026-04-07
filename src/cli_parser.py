@@ -74,6 +74,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--profile", action="store_true", help="启用性能分析（测量各编译阶段耗时）"
     )
+    parser.add_argument(
+        "-g", "--debug",
+        action="store_true",
+        help="生成 DWARF 调试信息（支持 GDB/LLDB 调试）"
+    )
     parser.add_argument("--clean-cache", action="store_true", help="清理编译缓存")
     parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
     parser.add_argument("--version", action="version", version="%(prog)s 3.0.0")

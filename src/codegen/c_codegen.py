@@ -10,7 +10,10 @@ Phase 4 核心组件。
 日期: 2026-04-03
 """
 
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from zhc.codegen.debug_integration import DebugInfoManager
 
 from zhc.parser.ast_nodes import (
     ASTNode, ASTVisitor, ASTNodeType,
@@ -52,11 +55,14 @@ class CCodeGenerator(ASTVisitor):
         c_code = generator.generate(ast)
     """
 
-    def __init__(self, indent_str: str = "    "):
+    def __init__(self, indent_str: str = "    ", debug_manager: Optional["DebugInfoManager"] = None):
         self.indent = 0
         self.indent_str = indent_str
         self.output_lines: list = []
         self._expr_buffer: list = []  # 用于表达式求值
+        
+        # 调试信息管理器
+        self._debug_manager = debug_manager
         
         # 泛型代码生成器
         self._generic_generator = None
@@ -227,6 +233,9 @@ class CCodeGenerator(ASTVisitor):
         name = self._resolve_function_name(node.name)
         ret_type = self._emit_type(node.return_type)
 
+        # 记录当前输出行数，用于计算函数地址
+        start_line = len(self.output_lines)
+
         # 参数列表
         if not node.params:
             params_str = "void"
@@ -251,6 +260,20 @@ class CCodeGenerator(ASTVisitor):
             self.indent += 1
             node.body.accept(self)
             self.indent -= 1
+
+        # 记录函数结束行
+        end_line = len(self.output_lines)
+
+        # 添加调试信息
+        if self._debug_manager and self._debug_manager.is_enabled():
+            self._debug_manager.add_function(
+                name=name,
+                start_line=start_line,
+                end_line=end_line,
+                start_addr=start_line * 4,  # 简化地址计算
+                end_addr=end_line * 4,
+                return_type=ret_type
+            )
 
         self._emit("}")
 

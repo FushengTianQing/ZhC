@@ -7,5 +7,6 @@
 """
 
 from .c_codegen import CCodeGenerator
+from .debug_integration import DebugInfoManager, create_debug_manager
 
-__all__ = ['CCodeGenerator']
+__all__ = ['CCodeGenerator', 'DebugInfoManager', 'create_debug_manager']

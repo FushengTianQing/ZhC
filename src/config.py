@@ -61,6 +61,13 @@ class ProfileConfig:
     enabled: bool = False
 
 
+@dataclass
+class DebugConfig:
+    """调试信息配置"""
+    enabled: bool = False  # 是否生成调试信息
+    dwarf_version: int = 5  # DWARF 版本
+
+
 # =============================================================================
 # 编译器配置（重构版）
 # =============================================================================
@@ -101,6 +108,9 @@ class CompilerConfig:
     
     # 性能分析配置
     profile: ProfileConfig = field(default_factory=ProfileConfig)
+    
+    # 调试信息配置
+    debug: DebugConfig = field(default_factory=DebugConfig)
     
     # 向后兼容参数（仅用于 legacy 模式）
     use_ast: bool = True
@@ -180,6 +190,15 @@ class CompilerConfig:
     @profile_enabled.setter
     def profile_enabled(self, value: bool) -> None:
         self.profile.enabled = value
+    
+    @property
+    def debug_enabled(self) -> bool:
+        """是否启用调试信息生成"""
+        return self.debug.enabled
+    
+    @debug_enabled.setter
+    def debug_enabled(self, value: bool) -> None:
+        self.debug.enabled = value
     
     @property
     def no_uninit(self) -> bool:
@@ -284,6 +303,9 @@ class CompilerConfig:
             ),
             profile=ProfileConfig(
                 enabled=getattr(args, 'profile', False),
+            ),
+            debug=DebugConfig(
+                enabled=getattr(args, 'debug', False),
             ),
             use_ast=not getattr(args, 'legacy', False),
         )
