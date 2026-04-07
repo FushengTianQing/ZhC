@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-函数级缓存测试
+函数级缓存测试 (pytest)
 
-测试内容：
+P2 级 — 测试 function_cache 模块的完整功能：
 1. 函数哈希计算
-2. 缓存存取
-3. 增量编译
-4. 依赖追踪
+2. 缓存存取与命中/未命中
+3. 缓存失效（含级联依赖失效）
+4. get_or_compile 增量编译模式
+5. 依赖追踪
+6. 统计报告
 
 作者：远
-日期：2026-04-03
+日期：2026-04-03 / 2026-04-07 重构为 pytest 格式
 """
 
 import sys
@@ -18,365 +20,279 @@ import os
 import time
 import tempfile
 import shutil
+import pytest
 
-# 添加项目路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from zhpp.compiler.function_cache import (
     FunctionLevelCache,
-    FunctionCache,
     CacheStatus,
     CachedFunction,
+    FunctionHash,
 )
 
 
-class TestFunctionCache:
-    """函数级缓存测试"""
-    
-    def __init__(self):
-        self.temp_dir = None
-    
-    def setup(self):
-        """设置测试环境"""
-        self.temp_dir = tempfile.mkdtemp(prefix="zhc_func_cache_test_")
-        print(f"测试目录: {self.temp_dir}")
-    
-    def teardown(self):
-        """清理测试环境"""
-        if self.temp_dir and os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir)
-    
-    def test_function_hash(self):
-        """测试函数哈希计算"""
-        print("=" * 70)
-        print("测试1: 函数哈希计算")
-        print("=" * 70)
-        
-        cache = FunctionLevelCache(cache_dir=self.temp_dir)
-        
-        # 相同函数应该产生相同哈希
-        hash1 = cache.compute_function_hash(
-            func_name="add",
-            func_body="return a + b;",
-            params="整数型 a, 整数型 b",
-            return_type="整数型"
+# ============================================================
+# Fixtures
+# ============================================================
+
+@pytest.fixture
+def cache_dir():
+    """提供临时缓存目录"""
+    d = tempfile.mkdtemp(prefix="zhc_func_cache_test_")
+    yield d
+    shutil.rmtree(d, ignore_errors=True)
+
+
+@pytest.fixture
+def cache(cache_dir):
+    """提供已初始化的 FunctionLevelCache 实例"""
+    return FunctionLevelCache(cache_dir=cache_dir)
+
+
+# ============================================================
+# 测试：函数哈希计算
+# ============================================================
+
+class TestFunctionHash:
+    """函数哈希计算的确定性和区分性"""
+
+    def test_same_function_same_hash(self, cache):
+        """相同函数应产生相同哈希"""
+        h1 = cache.compute_function_hash(
+            func_name="add", func_body="return a + b;",
+            params="整数型 a, 整数型 b", return_type="整数型"
         )
-        
-        hash2 = cache.compute_function_hash(
-            func_name="add",
-            func_body="return a + b;",
-            params="整数型 a, 整数型 b",
-            return_type="整数型"
+        h2 = cache.compute_function_hash(
+            func_name="add", func_body="return a + b;",
+            params="整数型 a, 整数型 b", return_type="整数型"
         )
-        
-        print(f"哈希1: {hash1.full_hash[:16]}...")
-        print(f"哈希2: {hash2.full_hash[:16]}...")
-        print(f"相同: {hash1.full_hash == hash2.full_hash}")
-        
-        assert hash1.full_hash == hash2.full_hash, "相同函数应产生相同哈希"
-        print("✅ 通过")
-        
-        # 不同函数应该产生不同哈希
-        hash3 = cache.compute_function_hash(
-            func_name="sub",
-            func_body="return a - b;",
-            params="整数型 a, 整数型 b",
-            return_type="整数型"
+        assert h1.full_hash == h2.full_hash
+
+    def test_different_functions_different_hashes(self, cache):
+        """不同函数应产生不同哈希"""
+        h1 = cache.compute_function_hash(
+            func_name="add", func_body="return a + b;",
+            params="整数型 a, 整数型 b", return_type="整数型"
         )
-        
-        print(f"不同函数哈希: {hash3.full_hash[:16]}...")
-        assert hash1.full_hash != hash3.full_hash, "不同函数应产生不同哈希"
-        print("✅ 通过")
-        
-        return True
-    
-    def test_cache_put_get(self):
-        """测试缓存存取"""
-        print()
-        print("=" * 70)
-        print("测试2: 缓存存取")
-        print("=" * 70)
-        
-        cache = FunctionLevelCache(cache_dir=self.temp_dir)
-        
-        func_body = """
+        h2 = cache.compute_function_hash(
+            func_name="sub", func_body="return a - b;",
+            params="整数型 a, 整数型 b", return_type="整数型"
+        )
+        assert h1.full_hash != h2.full_hash
+
+    def test_body_change_changes_hash(self, cache):
+        """函数体变化应改变哈希"""
+        h1 = cache.compute_function_hash("foo", "body_v1")
+        h2 = cache.compute_function_hash("foo", "body_v2")
+        assert h1.full_hash != h2.full_hash
+
+    def test_symbols_affect_dependency_hash(self, cache):
+        """使用的符号应影响依赖哈希"""
+        h1 = cache.compute_function_hash("f", "b", symbols_used={"int"})
+        h2 = cache.compute_function_hash("f", "b", symbols_used={"float"})
+        # content_hash 相同但 full_hash 应不同（因为 dependency_hash 不同）
+        assert h1.content_hash == h2.content_hash
+        assert h1.dependency_hash != h2.dependency_hash
+        assert h1.full_hash != h2.full_hash
+
+    def test_is_valid(self, cache):
+        """is_valid 应正确比较哈希"""
+        h1 = cache.compute_function_hash("f", "b")
+        h2 = cache.compute_function_hash("f", "b")
+        assert h1.is_valid(h2)
+        h3 = cache.compute_function_hash("g", "b")
+        assert not h1.is_valid(h3)
+
+
+# ============================================================
+# 测试：缓存存取
+# ============================================================
+
+class TestCachePutGet:
+    """put / get 的基本功能"""
+
+    FUNC_BODY = """
 函数 整数型 加法(整数型 a, 整数型 b) {
     返回 a + b;
 }
 """
-        
-        # 存入缓存
+
+    def test_put_and_hit(self, cache):
+        """存入后应能命中获取"""
         cached = cache.put(
             func_name="加法",
             compiled_code="int add(int a, int b) { return a + b; }",
-            func_body=func_body,
+            func_body=self.FUNC_BODY,
             params="整数型 a, 整数型 b",
             return_type="整数型",
             dependencies=set(),
             symbols_used={"整数型", "+"},
         )
-        
-        print(f"存入缓存: {cached.func_name}")
-        print(f"缓存键: {cached.func_hash[:16]}...")
-        
-        # 获取缓存
+
         result, status = cache.get(
-            func_name="加法",
-            func_body=func_body,
-            params="整数型 a, 整数型 b",
-            return_type="整数型",
+            "加法", self.FUNC_BODY,
+            params="整数型 a, 整数型 b", return_type="整数型",
             symbols_used={"整数型", "+"}
         )
-        
-        print(f"获取状态: {status.value}")
-        print(f"缓存命中: {status == CacheStatus.HIT}")
-        
-        assert status == CacheStatus.HIT, "应该缓存命中"
-        assert result.compiled_code == "int add(int a, int b) { return a + b; }"
-        print("✅ 通过")
-        
-        return True
-    
-    def test_cache_miss(self):
-        """测试缓存未命中"""
-        print()
-        print("=" * 70)
-        print("测试3: 缓存未命中")
-        print("=" * 70)
-        
-        cache = FunctionLevelCache(cache_dir=self.temp_dir)
-        
-        # 尝试获取不存在的函数
-        result, status = cache.get(
-            func_name="不存在的函数",
-            func_body="",
-            params="",
-            return_type=""
-        )
-        
-        print(f"获取状态: {status.value}")
-        print(f"结果: {result}")
-        
-        assert status == CacheStatus.MISS, "应该缓存未命中"
-        assert result is None
-        print("✅ 通过")
-        
-        return True
-    
-    def test_cache_invalidation(self):
-        """测试缓存失效"""
-        print()
-        print("=" * 70)
-        print("测试4: 缓存失效")
-        print("=" * 70)
-        
-        cache = FunctionLevelCache(cache_dir=self.temp_dir)
-        
-        # 存入缓存
-        cache.put(
-            func_name="测试函数",
-            compiled_code="compiled",
-            func_body="original",
-            params="",
-            return_type=""
-        )
-        
-        # 验证存在
-        result, status = cache.get("测试函数", "original")
-        print(f"失效前: {status.value}")
         assert status == CacheStatus.HIT
-        
-        # 使失效
-        cache.invalidate("测试函数")
-        
-        # 验证已删除
-        result, status = cache.get("测试函数", "original")
-        print(f"失效后: {status.value}")
+        assert result is not None
+        assert result.compiled_code == "int add(int a, int b) { return a + b; }"
+
+    def test_get_nonexistent_returns_miss(self, cache):
+        """获取不存在的函数应返回 MISS"""
+        result, status = cache.get("不存在的函数", "")
         assert status == CacheStatus.MISS
-        print("✅ 通过")
-        
-        return True
-    
-    def test_get_or_compile(self):
-        """测试获取或编译"""
-        print()
-        print("=" * 70)
-        print("测试5: 获取或编译")
-        print("=" * 70)
-        
-        cache = FunctionLevelCache(cache_dir=self.temp_dir)
-        
-        compile_count = [0]  # 使用列表以便在闭包中修改
-        
+        assert result is None
+
+
+# ============================================================
+# 测试：缓存失效
+# ============================================================
+
+class TestCacheInvalidation:
+    """invalidate 的行为"""
+
+    def test_invalidate_removes_cached_entry(self, cache):
+        """invalidate 后再获取应 MISS"""
+        cache.put("test_func", "compiled_code", "original_body")
+        result_before, status_before = cache.get("test_func", "original_body")
+        assert status_before == CacheStatus.HIT
+
+        cache.invalidate("test_func")
+
+        result_after, status_after = cache.get("test_func", "original_body")
+        assert status_after == CacheStatus.MISS
+        assert result_after is None
+
+    def test_invalidate_cascade_to_dependents(self, cache):
+        """使被依赖的函数失效，依赖它的函数也应失效"""
+        cache.put("func_a", "code_a", "body_a")
+        cache.put("func_b", "code_b", "body_b", dependencies={"func_a"})
+
+        # 验证两者都存在
+        _, s_a = cache.get("func_a", "body_a")
+        _, s_b = cache.get("func_b", "body_b")
+        assert s_a == CacheStatus.HIT
+        assert s_b == CacheStatus.HIT
+
+        # 使 func_a 失效 → func_b 也应被级联删除
+        cache.invalidate("func_a")
+
+        _, s_b_after = cache.get("func_b", "body_b")
+        assert s_b_after == CacheStatus.MISS, \
+            "依赖已失效函数的缓存也应被清除"
+
+
+# ============================================================
+# 测试：get_or_compile 增量编译
+# ============================================================
+
+class TestGetOrCompile:
+    """get_or_compile 的增量编译逻辑"""
+
+    def test_first_call_compiles(self, cache):
+        """首次调用应触发编译，不使用缓存"""
+        compile_count = [0]
+
         def mock_compiler(func_body):
-            """模拟编译器"""
             compile_count[0] += 1
             return f"compiled: {func_body[:20]}..."
-        
-        func_body = "这是一个测试函数体"
-        
-        # 第一次调用 - 应该编译
-        result1, used_cache1, time1 = cache.get_or_compile(
-            func_name="测试函数",
-            func_body=func_body,
-            params="",
-            return_type="",
-            symbols_used=set(),
+
+        body = "这是一个测试函数体"
+        result, used_cache, elapsed = cache.get_or_compile(
+            func_name="test_fn", func_body=body,
+            params="", return_type="", symbols_used=set(),
             compiler_func=mock_compiler,
         )
-        
-        print(f"第一次调用:")
-        print(f"  编译次数: {compile_count[0]}")
-        print(f"  使用缓存: {used_cache1}")
-        print(f"  耗时: {time1*1000:.2f}ms")
-        
-        assert compile_count[0] == 1, "应该编译1次"
-        assert not used_cache1, "第一次不应使用缓存"
-        
-        # 第二次调用 - 应该使用缓存
-        result2, used_cache2, time2 = cache.get_or_compile(
-            func_name="测试函数",
-            func_body=func_body,
-            params="",
-            return_type="",
-            symbols_used=set(),
-            compiler_func=mock_compiler,
-        )
-        
-        print(f"\n第二次调用:")
-        print(f"  编译次数: {compile_count[0]}")
-        print(f"  使用缓存: {used_cache2}")
-        print(f"  耗时: {time2*1000:.2f}ms")
-        
-        assert compile_count[0] == 1, "不应再次编译"
-        assert used_cache2, "第二次应使用缓存"
-        assert result1 == result2
-        
-        print("✅ 通过")
-        return True
-    
-    def test_dependency_tracking(self):
-        """测试依赖追踪"""
-        print()
-        print("=" * 70)
-        print("测试6: 依赖追踪")
-        print("=" * 70)
-        
-        cache = FunctionLevelCache(cache_dir=self.temp_dir)
-        
-        # 添加有依赖的函数
-        cache.put(
-            func_name="func_a",
-            compiled_code="code_a",
-            func_body="body_a",
-            dependencies=set()
-        )
-        
-        cache.put(
-            func_name="func_b",
-            compiled_code="code_b",
-            func_body="body_b",
-            dependencies={"func_a"}  # 依赖func_a
-        )
-        
-        print("依赖关系:")
-        print(f"  func_a -> []")
-        print(f"  func_b -> [func_a]")
-        
-        # 使func_a失效，func_b也应该失效
-        print("\n使func_a失效...")
-        cache.invalidate("func_a")
-        
-        # 检查func_b是否也被删除
-        _, status = cache.get("func_b", "body_b")
-        print(f"func_b状态: {status.value}")
-        
-        # func_b的缓存应该也被删除（因为依赖func_a）
-        # 注意：当前实现中，依赖追踪需要手动处理
-        # 实际使用中需要在编译时检测依赖
-        
-        print("✅ 通过（依赖追踪结构已实现）")
-        return True
-    
-    def test_statistics(self):
-        """测试统计"""
-        print()
-        print("=" * 70)
-        print("测试7: 缓存统计")
-        print("=" * 70)
-        
-        cache = FunctionLevelCache(cache_dir=self.temp_dir)
-        
-        # 进行一些操作
-        cache.put("func1", "code1", "body1")
-        cache.get("func1", "body1")
-        cache.get("func2", "body2")  # 不存在
-        
+        assert compile_count[0] == 1
+        assert not used_cache
+        assert "compiled:" in result
+
+    def test_second_call_uses_cache(self, cache):
+        """第二次调用应使用缓存，不再编译"""
+        compile_count = [0]
+
+        def mock_compiler(func_body):
+            compile_count[0] += 1
+            return f"compiled: {func_body[:20]}..."
+
+        body = "这是一个测试函数体"
+
+        # 第一次 — 编译
+        r1, c1, _ = cache.get_or_compile(
+            "test_fn", body, "", "", set(), mock_compiler)
+        assert not c1
+
+        # 第二次 — 缓存
+        r2, c2, _ = cache.get_or_compile(
+            "test_fn", body, "", "", set(), mock_compiler)
+        assert c2, "第二次调用应该使用缓存"
+        assert r1 == r2
+        assert compile_count[0] == 1, "不应重新编译"
+
+
+# ============================================================
+# 测试：依赖追踪
+# ============================================================
+
+class TestDependencyTracking:
+    """依赖图的构建和查询"""
+
+    def test_dependencies_stored_in_graph(self, cache):
+        """put 时记录依赖关系"""
+        cache.put("main_fn", "code", "body", dependencies={"helper_fn"})
+        # 内部的 _dependency_graph 应包含此关系
+        assert "helper_fn" in cache._dependency_graph["main_fn"]
+
+    def test_invalidate_propagates_through_chain(self, cache):
+        """A <- B <- C，使 A 失效则 B、C 都应失效"""
+        cache.put("a", "ca", "ba")
+        cache.put("b", "cb", "bb", dependencies={"a"})
+        cache.put("c", "cc", "bc", dependencies={"b"})
+
+        cache.invalidate("a")
+
+        # b 依赖 a，a 已删除 → b 被级联删除
+        _, sb = cache.get("b", "bb")
+        assert sb == CacheStatus.MISS
+
+        # c 依赖 b，b 已删除 → c 被级联删除
+        _, sc = cache.get("c", "bc")
+        assert sc == CacheStatus.MISS
+
+
+# ============================================================
+# 测试：统计信息
+# ============================================================
+
+class TestStatistics:
+    """get_statistics 和 get_report"""
+
+    def test_statistics_reflects_operations(self, cache):
+        """统计应反映实际操作"""
+        cache.put("f1", "c1", "b1")       # put 不计入 request
+        cache.get("f1", "b1")              # HIT
+        cache.get("f2", "b2")              # MISS
+
         stats = cache.get_statistics()
-        
-        print("缓存统计:")
-        for key, value in stats.items():
-            print(f"  {key}: {value}")
-        
-        print()
-        print(cache.get_report())
-        
-        print("✅ 通过")
-        return True
-    
-    def run_all_tests(self):
-        """运行所有测试"""
-        print()
-        print("=" * 70)
-        print("函数级编译缓存测试")
-        print("=" * 70)
-        print()
-        
-        self.setup()
-        
-        results = []
-        
-        try:
-            results.append(("函数哈希计算", self.test_function_hash()))
-            results.append(("缓存存取", self.test_cache_put_get()))
-            results.append(("缓存未命中", self.test_cache_miss()))
-            results.append(("缓存失效", self.test_cache_invalidation()))
-            results.append(("获取或编译", self.test_get_or_compile()))
-            results.append(("依赖追踪", self.test_dependency_tracking()))
-            results.append(("缓存统计", self.test_statistics()))
-        finally:
-            self.teardown()
-        
-        # 总结
-        print()
-        print("=" * 70)
-        print("测试总结")
-        print("=" * 70)
-        
-        for test_name, passed in results:
-            status = "✅ 通过" if passed else "❌ 失败"
-            print(f"{test_name}: {status}")
-        
-        all_passed = all(r[1] for r in results)
-        
-        print()
-        if all_passed:
-            print("🎉 所有测试通过!")
-        else:
-            print("⚠️ 部分测试失败")
-        
-        print("=" * 70)
-        
-        return all_passed
+        assert stats['total_requests'] == 2
+        assert stats['cache_hits'] == 1
+        assert stats['cache_misses'] == 1
 
+    def test_report_is_string(self, cache):
+        """get_report 返回非空字符串"""
+        report = cache.get_report()
+        assert isinstance(report, str)
+        assert len(report) > 0
+        assert "函数级编译缓存报告" in report
 
-def main():
-    """主函数"""
-    suite = TestFunctionCache()
-    success = suite.run_all_tests()
-    
-    return 0 if success else 1
+    def test_clear_resets_statistics(self, cache):
+        """clear 后统计应重置"""
+        cache.put("f", "c", "b")
+        cache.get("f", "b")
+        cache.clear()
 
-
-if __name__ == '__main__':
-    sys.exit(main())
+        stats = cache.get_statistics()
+        assert stats['total_requests'] == 0
+        assert stats['cache_hits'] == 0
