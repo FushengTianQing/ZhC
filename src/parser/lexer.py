@@ -13,6 +13,17 @@ from enum import Enum, auto
 from typing import List, Optional, Tuple
 from dataclasses import dataclass
 
+# 导入统一异常类
+from zhc.errors import (
+    LexerError,
+    ErrorCollection,
+    SourceLocation,
+    illegal_character,
+    unterminated_string,
+    unterminated_comment,
+    unterminated_char,
+)
+
 
 class TokenType(Enum):
     """Token类型枚举"""
@@ -148,15 +159,6 @@ class Token:
         return f"Token({self.type.name}, '{self.value}', {self.line}:{self.column})"
 
 
-class LexerError(Exception):
-    """词法分析错误"""
-    def __init__(self, message: str, line: int, column: int):
-        self.message = message
-        self.line = line
-        self.column = column
-        super().__init__(f"第{line}行第{column}列: {message}")
-
-
 class Lexer:
     """词法分析器"""
     
@@ -286,7 +288,10 @@ class Lexer:
                     return True
                 self.advance()
             # 未闭合的多行注释
-            self.errors.append(LexerError("未闭合的多行注释", self.line, self.column))
+            error = unterminated_comment(
+                location=SourceLocation(line=self.line, column=self.column)
+            )
+            self.errors.append(error)
             return True
         
         return False
@@ -349,10 +354,16 @@ class Lexer:
 
         if not self.current_char():
             if is_char:
-                self.errors.append(LexerError("未闭合的字符字面量", start_line, start_column))
+                error = unterminated_char(
+                    location=SourceLocation(line=start_line, column=start_column)
+                )
+                self.errors.append(error)
                 return Token(TokenType.CHAR_LITERAL, value, start_line, start_column)
             else:
-                self.errors.append(LexerError("未闭合的字符串", start_line, start_column))
+                error = unterminated_string(
+                    location=SourceLocation(line=start_line, column=start_column)
+                )
+                self.errors.append(error)
                 return Token(TokenType.STRING_LITERAL, value, start_line, start_column)
 
         self.advance()  # 闭合引号
@@ -503,11 +514,11 @@ class Lexer:
                 continue
             
             # 未知字符
-            self.errors.append(LexerError(
-                f"未知字符: '{self.current_char()}'",
-                self.line,
-                self.column
-            ))
+            error = illegal_character(
+                character=self.current_char(),
+                location=SourceLocation(line=self.line, column=self.column)
+            )
+            self.errors.append(error)
             self.advance()
         
         # 添加EOF

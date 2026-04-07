@@ -57,6 +57,8 @@ from .lexer_error import (
     LEXER_BOM_ERROR,
     illegal_character,
     unterminated_string,
+    unterminated_comment,
+    unterminated_char,
     invalid_number_format,
     invalid_identifier,
 )
@@ -195,6 +197,8 @@ __all__ = [
     "LEXER_BOM_ERROR",
     "illegal_character",
     "unterminated_string",
+    "unterminated_comment",
+    "unterminated_char",
     "invalid_number_format",
     "invalid_identifier",
     

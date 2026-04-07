@@ -204,6 +204,52 @@ def invalid_identifier(
     )
 
 
+def unterminated_comment(
+    location: Optional[SourceLocation] = None,
+    context: Optional[str] = None,
+) -> LexerError:
+    """
+    创建注释未闭合错误
+    
+    Args:
+        location: 错误位置
+        context: 错误上下文
+    
+    Returns:
+        LexerError 实例
+    """
+    return LexerError(
+        message="未闭合的多行注释",
+        location=location,
+        error_code=LEXER_UNTERMINATED_COMMENT,
+        context=context,
+        suggestion="请检查多行注释是否缺少闭合标记 '*/'",
+    )
+
+
+def unterminated_char(
+    location: Optional[SourceLocation] = None,
+    context: Optional[str] = None,
+) -> LexerError:
+    """
+    创建字符字面量未闭合错误
+    
+    Args:
+        location: 错误位置
+        context: 错误上下文
+    
+    Returns:
+        LexerError 实例
+    """
+    return LexerError(
+        message="未闭合的字符字面量",
+        location=location,
+        error_code=LEXER_UNTERMINATED_CHAR,
+        context=context,
+        suggestion="请检查字符字面量是否缺少闭合单引号",
+    )
+
+
 # 导出公共API
 __all__ = [
     "LexerError",
@@ -223,6 +269,8 @@ __all__ = [
     "LEXER_BOM_ERROR",
     "illegal_character",
     "unterminated_string",
+    "unterminated_comment",
+    "unterminated_char",
     "invalid_number_format",
     "invalid_identifier",
 ]
