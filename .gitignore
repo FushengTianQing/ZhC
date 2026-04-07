@@ -1,0 +1,54 @@
+# =============================================================================
+# ZHC (中文C编译器) - Git忽略规则
+# =============================================================================
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# --- 虚拟环境 ---
+.venv/
+venv/
+ENV/
+env/
+
+# --- 类型检查 / Linting ---
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+
+# --- 测试 ---
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+.hypothesis/
+
+# --- IDE ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# --- 项目特定 ---
+.workbuddy/          # 工作记忆（本地私有）
+*.zhc.o              # 编译产物
+*.zhc.bin            # 编译输出
+*.ll                 # LLVM IR中间文件
+*.s                  # 汇编文件
+*.o                  # 目标文件
+a.out                # 可执行文件
+
+# --- OS ---
+Thumbs.db
+Desktop.ini

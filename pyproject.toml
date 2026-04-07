@@ -1,0 +1,414 @@
+# =============================================================================
+# ZHC (中文C编译器) - 项目配置文件
+# =============================================================================
+# 本文件统一管理项目的所有开发工具配置
+# 包括：Black(格式化)、Ruff(Linting)、MyPy(类型检查)、Pytest(测试)
+#
+# 创建日期: 2026-04-07
+# 最后更新: 2026-04-07
+# 维护者: ZHC开发团队
+# =============================================================================
+
+[project]
+name = "zhc"
+version = "6.0.0"
+description = "中文C编译器 - 将中文语法的C代码编译为机器码"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+authors = [
+    {name = "ZHC Team", email = "team@zhc-lang.org"},
+]
+keywords = ["compiler", "chinese", "C", "LLVM", "programming-language"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Compilers",
+]
+
+dependencies = [
+    # 运行时依赖（如果需要）
+]
+
+# ---------------------------------------------------------------------------
+# 可选依赖组
+# ---------------------------------------------------------------------------
+[project.optional-dependencies]
+dev = [
+    # 代码质量工具
+    "black>=24.0,<26.0",
+    "ruff>=0.1.0,<1.0",
+    "mypy>=1.0,<2.0",
+    
+    # 测试工具
+    "pytest>=7.0,<9.0",
+    "pytest-cov>=4.0,<6.0",
+    "pytest-xdist>=3.0,<4.0",
+    
+    # 文档工具
+    "sphinx>=6.0,<8.0",
+    "sphinx-rtd-theme>=1.2,<3.0",
+]
+
+lint = [
+    "ruff>=0.1.0,<1.0",
+]
+
+type-check = [
+    "mypy>=1.0,<2.0",
+    "types-setuptools>=65.0",
+]
+
+format = [
+    "black>=24.0,<26.0",
+]
+
+all-dev = [
+    "zhc[dev,lint,type-check,format]",
+]
+
+
+# =============================================================================
+# Black 配置 - 代码格式化
+# =============================================================================
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311']
+extend-exclude = '''
+/(
+      \.git
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+    | venv
+    | __pycache__
+    | examples
+    | .*\.egg-info
+)/
+'''
+
+
+# =============================================================================
+# Ruff 配置 - 超快速Linter（替代Flake8 + isort）
+# =============================================================================
+[tool.r]
+# 目标Python版本
+target-version = "py38"
+
+# 使用的规则集（参考：https://beta.ruff.rs/rules/）
+select = [
+    # Pyflakes (F) - 基础错误检测
+    "F",
+    
+    # pycodestyle (E, W) - PEP 8风格
+    "E",   # Error
+    "W",   # Warning
+    
+    # isort (I) - import排序
+    "I",
+    
+    # pep8-naming (N) - 命名规范
+    "N",
+    
+    # pyupgrade (UP) - Python语法升级建议
+    "UP",
+    
+    # flake8-bugbear (B) - 常见bug和设计问题
+    "B",
+    
+    # flake8-builtins (A) - 内置名遮蔽
+    "A",
+    
+    # flake8-comprehensions (C4) - 列表推导优化
+    "C4",
+    
+    # flake8-debugger (T10) - 调试器残留
+    "T10",
+    
+    # flake8-print (T20) - print语句残留
+    "T20",
+    
+    # flake8-simplify (SIM) - 代码简化建议
+    "SIM",
+    
+    # pylint错误相关规则
+    "PLC",  # Convention
+    "PLE",  # Error
+    "PLR",  # Refactor  
+    "PLW",  # Warning
+]
+
+# 忽略的规则（根据项目特点调整）
+ignore = [
+    # 允许较长的行（Black会处理格式化）
+    "E501",   # line too long
+    
+    # 允许TODO/FIXME注释
+    "TD003",  # missing issue link on line with TODO
+    
+    # 允许某些命名风格（编译器项目有特殊需求）
+    "N802",   # function name should be lowercase
+    "N803",   # argument name should be lowercase
+    "N806",   # variable in function should be lowercase
+    "N812",   # lowercase imported as non-lowercase
+    
+    # 某些复杂度规则暂时放宽（后续重构时收紧）
+    "PLR0911",  # too many return statements
+    "PLR0912",  # too many branches
+    "PLR0913",  # too many arguments
+    "PLR0915",  # too many statements
+    "PLR1702",  # too many nested blocks
+    "C901",     # too complex (用下面的max-complexity控制)
+]
+
+# 行长度限制
+line-length = 88
+
+# 支持非.py文件
+extend-exclude = [
+    "__pycache__",
+    "*.egg-info",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".tox",
+    ".venv",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "venv",
+    "examples/*.zhc",  # 排除ZHC源码文件
+]
+
+# isort配置
+[tool.r.isort]
+known-first-party = ["zhc"]
+profile = "black"
+combine-as-imports = true
+split-on-trailing-comma = false
+
+# MacCabe复杂度限制（默认10，我们设为15给重构缓冲期）
+[tool.r.mccabe]
+max-complexity = 15
+
+# Pyflakes设置
+[tool.r.pyflakes]
+allow-unused-tuples = false
+
+
+# =============================================================================
+# MyPy 配置 - 静态类型检查
+# =============================================================================
+[tool.mypy]
+# Python版本
+python_version = "3.9"
+
+# 严格程度设置（渐进式采用策略）
+warn_return_any = true           # 返回值缺少类型注解时警告
+warn_unused_configs = true       # 未使用的配置项警告
+warn_redundant_casts = true      # 冗余的类型转换警告
+warn_unused_ignores = true       # 未使用的# type: ignore警告
+warn_unreachable = true          # 不可达代码警告
+
+# 错误处理
+disallow_untyped_defs = false    # 暂时不强制所有函数都有类型注解（Phase 2目标）
+disallow_incomplete_defs = true  # 不完整的类型定义禁止
+check_untyped_defs = true        # 即使没有类型注解也检查函数内部
+disallow_untyped_decorators = false  # 暂不强制装饰器类型
+
+# 隐式可选和None检查
+no_implicit_optional = true      # 禁止隐式Optional
+strict_optional = true
+
+# 其他选项
+show_error_codes = true          # 显示错误代码便于忽略
+show_column_numbers = true       # 显示列号
+pretty = true                    # 美化输出
+color_output = true              # 彩色输出
+error_summary = true             # 显示错误摘要
+incremental = true               # 增量模式加速检查
+
+# 模块特定配置
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+check_untyped_defs = false
+
+
+# =============================================================================
+# Pytest 配置 - 单元测试框架
+# =============================================================================
+[tool.pytest.ini_options]
+# 测试文件发现
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# 测试输出选项
+addopts = [
+    "-v",                                    # 详细输出
+    "--strict-markers",                      # 严格的marker
+    "--strict-config",                       # 严格配置
+    # "--cov=src",                           # 覆盖率（取消注释以启用）
+    # "--cov-report=term-missing",            # 覆盖率报告（取消注释以启用）
+    # "--cov-fail-under=60",                 # 最低覆盖率要求（取消注释以启用）
+]
+
+# 标记定义
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: integration tests",
+    "unit: unit tests",
+    "compiler: compiler-specific tests",
+]
+
+# 日志配置
+log_cli = false
+log_cli_level = "INFO"
+
+# 测试超时（需要pytest-timeout插件）
+# timeout = 300  # 5分钟超时
+
+# 并行测试配置（需要pytest-xdist）
+# addopts = "-n auto"  # 自动并行
+
+# 最小版本要求
+minversion = "7.0"
+
+
+# =============================================================================
+# Coverage.py 配置 - 测试覆盖率统计
+# =============================================================================
+[tool.coverage.run]
+source = ["src"]
+branch = true                # 分支覆盖率
+parallel = true              # 并行支持
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/conftest.py",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+fail_under = 0               # 初始不设阈值（Phase 1目标：60%）
+show_missing = true
+skip_covered = true
+precision = 2
+
+[tool.coverage.html]
+directory = "htmlcov"
+title = "ZHC Compiler Coverage Report"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+
+# =============================================================================
+# 项目自定义脚本（通过 'python -m zhc.scripts.xxx' 调用）
+# =============================================================================
+[project.scripts]
+zhc = "src.cli:main"
+zhc-quality = "scripts.quality_check:main"
+zhc-test = "scripts.run_tests:main"
+
+
+# =============================================================================
+# 构建系统配置（使用setuptools或hatchling）
+# =============================================================================
+[build-system]
+requires = ["setuptools>=64.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+# Setuptools特定配置
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["zhc"]
+
+
+# =============================================================================
+# 开发环境说明文档
+# =============================================================================
+# 
+# 📖 使用指南：
+# 
+# 1️⃣ 安装开发依赖：
+#    pip install -e ".[dev]"
+#    或分步安装：
+#    pip install black ruff mypy pytest pytest-cov
+# 
+# 2️⃣ 日常使用命令：
+# 
+#    ▶ 格式化代码（自动修正）：
+#      black src/ tests/ scripts/
+#    
+#    ▶ 检查代码问题（只读模式）：
+#      ruff check src/ tests/
+#    
+#    ▶ 自动修复可修复的问题：
+#      ruff check --fix src/ tests/
+#    
+#    ▶ 类型检查：
+#      mypy src/
+#    
+#    ▶ 运行测试：
+#      pytest tests/ -v
+#    
+#    ▶ 运行测试+覆盖率：
+#      pytest tests/ --cov=src --cov-report=term-missing
+#    
+#    ▶ 完整质量检查流程（推荐在提交前执行）：
+#      black --check src/ tests/ && \
+#      ruff check src/ tests/ && \
+#      mypy src/ && \
+#      pytest tests/ -v
+# 
+# 3️⃣ VS Code集成（推荐添加到settings.json）：
+#    {
+#      "editor.formatOnSave": true,
+#      "[python]": {
+#        "editor.defaultFormatter": "ms-python.black-formatter"
+#      },
+#      "python.linting.enabled": true,
+#      "python.linting.ruffEnabled": true,
+#      "python.linting.mypyEnabled": true
+#    }
+# 
+# 4️⃣ Git pre-commit钩子（可选但强烈推荐）：
+#    pip install pre-commit
+#    创建 .pre-commit-config.yaml 后运行：pre-commit install
+# 
+# ⚠️ 注意事项：
+# - Black和Ruff的line-length必须保持一致（当前都是88）
+# - MyPy配置采用了渐进式策略，先宽松后严格
+# - Ruff替代了Flake8 + isort + pydocstring等工具
+# - 所有配置都针对Python 3.8+兼容性
+# 
+# 🔧 故障排除：
+# - 如果Ruff报错"not on PATH"，使用完整路径：/Users/yuan/Library/Python/3.9/bin/ruff
+# - 如果MyPy太慢，删除.mypy_cache目录重新运行
+# - 如果Black格式化了不想改的文件，加入black exclude列表
+# 
+# =============================================================================

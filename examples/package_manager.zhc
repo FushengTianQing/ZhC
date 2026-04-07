@@ -1,0 +1,355 @@
+/**
+ * 包管理器使用示例
+ * Package Manager Examples for ZHC Language
+ * 
+ * 本文件演示包管理器的使用方法
+ */
+
+// ===== 基础命令示例 =====
+
+// 1. 安装包
+命令行: zhc install 标准库
+// 输出: ✅ 包 '标准库@1.0.0' 安装成功
+
+命令行: zhc install 网络库@2.0.0
+// 输出: ✅ 包 '网络库@2.0.0' 安装成功
+
+命令行: zhc install 图形库 --save
+// 保存到 package.json 的依赖列表
+
+
+// 2. 发布包
+命令行: zhc publish
+// 在当前目录发布包
+// 输出: ✅ 包 '我的库@1.0.0' 发布成功
+//       哈希: a1b2c3d4e5f6g7h8
+
+命令行: zhc publish --access public
+// 发布为公开包
+
+
+// 3. 搜索包
+命令行: zhc search 网络
+// 输出:
+// 找到 3 个匹配的包:
+// 1. 网络通信库@1.5.0 - 提供TCP/UDP通信功能
+// 2. 网络请求库@2.0.0 - HTTP请求封装
+// 3. 网络工具集@1.0.0 - 网络诊断工具
+
+命令行: zhc search --type 库
+// 按类型搜索
+
+命令行: zhc search --author 中文C编译器团队
+// 按作者搜索
+
+
+// ===== package.json 示例 =====
+
+/**
+ * 包配置文件示例
+ */
+{
+    "name": "我的网络库",
+    "version": "1.0.0",
+    "description": "一个简单易用的网络通信库",
+    "author": "张三",
+    "package_type": "库",
+    "status": "稳定版",
+    "dependencies": [
+        {
+            "name": "标准库",
+            "version_range": ">=1.0.0 <2.0.0",
+            "optional": false
+        },
+        {
+            "name": "加密库",
+            "version_range": ">=1.0.0",
+            "optional": true
+        }
+    ],
+    "keywords": ["网络", "TCP", "UDP", "通信"],
+    "homepage": "https://github.com/example/my-network-lib",
+    "repository": "https://github.com/example/my-network-lib.git",
+    "license": "MIT"
+}
+
+
+// ===== 包类型示例 =====
+
+// 库类型（提供功能和API）
+PackageType.LIBRARY  // "库"
+
+// 工具类型（可执行程序）
+PackageType.TOOL    // "工具"
+
+// 示例类型（代码示例）
+PackageType.EXAMPLE // "示例"
+
+// 模板类型（项目模板）
+PackageType.TEMPLATE // "模板"
+
+
+// ===== 包状态示例 =====
+
+// 稳定版（推荐使用）
+PackageStatus.STABLE     // "稳定版"
+
+// 测试版（可能包含不稳定功能）
+PackageStatus.BETA       // "测试版"
+
+// 已废弃（不推荐使用）
+PackageStatus.DEPRECATED // "已废弃"
+
+
+// ===== 完整工作流示例 =====
+
+// 1. 创建新包
+命令行: mkdir 我的数学库 && cd 我的数学库
+
+// 2. 初始化 package.json
+命令行: zhc init
+// 交互式创建 package.json
+
+// 3. 编写代码
+// src/数学运算.zhc:
+/*
+函数 整数型 加法(整数型 a, 整数型 b) {
+    返回 a + b;
+}
+
+函数 整数型 减法(整数型 a, 整数型 b) {
+    返回 a - b;
+}
+
+函数 整数型 乘法(整数型 a, 整数型 b) {
+    返回 a * b;
+}
+
+函数 整数型 除法(整数型 a, 整数型 b) {
+    如果 (b == 0) {
+        打印("错误: 除数不能为0");
+        返回 0;
+    }
+    返回 a / b;
+}
+*/
+
+// 4. 本地测试
+命令行: zhc test
+// 运行测试套件
+
+// 5. 发布包
+命令行: zhc publish
+// 输出: ✅ 包 '我的数学库@1.0.0' 发布成功
+
+// 6. 使用包
+// 在其他项目中:
+命令行: zhc install 我的数学库
+
+// 代码中使用:
+导入 "我的数学库";
+
+主函数() {
+    整数型 结果 = 加法(10, 20);
+    打印("10 + 20 = %d", 结果);
+}
+
+
+// ===== 依赖管理示例 =====
+
+// package.json 中的依赖声明
+{
+    "dependencies": [
+        // 必需依赖（缺失会导致安装失败）
+        {
+            "name": "标准库",
+            "version_range": ">=1.0.0 <2.0.0",
+            "optional": false
+        },
+        
+        // 可选依赖（缺失不会导致安装失败）
+        {
+            "name": "图形界面库",
+            "version_range": ">=1.0.0",
+            "optional": true
+        },
+        
+        // 开发依赖（仅开发时需要）
+        {
+            "name": "测试框架",
+            "version_range": ">=1.0.0",
+            "optional": true
+        }
+    ]
+}
+
+
+// ===== 版本管理示例 =====
+
+// 语义化版本号: 主版本.次版本.修订版
+// 1.0.0 → 1.0.1 (修订版更新，修复bug)
+// 1.0.0 → 1.1.0 (次版本更新，新增功能)
+// 1.0.0 → 2.0.0 (主版本更新，不兼容API)
+
+// 版本范围语法:
+">=1.0.0"          // 大于等于 1.0.0
+">=1.0.0 <2.0.0"   // 在 1.0.0 和 2.0.0 之间
+"1.0.0 - 1.5.0"    // 范围：1.0.0 到 1.5.0
+"latest"           // 最新版本
+"stable"           // 最新稳定版
+
+
+// ===== 包安装目录结构 =====
+
+// 默认安装目录: ~/.zhc/packages/
+~/.zhc/packages/
+├── 标准库/
+│   ├── package.json
+│   ├── src/
+│   │   ├── stdio.zhc
+│   │   ├── string.zhc
+│   │   └── math.zhc
+│   └── tests/
+│       └── test_std.zhc
+│
+├── 网络库/
+│   ├── package.json
+│   ├── src/
+│   │   ├── tcp.zhc
+│   │   └── udp.zhc
+│   └── examples/
+│       └── http_client.zhc
+│
+└── 图形库/
+    ├── package.json
+    ├── src/
+    └── assets/
+
+
+// ===== 常用命令速查 =====
+
+// 安装
+zhc install <包名>              # 安装最新版
+zhc install <包名>@<版本>       # 安装指定版本
+zhc install                     # 安装所有依赖
+
+// 发布
+zhc publish                     # 发布当前包
+zhc publish --access public     # 发布公开包
+zhc unpublish <包名>@<版本>     # 撤销发布
+
+// 搜索
+zhc search <关键词>             # 搜索包
+zhc search --type <类型>        # 按类型搜索
+zhc search --author <作者>      # 按作者搜索
+
+// 管理
+zhc list                        # 列出已安装包
+zhc update <包名>               # 更新包
+zhc uninstall <包名>            # 卸载包
+zhc info <包名>                 # 查看包信息
+zhc verify <包名>              # 验证包完整性
+
+// 配置
+zhc config set registry <URL>   # 设置注册表地址
+zhc config get registry         # 获取注册表地址
+zhc config list                 # 列出所有配置
+
+
+// ===== 高级功能示例 =====
+
+// 1. 私有包
+命令行: zhc publish --access private
+// 发布为私有包（仅自己可见）
+
+// 2. 包签名
+命令行: zhc publish --sign
+// 使用GPG签名发布包
+
+// 3. 包镜像
+命令行: zhc install <包名> --registry https://mirror.zhc-lang.org
+// 从镜像源安装
+
+// 4. 离线安装
+命令行: zhc install ./本地包路径
+// 从本地路径安装
+
+// 5. 锁定依赖版本
+命令行: zhc install --lock
+// 生成 zhc-lock.json 锁定依赖版本
+
+
+// ===== 最佳实践 =====
+
+/*
+1. 版本管理
+   - 使用语义化版本号
+   - 主版本更新时确保向后兼容或明确声明不兼容
+   - 在 CHANGELOG.md 中记录版本变更
+
+2. 依赖管理
+   - 明确指定版本范围，避免使用 latest
+   - 区分必需依赖和可选依赖
+   - 定期更新依赖，保持安全性
+
+3. 包结构
+   - 清晰的目录结构
+   - 完整的 package.json
+   - 充分的文档和示例
+   - 完善的测试用例
+
+4. 发布流程
+   - 本地测试通过
+   - 版本号更新
+   - 更新 CHANGELOG
+   - 添加发布标签
+   - 发布前最后检查
+
+5. 安全考虑
+   - 不要在包中包含敏感信息
+   - 验证依赖包的安全性
+   - 定期审计依赖包
+   - 使用锁定文件确保一致性
+*/
+
+
+// ===== 示例：完整的包开发流程 =====
+
+// 项目结构:
+我的数学库/
+├── package.json          # 包配置
+├── README.md            # 说明文档
+├── CHANGELOG.md         # 变更日志
+├── LICENSE              # 许可证
+├── src/                 # 源代码
+│   ├── 基础运算.zhc
+│   ├── 高级运算.zhc
+│   └── 数学工具.zhc
+├── tests/               # 测试
+│   ├── test_基础运算.zhc
+│   └── test_高级运算.zhc
+└── examples/            # 示例
+    └── example_usage.zhc
+
+// package.json:
+{
+    "name": "我的数学库",
+    "version": "1.0.0",
+    "description": "提供常用数学运算功能",
+    "author": "张三 <zhangsan@example.com>",
+    "package_type": "库",
+    "status": "稳定版",
+    "dependencies": [],
+    "keywords": ["数学", "运算", "工具"],
+    "homepage": "https://github.com/zhangsan/my-math-lib",
+    "repository": "https://github.com/zhangsan/my-math-lib.git",
+    "license": "MIT"
+}
+
+// 发布流程:
+// 1. 编写代码和测试
+// 2. 更新版本号: 1.0.0
+// 3. 更新 CHANGELOG.md
+// 4. 运行测试: zhc test
+// 5. 发布: zhc publish
+// 6. 创建标签: git tag v1.0.0
