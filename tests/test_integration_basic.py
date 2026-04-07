@@ -14,9 +14,13 @@ import pytest
 from pathlib import Path
 
 # 项目根目录
-PROJECT_ROOT = Path(__file__).parent.parent
-ZHPP_MODULE = PROJECT_ROOT / "src" / "zhpp"
-ZHPP_CLI = PROJECT_ROOT / "src" / "zhpp" / "__main__.py"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# 确保子进程使用与当前相同的 Python 解释器
+_PYTHON = sys.executable
+
+# 使用 python -m src.__main__ 作为编译器入口
+ZHPP_CMD = [_PYTHON, "-m", "src.__main__"]
 
 
 class TestBasicTypes:
@@ -26,15 +30,9 @@ class TestBasicTypes:
     def setup(self, tmp_path):
         """每个测试前设置临时目录"""
         self.tmpdir = tmp_path
-        # 使用python -m zhpp方式，需要设置PYTHONPATH
-        self.zhpp_cmd = [sys.executable, "-m", "zhpp"]
+        # 使用项目入口运行编译器
+        self.zhpp_cmd = list(ZHPP_CMD)
         self.env = os.environ.copy()
-        # 确保src目录在PYTHONPATH中
-        pythonpath = str(PROJECT_ROOT / 'src')
-        if 'PYTHONPATH' in self.env:
-            self.env['PYTHONPATH'] = f"{pythonpath}:{self.env['PYTHONPATH']}"
-        else:
-            self.env['PYTHONPATH'] = pythonpath
     
     def run_compiler(self, zhc_code: str, test_name: str) -> tuple:
         """运行编译器并返回结果"""
@@ -42,9 +40,10 @@ class TestBasicTypes:
         zhc_file = self.tmpdir / f"{test_name}.zhc"
         zhc_file.write_text(zhc_code, encoding='utf-8')
         
-        # 运行预处理器
+        # 运行编译器
+        cmd = self.zhpp_cmd + [str(zhc_file)]
         result = subprocess.run(
-            self.zhpp_cmd + [str(zhc_file)],
+            cmd,
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
@@ -136,13 +135,8 @@ class TestControlFlow:
     def setup(self, tmp_path):
         """每个测试前设置临时目录"""
         self.tmpdir = tmp_path
-        self.zhpp_cmd = [sys.executable, "-m", "zhpp"]
+        self.zhpp_cmd = list(ZHPP_CMD)  # 使用统一的编译器入口
         self.env = os.environ.copy()
-        pythonpath = str(PROJECT_ROOT / 'src')
-        if 'PYTHONPATH' in self.env:
-            self.env['PYTHONPATH'] = f"{pythonpath}:{self.env['PYTHONPATH']}"
-        else:
-            self.env['PYTHONPATH'] = pythonpath
     
     def run_compiler(self, zhc_code: str, test_name: str) -> tuple:
         """运行编译器并返回结果"""
@@ -228,13 +222,8 @@ class TestFunctions:
     def setup(self, tmp_path):
         """每个测试前设置临时目录"""
         self.tmpdir = tmp_path
-        self.zhpp_cmd = [sys.executable, "-m", "zhpp"]
+        self.zhpp_cmd = list(ZHPP_CMD)  # 使用统一的编译器入口
         self.env = os.environ.copy()
-        pythonpath = str(PROJECT_ROOT / 'src')
-        if 'PYTHONPATH' in self.env:
-            self.env['PYTHONPATH'] = f"{pythonpath}:{self.env['PYTHONPATH']}"
-        else:
-            self.env['PYTHONPATH'] = pythonpath
     
     def run_compiler(self, zhc_code: str, test_name: str) -> tuple:
         """运行编译器并返回结果"""
@@ -308,13 +297,8 @@ class TestAdvancedFeatures:
     def setup(self, tmp_path):
         """每个测试前设置临时目录"""
         self.tmpdir = tmp_path
-        self.zhpp_cmd = [sys.executable, "-m", "zhpp"]
+        self.zhpp_cmd = list(ZHPP_CMD)  # 使用统一的编译器入口
         self.env = os.environ.copy()
-        pythonpath = str(PROJECT_ROOT / 'src')
-        if 'PYTHONPATH' in self.env:
-            self.env['PYTHONPATH'] = f"{pythonpath}:{self.env['PYTHONPATH']}"
-        else:
-            self.env['PYTHONPATH'] = pythonpath
     
     def run_compiler(self, zhc_code: str, test_name: str) -> tuple:
         """运行编译器并返回结果"""
