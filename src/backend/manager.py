@@ -246,6 +246,16 @@ class BackendManager:
         except Exception:
             pass
 
+        # LLVM 后端 - 重构版本（并行注册，用于对比测试）
+        try:
+            from .llvm_backend_refactored import LLVMBackend as LLVMBackendRefactored
+
+            # 使用自定义名称避免与原版冲突
+            backend = LLVMBackendRefactored()
+            cls._backends["llvm-refactored"] = backend
+        except Exception:
+            pass
+
         # WASM 后端
         try:
             from .wasm_backend import WebAssemblyBackend
