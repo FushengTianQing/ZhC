@@ -34,6 +34,31 @@
 | **LLVMBackend** | .ll/.bc | 高 | 是 | 高性能、原生执行、即时编译 |
 | **WASMBackend** | .wasm | 中等 | 否 | Web 部署、浏览器运行（实验性） |
 
+### 后端选择 CLI 参数
+
+```bash
+# 选择编译后端
+zhc hello.zhc --backend <backend>
+
+# 可选值：
+#   ast  - 直接 AST → C（默认，最快）
+#   ir   - IR → C 后端（支持优化）
+#   llvm - IR → LLVM 后端（高性能）
+#   wasm - IR → WASM 后端（Web部署）
+
+# IR 相关参数（仅 ir/llvm/wasm 后端有效）
+zhc hello.zhc --backend ir --dump-ir      # 打印 IR 中间表示
+zhc hello.zhc --backend llvm --no-optimize # 禁用 IR 优化
+```
+
+| 参数 | 默认值 | 说明 |
+|:---|:---|:---|
+| `--backend` | `ast` | 选择编译后端：`ast`、`ir`、`llvm`、`wasm` |
+| `--dump-ir` | 关闭 | 打印 IR 中间表示（仅 ir/llvm 后端） |
+| `--no-optimize` | 关闭 | 禁用 IR 优化 Pass |
+
+**回退机制**：当 LLVM/WASM 后端不可用时，自动回退到 C 后端。
+
 ### LLVM JIT 示例
 
 ```python

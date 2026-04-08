@@ -611,9 +611,57 @@ llvm_ir = jit.get_llvm_ir()
         可执行文件    原生机器码
 ```
 
+#### 3.9.5 后端选择机制
+
+**CLI 参数**：
+
+```bash
+zhc hello.zhc --backend <backend>  # 选择编译后端
+zhc hello.zhc --dump-ir            # 打印 IR 中间表示
+zhc hello.zhc --no-optimize        # 禁用 IR 优化
+```
+
+| 参数 | 值 | 说明 |
+|:---|:---|:---|
+| `--backend` | `ast` | 直接 AST → C（默认） |
+| | `ir` | IR → C 后端 |
+| | `llvm` | IR → LLVM 后端 |
+| | `wasm` | IR → WASM 后端（实验性） |
+| `--dump-ir` | - | 打印 IR（仅 ir/llvm 后端） |
+| `--no-optimize` | - | 禁用 IR 优化 |
+
+**选择逻辑**：
+
+```python
+# cli.py - _generate_code()
+if backend == "ast":
+    code = self._generate_directly(ast)      # AST → CCodegen → C
+elif backend == "ir":
+    code = self._generate_via_ir(ast, target="c")    # AST → IR → CBackend → C
+elif backend == "llvm":
+    code = self._generate_via_ir(ast, target="llvm") # AST → IR → LLVMBackend → .ll
+elif backend == "wasm":
+    code = self._generate_via_ir(ast, target="wasm") # AST → IR → WASMBackend → .wasm
+```
+
+**回退机制**：
+
+当 LLVM/WASM 后端不可用时，自动回退到 C 后端：
+
+```python
+# cli.py - _generate_via_ir()
+if target == "llvm":
+    try:
+        from zhc.backend.llvm_backend import LLVMBackend
+        backend = LLVMBackend()
+    except ImportError:
+        print("❌ LLVM 后端不可用，回退到 C 后端")
+        backend = CBackend()  # 自动回退
+```
+
 ---
 
-### 3.9 命令行模块 (cli/)
+### 3.10 命令行模块 (cli/)
 
 **职责**：提供用户友好的命令行接口
 
