@@ -15,6 +15,7 @@ ZhC LLVM 后端指令编译策略 - 使用策略模式
 
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, TYPE_CHECKING, Any
+import logging
 
 from zhc.ir.opcodes import Opcode
 
@@ -23,6 +24,8 @@ if TYPE_CHECKING:
 
 if TYPE_CHECKING:
     import llvmlite.ir as ll
+
+logger = logging.getLogger(__name__)
 
 
 class InstructionStrategy(ABC):
@@ -355,6 +358,77 @@ class JzStrategy(InstructionStrategy):
         return None
 
 
+class SwitchStrategy(InstructionStrategy):
+    """
+    Switch 多分支跳转策略
+
+    使用方式：
+        switch %val, %default, [val1, %label1], [val2, %label2], ...
+    """
+
+    opcode = Opcode.SWITCH
+
+    def compile(self, builder, instr, context):
+        # 获取条件值
+        val = context.get_value(instr.operands[0])
+
+        # 获取默认目标块
+        default_label = str(instr.operands[1])
+        default_block = context.get_block(default_label)
+
+        # 收集所有 case 分支
+        cases = []
+        for i in range(2, len(instr.operands), 2):
+            if i + 1 < len(instr.operands):
+                case_val = context.get_value(instr.operands[i])
+                case_label = str(instr.operands[i + 1])
+                case_block = context.get_block(case_label)
+                cases.append((case_val, case_block))
+
+        # 创建 switch 指令
+        builder.switch(val, default_block, cases)
+        return None
+
+
+class PhiStrategy(InstructionStrategy):
+    """
+    Phi 节点策略 - SSA 形式的值合并
+
+    使用方式：
+        %result = phi [ %val1, %block1 ], [ %val2, %block2 ], ...
+
+    注意：ZhC 使用非严格 SSA，通过 ALLOC + STORE 替代 phi 节点，
+    但保留 phi 指令以支持严格 SSA 模式。
+    """
+
+    opcode = Opcode.PHI
+
+    def compile(self, builder, instr, context):
+        # 获取 phi 类型
+        phi_type = context.get_type_from_operand(
+            instr.operands[0] if instr.operands else None
+        )
+
+        # 收集所有 incoming 值
+        incomings = []
+        for i in range(0, len(instr.operands), 2):
+            if i + 1 < len(instr.operands):
+                val = context.get_value(instr.operands[i])
+                block_label = str(instr.operands[i + 1])
+                block = context.get_block(block_label)
+                incomings.append((val, block))
+
+        # 创建 phi 指令
+        result = builder.phi(phi_type, name=context.get_result_name(instr))
+
+        # 添加 incoming 值
+        for val, block in incomings:
+            result.add_incoming(val, block)
+
+        context.store_result(instr, result)
+        return result
+
+
 class AllocStrategy(InstructionStrategy):
     """内存分配策略"""
 
@@ -394,6 +468,59 @@ class StoreStrategy(InstructionStrategy):
         return None
 
 
+class GetPtrStrategy(InstructionStrategy):
+    """获取指针策略 - 获取结构体/数组成员指针"""
+
+    opcode = Opcode.GETPTR
+
+    def compile(self, builder, instr, context):
+        ptr = context.get_value(instr.operands[0])
+        index = (
+            context.get_value(instr.operands[1]) if len(instr.operands) > 1 else None
+        )
+
+        if index is None:
+            result = ptr
+        else:
+            # 使用 gep 实现指针运算
+            result = builder.gep(ptr, [index], name=context.get_result_name(instr))
+
+        context.store_result(instr, result)
+        return result
+
+
+class GepStrategy(InstructionStrategy):
+    """
+    GetElementPtr 策略 - 指针运算，用于数组索引和结构体字段访问
+
+    使用方式：
+        %ptr = gep %base, %idx1, %idx2, ...
+    """
+
+    opcode = Opcode.GEP
+
+    def compile(self, builder, instr, context):
+        ptr = context.get_value(instr.operands[0])
+
+        # 收集所有索引
+        indices = []
+        for i in range(1, len(instr.operands)):
+            idx = context.get_value(instr.operands[i])
+            # 确保索引是整数类型
+            if hasattr(idx.type, "width"):
+                indices.append(idx)
+            else:
+                indices.append(idx)
+
+        if not indices:
+            result = ptr
+        else:
+            result = builder.gep(ptr, indices, name=context.get_result_name(instr))
+
+        context.store_result(instr, result)
+        return result
+
+
 class CallStrategy(InstructionStrategy):
     """函数调用策略"""
 
@@ -420,6 +547,74 @@ class CallStrategy(InstructionStrategy):
         if result and result_name:
             context.store_result(instr, result)
 
+        return result
+
+
+class LogicalStrategy(InstructionStrategy):
+    """逻辑运算策略基类"""
+
+    @staticmethod
+    @abstractmethod
+    def operation(
+        builder: "ll.IRBuilder", a: "ll.Value", b: "ll.Value", name: str
+    ) -> "ll.Value":
+        """执行逻辑运算"""
+        pass
+
+
+class LAndStrategy(LogicalStrategy):
+    """逻辑与策略 (&&)"""
+
+    opcode = Opcode.L_AND
+
+    @staticmethod
+    def operation(builder, a, b, name):
+        # 逻辑与：先转为布尔，再 AND
+        a_bool = builder.icmp_signed("!=", a, a.type(0), name="land_a")
+        b_bool = builder.icmp_signed("!=", b, b.type(0), name="land_b")
+        return builder.and_(a_bool, b_bool, name=name)
+
+    def compile(self, builder, instr, context):
+        a = context.get_value(instr.operands[0])
+        b = context.get_value(instr.operands[1])
+        result = self.operation(builder, a, b, name=context.get_result_name(instr))
+        context.store_result(instr, result)
+        return result
+
+
+class LOrStrategy(LogicalStrategy):
+    """逻辑或策略 (||)"""
+
+    opcode = Opcode.L_OR
+
+    @staticmethod
+    def operation(builder, a, b, name):
+        # 逻辑或：先转为布尔，再 OR
+        a_bool = builder.icmp_signed("!=", a, a.type(0), name="lor_a")
+        b_bool = builder.icmp_signed("!=", b, b.type(0), name="lor_b")
+        return builder.or_(a_bool, b_bool, name=name)
+
+    def compile(self, builder, instr, context):
+        a = context.get_value(instr.operands[0])
+        b = context.get_value(instr.operands[1])
+        result = self.operation(builder, a, b, name=context.get_result_name(instr))
+        context.store_result(instr, result)
+        return result
+
+
+class LNotStrategy(InstructionStrategy):
+    """逻辑非策略 (!)"""
+
+    opcode = Opcode.L_NOT
+
+    def compile(self, builder, instr, context):
+        a = context.get_value(instr.operands[0])
+        # 逻辑非：先转为布尔，再取反
+        a_bool = builder.icmp_signed("!=", a, a.type(0), name="lnot_a")
+        result = builder.icmp_signed(
+            "==", a_bool, a_bool.type(0), name=context.get_result_name(instr)
+        )
+        context.store_result(instr, result)
         return result
 
 
@@ -590,6 +785,169 @@ class BitcastStrategy(ConversionStrategy):
         return result
 
 
+class Int2PtrStrategy(ConversionStrategy):
+    """整数转指针策略"""
+
+    opcode = Opcode.INT2PTR
+
+    def compile(self, builder, instr, context):
+        import llvmlite.ir as ll
+
+        val = context.get_value(instr.operands[0])
+
+        # 获取目标指针类型
+        if len(instr.operands) > 1:
+            target_type = context.get_type_from_operand(instr.operands[1])
+        else:
+            # 默认为 i8* (通用指针)
+            target_type = ll.PointerType(ll.IntType(8))
+
+        result = builder.inttoptr(val, target_type, name=context.get_result_name(instr))
+        context.store_result(instr, result)
+        return result
+
+
+class Ptr2IntStrategy(ConversionStrategy):
+    """指针转整数策略"""
+
+    opcode = Opcode.PTR2INT
+
+    def compile(self, builder, instr, context):
+        import llvmlite.ir as ll
+
+        val = context.get_value(instr.operands[0])
+
+        # 获取目标整数类型
+        if len(instr.operands) > 1:
+            target_type = context.get_type_from_operand(instr.operands[1])
+        else:
+            # 默认为 i64 (指针大小)
+            target_type = ll.IntType(64)
+
+        result = builder.ptrtoint(val, target_type, name=context.get_result_name(instr))
+        context.store_result(instr, result)
+        return result
+
+
+class ConstStrategy(InstructionStrategy):
+    """
+    常量策略 - 定义常量值
+
+    使用方式：
+        %result = const <type> <value>
+    """
+
+    opcode = Opcode.CONST
+
+    def compile(self, builder, instr, context):
+        import llvmlite.ir as ll
+
+        # 获取类型和值
+        if len(instr.operands) >= 2:
+            const_type = context.get_type_from_operand(instr.operands[0])
+            const_value = instr.operands[1]
+        else:
+            const_type = ll.IntType(32)
+            const_value = instr.operands[0] if instr.operands else None
+
+        # 解析常量值
+        val = context.get_value(const_value)
+
+        # 根据类型创建常量
+        if isinstance(const_type, ll.IntType):
+            if hasattr(val, "constant"):
+                result = ll.Constant(const_type, val.constant)
+            else:
+                result = ll.Constant(const_type, 0)
+        elif isinstance(const_type, ll.FloatType):
+            if hasattr(val, "constant"):
+                result = ll.Constant(const_type, float(val.constant))
+            else:
+                result = ll.Constant(const_type, 0.0)
+        elif isinstance(const_type, ll.DoubleType):
+            if hasattr(val, "constant"):
+                result = ll.Constant(const_type, float(val.constant))
+            else:
+                result = ll.Constant(const_type, 0.0)
+        else:
+            result = ll.Constant(const_type, 0)
+
+        context.store_result(instr, result)
+        return result
+
+
+class NopStrategy(InstructionStrategy):
+    """空操作策略 - 不做任何事情"""
+
+    opcode = Opcode.NOP
+
+    def compile(self, builder, instr, context):
+        # 空操作，什么都不做
+        return None
+
+
+class GlobalStrategy(InstructionStrategy):
+    """
+    全局变量策略 - 获取全局变量地址
+
+    使用方式：
+        %result = global @global_var
+    """
+
+    opcode = Opcode.GLOBAL
+
+    def compile(self, builder, instr, context):
+        global_name = str(instr.operands[0])
+
+        # 移除 @ 前缀
+        if global_name.startswith("@"):
+            global_name = global_name[1:]
+
+        # 在模块中查找全局变量
+        if context.module:
+            for gv in context.module.global_variables:
+                if gv.name == global_name:
+                    context.store_result(instr, gv)
+                    return gv
+
+        # 如果找不到，返回 None
+        logger.warning(f"未找到全局变量: @{global_name}")
+        return None
+
+
+class ArgStrategy(InstructionStrategy):
+    """
+    函数参数策略 - 获取函数参数值
+
+    使用方式：
+        %result = arg <param_index>
+    """
+
+    opcode = Opcode.ARG
+
+    def compile(self, builder, instr, context):
+        # 获取参数索引
+        if instr.operands:
+            idx = context.get_value(instr.operands[0])
+            if hasattr(idx, "constant"):
+                param_idx = idx.constant
+            else:
+                param_idx = 0
+        else:
+            param_idx = 0
+
+        # 从当前函数获取参数
+        if context.current_function and isinstance(
+            context.current_function, ll.Function
+        ):
+            if param_idx < len(context.current_function.args):
+                arg_value = context.current_function.args[param_idx]
+                context.store_result(instr, arg_value)
+                return arg_value
+
+        return None
+
+
 class InstructionStrategyFactory:
     """
     指令策略工厂
@@ -625,15 +983,23 @@ class InstructionStrategyFactory:
         LeStrategy,
         GtStrategy,
         GeStrategy,
+        # 逻辑运算
+        LAndStrategy,
+        LOrStrategy,
+        LNotStrategy,
         # 控制流
         RetStrategy,
         JmpStrategy,
         JzStrategy,
+        SwitchStrategy,
+        PhiStrategy,
         CallStrategy,
         # 内存操作
         AllocStrategy,
         LoadStrategy,
         StoreStrategy,
+        GetPtrStrategy,
+        GepStrategy,
         # 位运算
         AndStrategy,
         OrStrategy,
@@ -646,6 +1012,13 @@ class InstructionStrategyFactory:
         SextStrategy,
         TruncStrategy,
         BitcastStrategy,
+        Int2PtrStrategy,
+        Ptr2IntStrategy,
+        # 其他
+        ConstStrategy,
+        NopStrategy,
+        GlobalStrategy,
+        ArgStrategy,
     ]
 
     @classmethod
