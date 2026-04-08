@@ -41,14 +41,14 @@ class LLVMPrinter:
     """LLVM IR 文本生成器"""
 
     _ARITH_LLVM = {
-        "ADD": "add", "SUB": "sub", "MUL": "mul",
-        "DIV": "sdiv", "MOD": "srem",
+        "add": "add", "sub": "sub", "mul": "mul",
+        "div": "sdiv", "mod": "srem",
     }
 
     _CMP_LLVM = {
-        "EQ": "eq", "NE": "ne",
-        "LT": "slt", "LE": "sle",
-        "GT": "sgt", "GE": "sge",
+        "eq": "eq", "ne": "ne",
+        "lt": "slt", "le": "sle",
+        "gt": "sgt", "ge": "sge",
     }
 
     def __init__(self):
@@ -77,7 +77,7 @@ class LLVMPrinter:
             f"{_llvm_type(p.ty or 'i32')} %{p.name}"
             for p in func.params
         )
-        self.lines.append(f"define {ret_ty} @{func.name}({params} {{")
+        self.lines.append(f"define {ret_ty} @{func.name}({params}) {{")
 
         for bb in func.basic_blocks:
             self._gen_block(bb)
@@ -108,10 +108,21 @@ class LLVMPrinter:
             self._gen_call(instr)
 
         elif op == Opcode.ALLOC:
-            var_ty = _llvm_type(
-                instr.operands[0].ty if instr.operands else "i32"
-            )
-            res = instr.result[0].name if instr.result else None
+            # 处理 operands（可能是字符串或 IRValue 对象）
+            if instr.operands:
+                op_obj = instr.operands[0]
+                op_ty = op_obj.ty if hasattr(op_obj, 'ty') else str(op_obj)
+            else:
+                op_ty = "i32"
+            var_ty = _llvm_type(op_ty)
+            
+            # 处理 result
+            if instr.result:
+                res_obj = instr.result[0]
+                res = res_obj.name if hasattr(res_obj, 'name') else str(res_obj)
+            else:
+                res = None
+            
             if res:
                 self.lines.append(f"  %{res} = alloca {var_ty}, align 4")
             else:
@@ -123,7 +134,14 @@ class LLVMPrinter:
 
         elif op == Opcode.LOAD:
             src = instr.operands[0] if instr.operands else ""
-            res = instr.result[0].name if instr.result else "%tmp"
+            
+            # 处理 result
+            if instr.result:
+                res_obj = instr.result[0]
+                res = res_obj.name if hasattr(res_obj, 'name') else str(res_obj)
+            else:
+                res = "%tmp"
+            
             self.lines.append(f"  %{res} = load i32, i32* {src}")
 
         elif op == Opcode.JMP:
@@ -139,27 +157,51 @@ class LLVMPrinter:
         else:
             self.lines.append(f"  ; {op.name} [未实现]")
 
-    def _gen_arith(self, instr: Instruction):
+    def _gen_arith(self, instr: IRInstruction):
         a = instr.operands[0] if len(instr.operands) > 0 else ""
         b = instr.operands[1] if len(instr.operands) > 1 else instr.operands[0] if instr.operands else ""
-        res = instr.result[0].name if instr.result else ""
+        
+        # 处理 result（可能是字符串或 IRValue 对象）
+        if instr.result:
+            res_obj = instr.result[0]
+            res = res_obj.name if hasattr(res_obj, 'name') else str(res_obj)
+        else:
+            res = ""
+        
         llvm_op = self._ARITH_LLVM[instr.opcode.name]
         if res:
             self.lines.append(f"  %{res} = {llvm_op} i32 {a}, {b}")
         else:
             self.lines.append(f"  {llvm_op} i32 {a}, {b}")
 
-    def _gen_cmp(self, instr: Instruction):
+    def _gen_cmp(self, instr: IRInstruction):
         a = instr.operands[0] if len(instr.operands) > 0 else ""
         b = instr.operands[1] if len(instr.operands) > 1 else instr.operands[0] if instr.operands else ""
-        res = instr.result[0].name if instr.result else ""
+        
+        # 处理 result（可能是字符串或 IRValue 对象）
+        if instr.result:
+            res_obj = instr.result[0]
+            res = res_obj.name if hasattr(res_obj, 'name') else str(res_obj)
+        else:
+            res = ""
+        
         llvm_op = self._CMP_LLVM[instr.opcode.name]
-        self.lines.append(f"  %{res} = icmp {llvm_op} i32 {a}, {b}" if res else f"  icmp {llvm_op} i32 {a}, {b}")
+        if res:
+            self.lines.append(f"  %{res} = icmp {llvm_op} i32 {a}, {b}")
+        else:
+            self.lines.append(f"  icmp {llvm_op} i32 {a}, {b}")
 
     def _gen_call(self, instr):
         callee = instr.operands[0] if instr.operands else ""
         args = ", ".join(str(a) for a in instr.operands[1:])
-        res = instr.result[0].name if instr.result else ""
+        
+        # 处理 result（可能是字符串或 IRValue 对象）
+        if instr.result:
+            res_obj = instr.result[0]
+            res = res_obj.name if hasattr(res_obj, 'name') else str(res_obj)
+        else:
+            res = ""
+        
         if res:
             self.lines.append(f"  %{res} = call i32 @{callee}({args})")
         else:
