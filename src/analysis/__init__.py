@@ -22,44 +22,46 @@ from zhc.analysis.analyzer_scheduler import (
 )
 
 from zhc.analysis.unused_variable_analyzer import UnusedVariableAnalyzer
-from zhc.analysis.null_pointer_analyzer import NullPointerAnalyzer, DivisionByZeroAnalyzer
+from zhc.analysis.null_pointer_analyzer import (
+    NullPointerAnalyzer,
+    DivisionByZeroAnalyzer,
+)
 from zhc.analysis.resource_leak_analyzer import ResourceLeakAnalyzer
-from zhc.analysis.complexity_analyzer import ComplexityAnalyzer, CodeSmellAnalyzer, DeadCodeAnalyzer
+from zhc.analysis.complexity_analyzer import (
+    ComplexityAnalyzer,
+    CodeSmellAnalyzer,
+    DeadCodeAnalyzer,
+)
 from zhc.analysis.report_generator import ReportGenerator
 
 __all__ = [
     # 基础类
-    'StaticAnalyzer',
-    'AnalysisResult',
-    'SourceLocation',
-    'Severity',
-    'ASTWalker',
-
+    "StaticAnalyzer",
+    "AnalysisResult",
+    "SourceLocation",
+    "Severity",
+    "ASTWalker",
     # 调度器
-    'AnalysisScheduler',
-    'AnalysisStats',
-
+    "AnalysisScheduler",
+    "AnalysisStats",
     # 内置分析器
-    'UnusedVariableAnalyzer',
-    'NullPointerAnalyzer',
-    'DivisionByZeroAnalyzer',
-    'ResourceLeakAnalyzer',
-    'ComplexityAnalyzer',
-    'CodeSmellAnalyzer',
-    'DeadCodeAnalyzer',
-
+    "UnusedVariableAnalyzer",
+    "NullPointerAnalyzer",
+    "DivisionByZeroAnalyzer",
+    "ResourceLeakAnalyzer",
+    "ComplexityAnalyzer",
+    "CodeSmellAnalyzer",
+    "DeadCodeAnalyzer",
     # 报告生成
-    'ReportGenerator',
-
+    "ReportGenerator",
     # 工具函数
-    'get_node_location',
-    'get_node_name',
-
+    "get_node_location",
+    "get_node_name",
     # 分析器工厂函数
-    'create_default_scheduler',
-    'create_security_analyzers',
-    'create_quality_analyzers',
-    'create_security_scheduler',
+    "create_default_scheduler",
+    "create_security_analyzers",
+    "create_quality_analyzers",
+    "create_security_scheduler",
 ]
 
 
@@ -96,9 +98,9 @@ def create_security_analyzers() -> list:
         安全分析器列表
     """
     return [
-        DivisionByZeroAnalyzer(),    # ERROR 级别：除零错误
-        NullPointerAnalyzer(),       # WARNING 级别：空指针检测
-        ResourceLeakAnalyzer(),      # WARNING 级别：资源泄漏检测
+        DivisionByZeroAnalyzer(),  # ERROR 级别：除零错误
+        NullPointerAnalyzer(),  # WARNING 级别：空指针检测
+        ResourceLeakAnalyzer(),  # WARNING 级别：资源泄漏检测
     ]
 
 
@@ -112,10 +114,10 @@ def create_quality_analyzers() -> list:
         质量分析器列表
     """
     return [
-        UnusedVariableAnalyzer(),    # WARNING 级别
-        ComplexityAnalyzer(),         # INFO 级别
-        CodeSmellAnalyzer(),         # INFO 级别
-        DeadCodeAnalyzer(),          # WARNING 级别
+        UnusedVariableAnalyzer(),  # WARNING 级别
+        ComplexityAnalyzer(),  # INFO 级别
+        CodeSmellAnalyzer(),  # INFO 级别
+        DeadCodeAnalyzer(),  # WARNING 级别
     ]
 
 

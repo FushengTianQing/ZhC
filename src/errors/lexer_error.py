@@ -15,17 +15,17 @@ from .base import ZHCError, SourceLocation
 class LexerError(ZHCError):
     """
     词法分析错误
-    
+
     在词法分析阶段发生的错误，例如：
     - 非法字符
     - 字符串未闭合
     - 数字格式错误
     - 注释未闭合
-    
+
     Attributes:
         character: 导致错误的字符（可选）
         token_type: 期望的token类型（可选）
-    
+
     Example:
         >>> error = LexerError(
         ...     "非法字符 '@'",
@@ -35,7 +35,7 @@ class LexerError(ZHCError):
         ...     suggestion="请检查是否使用了不支持的特殊字符"
         ... )
     """
-    
+
     def __init__(
         self,
         message: str,
@@ -49,7 +49,7 @@ class LexerError(ZHCError):
     ):
         """
         初始化词法分析错误
-        
+
         Args:
             message: 错误消息
             location: 错误位置
@@ -63,14 +63,16 @@ class LexerError(ZHCError):
         self.character = character
         self.token_type = token_type
         super().__init__(message, location, error_code, severity, context, suggestion)
-    
+
     def to_dict(self) -> dict:
         """转换为字典格式"""
         data = super().to_dict()
-        data.update({
-            "character": self.character,
-            "token_type": self.token_type,
-        })
+        data.update(
+            {
+                "character": self.character,
+                "token_type": self.token_type,
+            }
+        )
         return data
 
 
@@ -105,6 +107,7 @@ LEXER_BOM_ERROR = "L032"  # BOM标记错误
 # 便捷工厂函数
 # ============================================================================
 
+
 def illegal_character(
     character: str,
     location: Optional[SourceLocation] = None,
@@ -112,12 +115,12 @@ def illegal_character(
 ) -> LexerError:
     """
     创建非法字符错误
-    
+
     Args:
         character: 非法字符
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         LexerError 实例
     """
@@ -137,11 +140,11 @@ def unterminated_string(
 ) -> LexerError:
     """
     创建字符串未闭合错误
-    
+
     Args:
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         LexerError 实例
     """
@@ -161,12 +164,12 @@ def invalid_number_format(
 ) -> LexerError:
     """
     创建数字格式错误
-    
+
     Args:
         number_str: 错误的数字字符串
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         LexerError 实例
     """
@@ -186,12 +189,12 @@ def invalid_identifier(
 ) -> LexerError:
     """
     创建无效标识符错误
-    
+
     Args:
         identifier: 无效的标识符
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         LexerError 实例
     """
@@ -210,11 +213,11 @@ def unterminated_comment(
 ) -> LexerError:
     """
     创建注释未闭合错误
-    
+
     Args:
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         LexerError 实例
     """
@@ -233,11 +236,11 @@ def unterminated_char(
 ) -> LexerError:
     """
     创建字符字面量未闭合错误
-    
+
     Args:
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         LexerError 实例
     """

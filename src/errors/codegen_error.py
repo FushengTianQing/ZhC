@@ -8,26 +8,26 @@ CodeGenerator 异常类
 维护者: ZHC开发团队
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional
 from .base import ZHCError, SourceLocation
 
 
 class CodeGenerationError(ZHCError):
     """
     代码生成错误
-    
+
     在代码生成阶段发生的错误，例如：
     - IR转换错误
     - 目标代码生成错误
     - 不支持的特性
     - 后端编译错误
-    
+
     Attributes:
         ir_node_type: 相关的IR节点类型（可选）
         target_backend: 目标后端（可选）
         feature_name: 不支持的特性名称（可选）
         backend_error: 后端编译器的错误信息（可选）
-    
+
     Example:
         >>> error = CodeGenerationError(
         ...     "不支持的内联汇编",
@@ -38,7 +38,7 @@ class CodeGenerationError(ZHCError):
         ...     suggestion="请使用标准C代码替代内联汇编"
         ... )
     """
-    
+
     def __init__(
         self,
         message: str,
@@ -54,7 +54,7 @@ class CodeGenerationError(ZHCError):
     ):
         """
         初始化代码生成错误
-        
+
         Args:
             message: 错误消息
             location: 错误位置
@@ -72,38 +72,40 @@ class CodeGenerationError(ZHCError):
         self.feature_name = feature_name
         self.backend_error = backend_error
         super().__init__(message, location, error_code, severity, context, suggestion)
-    
+
     def _format_message(self) -> str:
         """格式化错误消息，添加后端信息"""
         base_message = super()._format_message()
-        
+
         # 添加IR节点类型
         if self.ir_node_type:
             base_message += f"\nIR节点: {self.ir_node_type}"
-        
+
         # 添加目标后端
         if self.target_backend:
             base_message += f"\n目标后端: {self.target_backend}"
-        
+
         # 添加特性名称
         if self.feature_name:
             base_message += f"\n特性: {self.feature_name}"
-        
+
         # 添加后端错误
         if self.backend_error:
             base_message += f"\n后端错误: {self.backend_error}"
-        
+
         return base_message
-    
+
     def to_dict(self) -> dict:
         """转换为字典格式"""
         data = super().to_dict()
-        data.update({
-            "ir_node_type": self.ir_node_type,
-            "target_backend": self.target_backend,
-            "feature_name": self.feature_name,
-            "backend_error": self.backend_error,
-        })
+        data.update(
+            {
+                "ir_node_type": self.ir_node_type,
+                "target_backend": self.target_backend,
+                "feature_name": self.feature_name,
+                "backend_error": self.backend_error,
+            }
+        )
         return data
 
 
@@ -143,6 +145,7 @@ CODEGEN_INVALID_OUTPUT_FORMAT = "C043"  # 无效的输出格式
 # 便捷工厂函数
 # ============================================================================
 
+
 def unsupported_feature(
     feature_name: str,
     target_backend: Optional[str] = None,
@@ -151,13 +154,13 @@ def unsupported_feature(
 ) -> CodeGenerationError:
     """
     创建不支持特性错误
-    
+
     Args:
         feature_name: 不支持的特性名称
         target_backend: 目标后端
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         CodeGenerationError 实例
     """
@@ -181,13 +184,13 @@ def backend_error(
 ) -> CodeGenerationError:
     """
     创建后端编译错误
-    
+
     Args:
         backend_name: 后端名称
         error_message: 后端错误信息
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         CodeGenerationError 实例
     """
@@ -210,13 +213,13 @@ def ir_conversion_failed(
 ) -> CodeGenerationError:
     """
     创建IR转换失败错误
-    
+
     Args:
         ir_node_type: IR节点类型
         reason: 失败原因
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         CodeGenerationError 实例
     """
@@ -237,12 +240,12 @@ def unsupported_platform(
 ) -> CodeGenerationError:
     """
     创建不支持平台错误
-    
+
     Args:
         platform: 平台名称
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         CodeGenerationError 实例
     """
@@ -264,13 +267,13 @@ def file_write_error(
 ) -> CodeGenerationError:
     """
     创建文件写入错误
-    
+
     Args:
         file_path: 文件路径
         reason: 失败原因
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         CodeGenerationError 实例
     """

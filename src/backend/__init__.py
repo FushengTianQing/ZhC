@@ -59,6 +59,7 @@ from .clang_backend import ClangBackend
 # LLVM 后端（可选，需要 llvmlite）
 try:
     from .llvm_backend import LLVMBackend, LLVMBackendError, compile_to_llvm
+
     LLVM_BACKEND_AVAILABLE = True
 except ImportError:
     LLVMBackend = None
@@ -72,6 +73,55 @@ from .wasm_backend import WebAssemblyBackend, WASMCompileResult
 # 调试监听器
 from .llvm_debug_listener import LLVMDebugListener
 from .wasm_debug_listener import WASMDebugListener
+
+# === 重构新增模块 ===
+# 类型系统
+from .type_system import (
+    TypeMapper,
+    TypeInfo,
+    TargetBackend,
+    get_type_mapper,
+)
+
+# 编译器运行器
+from .compiler_runner import (
+    CompilerRunner,
+    CompilerConfig,
+    CompilerOutput,
+    TemporaryFileManager,
+    create_c_compiler_runner,
+    create_wasm_compiler_runner,
+)
+
+# 编译缓存
+from .compile_cache import (
+    CompileCache,
+    CacheEntry,
+    CachedBackend,
+)
+
+# 指令策略（用于 LLVM 后端）
+from .llvm_instruction_strategy import (
+    InstructionStrategy,
+    InstructionStrategyFactory,
+)
+
+# 编译上下文
+from .compilation_context import CompilationContext
+
+# === 重构版本后端（可选启用）===
+# 重构后的 LLVM 后端
+try:
+    from .llvm_backend_refactored import (
+        LLVMBackend as LLVMBackendRefactored,
+        LLVMBackendError as LLVMBackendErrorRefactored,
+    )
+except ImportError:
+    LLVMBackendRefactored = None
+    LLVMBackendErrorRefactored = None
+
+# 重构后的 C 后端
+from .c_backend_refactored import CBackend as CBackendRefactored
 
 # 寄存器分配器接口
 from .allocator_interface import (
@@ -90,47 +140,68 @@ from .allocator_interface import (
 
 __all__ = [
     # 基类
-    'BackendBase',
-    'BackendCapabilities',
-    'BackendError',
-    'CompilationError',
-    'LinkingError',
-    'ToolNotFoundError',
-    'UnsupportedTargetError',
-    'CompileOptions',
-    'CompileResult',
-    'OutputFormat',
-
+    "BackendBase",
+    "BackendCapabilities",
+    "BackendError",
+    "CompilationError",
+    "LinkingError",
+    "ToolNotFoundError",
+    "UnsupportedTargetError",
+    "CompileOptions",
+    "CompileResult",
+    "OutputFormat",
     # 后端管理器
-    'BackendManager',
-    'get_backend',
-    'get_available_backends',
-
+    "BackendManager",
+    "get_backend",
+    "get_available_backends",
     # 后端实现
-    'CBackend',
-    'GCCBackend',
-    'ClangBackend',
-    'LLVMBackend',
-    'LLVMBackendError',
-    'compile_to_llvm',
-    'LLVM_BACKEND_AVAILABLE',
-    'WebAssemblyBackend',
-    'WASMCompileResult',
-
+    "CBackend",
+    "GCCBackend",
+    "ClangBackend",
+    "LLVMBackend",
+    "LLVMBackendError",
+    "compile_to_llvm",
+    "LLVM_BACKEND_AVAILABLE",
+    "WebAssemblyBackend",
+    "WASMCompileResult",
     # 调试监听器
-    'LLVMDebugListener',
-    'WASMDebugListener',
-
+    "LLVMDebugListener",
+    "WASMDebugListener",
+    # === 重构新增 ===
+    # 类型系统
+    "TypeMapper",
+    "TypeInfo",
+    "TargetBackend",
+    "get_type_mapper",
+    # 编译器运行器
+    "CompilerRunner",
+    "CompilerConfig",
+    "CompilerOutput",
+    "TemporaryFileManager",
+    "create_c_compiler_runner",
+    "create_wasm_compiler_runner",
+    # 编译缓存
+    "CompileCache",
+    "CacheEntry",
+    "CachedBackend",
+    # 指令策略
+    "InstructionStrategy",
+    "InstructionStrategyFactory",
+    "CompilationContext",
+    # 重构版本后端
+    "LLVMBackendRefactored",
+    "LLVMBackendErrorRefactored",
+    "CBackendRefactored",
     # 寄存器分配器
-    'AllocationStrategy',
-    'AllocatorCapabilities',
-    'RegisterAllocator',
-    'UnifiedRegisterAllocator',
-    'X86_64RegisterAllocator',
-    'Arm64RegisterAllocator',
-    'WASMRegisterAllocator',
-    'LLVMRegisterAllocator',
-    'create_allocator',
-    'register_for_all_backends',
-    'Instruction',
+    "AllocationStrategy",
+    "AllocatorCapabilities",
+    "RegisterAllocator",
+    "UnifiedRegisterAllocator",
+    "X86_64RegisterAllocator",
+    "Arm64RegisterAllocator",
+    "WASMRegisterAllocator",
+    "LLVMRegisterAllocator",
+    "create_allocator",
+    "register_for_all_backends",
+    "Instruction",
 ]

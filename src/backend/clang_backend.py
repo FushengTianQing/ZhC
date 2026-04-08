@@ -20,6 +20,7 @@ from .base import (
     CompileResult,
     OutputFormat,
     BackendCapabilities,
+    ToolNotFoundError,
 )
 
 
@@ -55,7 +56,7 @@ class ClangBackend(CBackend):
 
     @property
     def capabilities(self) -> BackendCapabilities:
-        base = super().capabilities
+        super().capabilities
         return BackendCapabilities(
             supports_jit=False,
             supports_debug=True,
@@ -143,7 +144,8 @@ class ClangBackend(CBackend):
             f"-{options.optimization_level}",
             "-S",  # 输出汇编（LLVM IR）
             "-emit-llvm",
-            "-o", str(output_path.with_suffix(".ll")),
+            "-o",
+            str(output_path.with_suffix(".ll")),
             str(c_file),
         ]
 

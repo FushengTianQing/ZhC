@@ -12,7 +12,7 @@
 日期：2026-04-03
 """
 
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime
@@ -20,6 +20,7 @@ from datetime import datetime
 
 class ErrorLevel(Enum):
     """错误级别"""
+
     ERROR = "error"
     WARNING = "warning"
     INFO = "info"
@@ -28,6 +29,7 @@ class ErrorLevel(Enum):
 @dataclass
 class ConversionError:
     """转换错误"""
+
     error_type: str
     message: str
     line_no: int = -1
@@ -38,12 +40,12 @@ class ConversionError:
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return {
-            'type': self.error_type,
-            'message': self.message,
-            'line': self.line_no,
-            'level': self.level.value,
-            'timestamp': self.timestamp,
-            'context': self.context
+            "type": self.error_type,
+            "message": self.message,
+            "line": self.line_no,
+            "level": self.level.value,
+            "timestamp": self.timestamp,
+            "context": self.context,
         }
 
 
@@ -68,7 +70,7 @@ class ConversionErrorHandler:
         error_type: str,
         message: str,
         line_no: int = -1,
-        context: Dict[str, Any] = None
+        context: Dict[str, Any] = None,
     ):
         """
         添加错误
@@ -85,7 +87,7 @@ class ConversionErrorHandler:
             line_no=line_no,
             level=ErrorLevel.ERROR,
             timestamp=datetime.now().timestamp(),
-            context=context or {}
+            context=context or {},
         )
         self.errors.append(error)
 
@@ -97,7 +99,7 @@ class ConversionErrorHandler:
         warning_type: str,
         message: str,
         line_no: int = -1,
-        context: Dict[str, Any] = None
+        context: Dict[str, Any] = None,
     ):
         """
         添加警告
@@ -114,7 +116,7 @@ class ConversionErrorHandler:
             line_no=line_no,
             level=ErrorLevel.WARNING,
             timestamp=datetime.now().timestamp(),
-            context=context or {}
+            context=context or {},
         )
         self.warnings.append(warning)
 
@@ -122,12 +124,7 @@ class ConversionErrorHandler:
         count_key = f"WARNING_{warning_type}"
         self._error_counts[count_key] = self._error_counts.get(count_key, 0) + 1
 
-    def add_info(
-        self,
-        message: str,
-        line_no: int = -1,
-        context: Dict[str, Any] = None
-    ):
+    def add_info(self, message: str, line_no: int = -1, context: Dict[str, Any] = None):
         """
         添加信息
 
@@ -142,7 +139,7 @@ class ConversionErrorHandler:
             line_no=line_no,
             level=ErrorLevel.INFO,
             timestamp=datetime.now().timestamp(),
-            context=context or {}
+            context=context or {},
         )
         self.errors.append(info)  # 信息也加入错误列表以便查询
 
@@ -193,20 +190,15 @@ class ConversionErrorHandler:
     def get_statistics(self) -> Dict[str, Any]:
         """获取错误统计"""
         return {
-            'total_errors': len(self.errors),
-            'total_warnings': len(self.warnings),
-            'error_types': len(set(e.error_type for e in self.errors)),
-            'error_counts': self._error_counts.copy()
+            "total_errors": len(self.errors),
+            "total_warnings": len(self.warnings),
+            "error_types": len(set(e.error_type for e in self.errors)),
+            "error_counts": self._error_counts.copy(),
         }
 
     def generate_report(self) -> str:
         """生成错误报告"""
-        lines = [
-            "=" * 60,
-            "转换错误报告",
-            "=" * 60,
-            ""
-        ]
+        lines = ["=" * 60, "转换错误报告", "=" * 60, ""]
 
         # 错误统计
         if self.errors:

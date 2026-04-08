@@ -21,10 +21,17 @@
 - 单一职责原则
 """
 
-from typing import List, Dict, Tuple, Optional, Set, Any
+from typing import Optional
 from .ast_nodes import (
-    BlockStmtNode, IfStmtNode, WhileStmtNode, ForStmtNode,
-    BreakStmtNode, ContinueStmtNode, ReturnStmtNode, ExprStmtNode, ASTNode
+    BlockStmtNode,
+    IfStmtNode,
+    WhileStmtNode,
+    ForStmtNode,
+    BreakStmtNode,
+    ContinueStmtNode,
+    ReturnStmtNode,
+    ExprStmtNode,
+    ASTNode,
 )
 
 
@@ -43,36 +50,36 @@ class StatementParserMixin:
             语句节点
         """
         # 空语句
-        if self.check(';'):
+        if self.check(";"):
             self.advance()
             return None
 
         # 块语句
-        if self.check('{'):
+        if self.check("{"):
             return self.parse_block()
 
         # if语句
-        if self.check('如果'):
+        if self.check("如果"):
             return self.parse_if_stmt()
 
         # while语句
-        if self.check('当'):
+        if self.check("当"):
             return self.parse_while_stmt()
 
         # for语句
-        if self.check('循环'):
+        if self.check("循环"):
             return self.parse_for_stmt()
 
         # break语句
-        if self.check('跳出'):
+        if self.check("跳出"):
             return self.parse_break_stmt()
 
         # continue语句
-        if self.check('继续'):
+        if self.check("继续"):
             return self.parse_continue_stmt()
 
         # return语句
-        if self.check('返回'):
+        if self.check("返回"):
             return self.parse_return_stmt()
 
         # 默认作为表达式语句解析
@@ -88,17 +95,17 @@ class StatementParserMixin:
             块语句节点
         """
         # 期望左花括号
-        self.expect('{', "块的开始")
+        self.expect("{", "块的开始")
 
         # 解析语句列表
         statements = []
-        while not self.check('}') and not self.is_at_end():
+        while not self.check("}") and not self.is_at_end():
             statement = self.parse_statement()
             if statement:
                 statements.append(statement)
 
         # 期望右花括号
-        self.expect('}', "块的结束")
+        self.expect("}", "块的结束")
 
         return BlockStmtNode(statements=statements)
 
@@ -122,15 +129,11 @@ class StatementParserMixin:
 
         # 检查else分支
         else_body = None
-        if self.check('否则'):
+        if self.check("否则"):
             self.advance()
             else_body = self.parse_block()
 
-        return IfStmtNode(
-            condition=condition,
-            then_body=then_body,
-            else_body=else_body
-        )
+        return IfStmtNode(condition=condition, then_body=then_body, else_body=else_body)
 
     def parse_while_stmt(self) -> WhileStmtNode:
         """
@@ -150,10 +153,7 @@ class StatementParserMixin:
         # 解析循环体
         body = self.parse_block()
 
-        return WhileStmtNode(
-            condition=condition,
-            body=body
-        )
+        return WhileStmtNode(condition=condition, body=body)
 
     def parse_for_stmt(self) -> ForStmtNode:
         """
@@ -169,30 +169,25 @@ class StatementParserMixin:
 
         # 解析初始化
         init = None
-        if not self.check(';'):
+        if not self.check(";"):
             init = self.parse_expression()
-        self.expect(';', "for初始化后的分号")
+        self.expect(";", "for初始化后的分号")
 
         # 解析条件
         condition = None
-        if not self.check(';'):
+        if not self.check(";"):
             condition = self.parse_expression()
-        self.expect(';', "for条件后的分号")
+        self.expect(";", "for条件后的分号")
 
         # 解析更新
         update = None
-        if not self.check('{'):
+        if not self.check("{"):
             update = self.parse_expression()
 
         # 解析循环体
         body = self.parse_block()
 
-        return ForStmtNode(
-            init=init,
-            condition=condition,
-            update=update,
-            body=body
-        )
+        return ForStmtNode(init=init, condition=condition, update=update, body=body)
 
     def parse_break_stmt(self) -> BreakStmtNode:
         """
@@ -207,7 +202,7 @@ class StatementParserMixin:
         self.advance()
 
         # 期望分号
-        self.expect(';', "break语句后的分号")
+        self.expect(";", "break语句后的分号")
 
         return BreakStmtNode()
 
@@ -224,7 +219,7 @@ class StatementParserMixin:
         self.advance()
 
         # 期望分号
-        self.expect(';', "continue语句后的分号")
+        self.expect(";", "continue语句后的分号")
 
         return ContinueStmtNode()
 
@@ -242,11 +237,11 @@ class StatementParserMixin:
 
         # 解析返回值
         value = None
-        if not self.check(';'):
+        if not self.check(";"):
             value = self.parse_expression()
 
         # 期望分号
-        self.expect(';', "return语句后的分号")
+        self.expect(";", "return语句后的分号")
 
         return ReturnStmtNode(value=value)
 
@@ -263,6 +258,6 @@ class StatementParserMixin:
         expression = self.parse_expression()
 
         # 期望分号
-        self.expect(';', "表达式语句后的分号")
+        self.expect(";", "表达式语句后的分号")
 
         return ExprStmtNode(expression=expression)

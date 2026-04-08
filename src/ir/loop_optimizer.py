@@ -105,58 +105,59 @@ from .instructions import IRBasicBlock, IRInstruction
 from .program import IRFunction
 from .values import IRValue, ValueKind
 from .opcodes import Opcode
-from .dataflow import LivenessAnalysis, analyze_liveness
+from .dataflow import LivenessAnalysis
 
 
 # =============================================================================
 # 循环检测
 # =============================================================================
 
+
 class LoopInfo:
     """
     循环信息
-    
+
     表示检测到的一个自然循环，包含循环的所有关键属性。
-    
+
     ================================================================================
     属性详解
     ================================================================================
-    
+
     header: 循环头基本块
         - 循环的唯一入口点
         - 支配循环体中的所有节点
         - 所有进入循环的路径都必须经过这里
         - 通常包含循环条件判断
-        
+
     body: 循环体基本块集合（Set[str]）
         - 包含 header 自身
         - 包含所有在循环内的基本块标签
         - 可以通过回边反向遍历获得
-        
+
     latch: 循环Latch基本块（可选）
         - 最后一条跳转头部的指令所在的块
         - 典型的 for/while 循环：latch 在循环体末尾
         - do-while 循环：latch 包含条件判断
-        
+
     preheader: 循环前置块（可选）
         - 跳转到循环头的唯一前驱（不在循环内）
         - 为代码外提提供插入点
         - 如果不存在，需要创建
-        
+
     is_natural: 是否是自然循环
         - 自然循环有唯一入口
         - 简化分析和优化
         - 非自然循环（如 goto）需要特殊处理
-        
+
     depth: 嵌套深度
         - 1 表示最外层循环
         - 嵌套循环的深度 = 外层循环深度 + 1
         - 用于优化优先级排序
-        
+
     ================================================================================
     使用示例
     ================================================================================
-    
+
     for loop in loops:
         print(f"循环头: {loop.header.label}")
         print(f"循环体大小: {len(loop.body)}")
@@ -172,7 +173,7 @@ class LoopInfo:
         latch: Optional[IRBasicBlock] = None,
     ):
         """初始化循环信息
-        
+
         Args:
             header: 循环头基本块
             body: 循环体基本块标签集合
@@ -187,10 +188,10 @@ class LoopInfo:
 
     def contains_block(self, block_label: str) -> bool:
         """检查基本块是否在循环内
-        
+
         Args:
             block_label: 基本块标签
-            
+
         Returns:
             如果块在循环体内则返回 True
         """
@@ -203,56 +204,56 @@ class LoopInfo:
 class NaturalLoopDetection:
     """
     自然循环检测
-    
+
     ================================================================================
     算法概述
     ================================================================================
-    
+
     使用回边（back edge）检测自然循环。
-    
+
     回边的定义：
     - 边 (A, B) 是回边，当且仅当 B 支配 A
     - 即从入口到 A 的所有路径都经过 B
     - 这意味着 A 在循环中，B 是循环头
-    
+
     自然循环的定义：
     - 有一个唯一的入口点（循环头）
     - 有一条或多条回边指向循环头
     - 循环体是从所有回边的源节点出发，通过前驱可达的节点集合
-    
+
     ================================================================================
     算法步骤
     ================================================================================
-    
+
     1. 计算支配关系（Dominators）
        使用数据流分析算法：
        - D[entry] = {entry}
        - D[n] = {n} ∪ ∩ D[p] for p in pred(n)
-       
+
     2. 寻找回边
        对于每条边 (p, n)：
        - 如果 n 支配 p，则 (p, n) 是回边
        - n 是循环头，p 是循环内的一个节点
-       
+
     3. 构建循环体
        从回边的源节点开始，反向遍历前驱：
        - 将所有可达的节点加入循环体
        - 直到遇到循环头为止
-       
+
     4. 计算前置节点（Preheader）
        - 找到所有指向循环头但不在循环内的前驱
        - 如果只有一个，使用它作为 preheader
        - 否则需要创建一个新的 preheader 块
-       
+
     ================================================================================
     复杂度分析
     ================================================================================
-    
+
     时间复杂度：O(n²) 或 O(n * m)
     - n: 基本块数量
     - 支配计算需要多次遍历
     - 循环检测需要 O(e)，其中 e 是边数
-    
+
     空间复杂度：O(n²) 或 O(n * d)
     - 存储支配关系
     - d 是平均支配深度
@@ -260,7 +261,7 @@ class NaturalLoopDetection:
 
     def __init__(self, function: IRFunction):
         """初始化循环检测器
-        
+
         Args:
             function: 要分析的 IR 函数
         """
@@ -279,7 +280,7 @@ class NaturalLoopDetection:
 
     def _detect_loops(self):
         """检测所有自然循环
-        
+
         执行步骤：
         1. 构建前驱映射
         2. 计算支配关系
@@ -311,23 +312,19 @@ class NaturalLoopDetection:
 
             if header:
                 latch = self.blocks.get(tail_label)
-                loop_info = LoopInfo(
-                    header=header,
-                    body=loop_body,
-                    latch=latch
-                )
+                loop_info = LoopInfo(header=header, body=loop_body, latch=latch)
                 self._compute_preheader(loop_info, predecessors)
                 self.loops.append(loop_info)
 
     def _compute_dominators(self) -> Dict[str, Set[str]]:
         """计算支配者集合
-        
+
         使用不动点迭代算法：
         D[entry] = {entry}
         D[n] = {n} ∪ ∩ D[p] for p in pred(n)
-        
+
         迭代直到没有变化。
-        
+
         Returns:
             映射：block_label -> 该块支配的所有块标签集合
         """
@@ -378,21 +375,21 @@ class NaturalLoopDetection:
     ) -> Set[str]:
         """
         计算循环体
-        
+
         从 tail_label（回边的源）开始，通过前驱遍历，
         收集所有可达的节点，直到遇到循环头为止。
-        
+
         算法：反向 DFS
         1. 将 tail_label 加入待访问队列
         2. 弹出节点，如果已在循环体中则跳过
         3. 如果是循环头则跳过（不加入）
         4. 否则加入循环体，访问其所有前驱
-        
+
         Args:
             head_label: 循环头标签
             tail_label: 回边源节点标签
             predecessors: 前驱映射
-            
+
         Returns:
             循环体中的所有基本块标签集合（包含 head_label）
         """
@@ -422,15 +419,15 @@ class NaturalLoopDetection:
 
     def _compute_preheader(self, loop: LoopInfo, predecessors: Dict[str, Set[str]]):
         """计算循环前置块
-        
+
         前置块是跳转到循环头的唯一不在循环内的前驱。
-        
+
         算法：
         1. 收集所有指向循环头的前驱
         2. 排除在循环体内的前驱
         3. 如果只剩一个，它就是 preheader
         4. 否则需要创建一个新的 preheader 块（当前简化处理：标记为 None）
-        
+
         Args:
             loop: 循环信息
             predecessors: 前驱映射
@@ -452,7 +449,7 @@ class NaturalLoopDetection:
 
     def get_loops(self) -> List[LoopInfo]:
         """获取所有检测到的循环
-        
+
         Returns:
             循环信息列表
         """
@@ -460,10 +457,10 @@ class NaturalLoopDetection:
 
     def get_loop_at(self, block_label: str) -> Optional[LoopInfo]:
         """获取包含指定基本块的循环
-        
+
         Args:
             block_label: 基本块标签
-            
+
         Returns:
             包含该块的最内层循环，如果不在任何循环中则返回 None
         """
@@ -477,114 +474,115 @@ class NaturalLoopDetection:
 # 循环不变代码外提
 # =============================================================================
 
+
 class LoopInvariantCodeMotion:
     """
     循环不变代码外提 (LICM - Loop-Invariant Code Motion)
-    
+
     ================================================================================
     算法概述
     ================================================================================
-    
+
     将循环中不依赖于循环迭代的计算移到循环外执行。
-    
+
     循环不变代码的定义：
     - 指令的所有操作数都是常量或在循环外定义的
     - 或者操作数在循环内定义，但在当前指令之前已经定义（且定义本身是循环不变的）
-    
+
     ================================================================================
     为什么需要 LICM？
     ================================================================================
-    
+
     性能提升：
     - 减少每次迭代的重复计算
     - 例如：for (i=0; i<n; i++) { a = b * c; ... }
       其中 b * c 不依赖 i，可以移到循环外
-      
+
     示例优化：
     原代码：
       for i in range(100):
           x = a + b  # a, b 不变
           y = x * i
-      
+
     优化后：
       temp = a + b  # 移到循环外
       for i in range(100):
           x = temp
           y = x * i
-    
+
     ================================================================================
     LICM 的安全性
     ================================================================================
-    
+
     外提必须满足以下条件：
-    
+
     1. 指令不能有副作用
        - 不能是内存写入、函数调用、I/O 操作
        - 只能是纯计算指令
-       
+
     2. 指令不能引起异常
        - 除法、内存访问可能引起异常
        - 需要确保外提后异常行为不变
-       
+
     3. 结果在循环外使用时，不能被覆盖
        - 如果结果在循环后使用，需要确保值正确
-       
+
     4. 不能破坏循环的语义
        - 循环可能不执行（条件不满足）
        - 外提的代码必须总是安全执行
-       
+
     ================================================================================
     算法步骤
     ================================================================================
-    
+
     1. 循环检测
        - 使用 NaturalLoopDetection 找到所有循环
-       
+
     2. 识别循环不变代码
        - 对于每个循环，遍历所有指令
        - 检查操作数是否在循环外定义
-       
+
     3. 安全性检查
        - 检查指令是否可以安全外提
        - 检查是否有副作用、异常风险
-       
+
     4. 移动代码
        - 将不变代码移到 preheader
        - 从原位置删除指令
-       
+
     ================================================================================
     实现细节
     ================================================================================
-    
+
     循环不变性判断：
       is_invariant(instr) ⟺
         ∀ operand ∈ instr.operands:
           operand 是常量 或
           operand 在循环外定义 或
           operand 在循环内定义但定义本身是循环不变的
-    
+
     安全性检查：
       is_safe_to_move(instr) ⟺
         instr 是纯计算指令 且
         instr 不会引起异常 或
         循环至少执行一次（确保异常行为不变）
-    
+
     ================================================================================
     复杂度分析
     ================================================================================
-    
+
     时间复杂度：O(n * m * l)
     - n: 基本块数量
     - m: 平均基本块大小
     - l: 循环数量
-    
+
     空间复杂度：O(n + l)
     - 存储循环信息和定义集合
     """
 
     def __init__(self, function: IRFunction):
         """初始化循环不变代码外提优化器
-        
+
         Args:
             function: 要优化的 IR 函数
         """
@@ -612,33 +610,33 @@ class LoopInvariantCodeMotion:
     ) -> bool:
         """
         检查指令是否是循环不变的
-        
+
         ================================================================================
         判断标准
         ================================================================================
-        
+
         指令是循环不变的，当且仅当：
         1. 不是终止指令（分支、返回等）
         2. 所有操作数满足以下之一：
            - 是常量
            - 在循环外定义
            - 在循环内定义，但在当前指令之前定义（且定义本身是循环不变的）
-        
+
         ================================================================================
         实现逻辑
         ================================================================================
-        
+
         对于每个操作数：
         - 如果是常量，直接通过
         - 如果是变量，检查定义位置：
           * 如果在循环外定义，通过
           * 如果在循环内定义，需要检查是否在当前指令之前
-        
+
         Args:
             instr: 要检查的指令
             loop: 循环信息
             defined_in_loop: 循环内的变量定义映射
-            
+
         Returns:
             如果指令是循环不变的则返回 True
         """
@@ -662,20 +660,20 @@ class LoopInvariantCodeMotion:
 
     def _extract_variable_name(self, value: IRValue) -> Optional[str]:
         """提取变量名
-        
+
         处理 IR 值的命名约定：
         - %var → var（临时变量）
         - @var → var（命名变量）
-        
+
         Args:
             value: IR 值对象
-            
+
         Returns:
             提取的变量名（不含前缀），如果不是变量则返回 None
         """
         if value.kind == ValueKind.VAR or value.kind == ValueKind.TEMP:
             name = value.name
-            if name.startswith('%'):
+            if name.startswith("%"):
                 name = name[1:]
             return name
         return None
@@ -687,15 +685,15 @@ class LoopInvariantCodeMotion:
         target_instr: IRInstruction,
     ) -> bool:
         """检查变量是否在目标指令之前定义
-        
+
         遍历循环体中的所有指令，检查是否有定义目标变量的指令
         在目标指令之前出现。
-        
+
         Args:
             loop: 循环信息
             var_name: 变量名
             target_instr: 目标指令
-            
+
         Returns:
             如果在目标指令之前找到定义则返回 True
         """
@@ -719,12 +717,12 @@ class LoopInvariantCodeMotion:
     def _collect_loop_definitions(self, loop: LoopInfo) -> Dict[str, Set[str]]:
         """
         收集循环内的变量定义
-        
+
         遍历循环体中的所有指令，收集每个基本块中定义的变量。
-        
+
         Args:
             loop: 循环信息
-            
+
         Returns:
             映射：block_label -> 该块中定义的变量名集合
         """
@@ -758,12 +756,28 @@ class LoopInvariantCodeMotion:
         """
         # 纯计算指令可以安全移动
         safe_opcodes = [
-            Opcode.ADD, Opcode.SUB, Opcode.MUL, Opcode.DIV, Opcode.MOD,
+            Opcode.ADD,
+            Opcode.SUB,
+            Opcode.MUL,
+            Opcode.DIV,
+            Opcode.MOD,
             Opcode.NEG,
-            Opcode.EQ, Opcode.NE, Opcode.LT, Opcode.LE, Opcode.GT, Opcode.GE,
-            Opcode.AND, Opcode.OR, Opcode.XOR, Opcode.NOT,
-            Opcode.SHL, Opcode.SHR,
-            Opcode.CONST, Opcode.ZEXT, Opcode.SEXT, Opcode.TRUNC,
+            Opcode.EQ,
+            Opcode.NE,
+            Opcode.LT,
+            Opcode.LE,
+            Opcode.GT,
+            Opcode.GE,
+            Opcode.AND,
+            Opcode.OR,
+            Opcode.XOR,
+            Opcode.NOT,
+            Opcode.SHL,
+            Opcode.SHR,
+            Opcode.CONST,
+            Opcode.ZEXT,
+            Opcode.SEXT,
+            Opcode.TRUNC,
         ]
 
         if instr.opcode not in safe_opcodes:
@@ -825,7 +839,10 @@ class LoopInvariantCodeMotion:
 
                 # 插入到目标位置
                 # 在 terminator 之前插入
-                if target_block.instructions and target_block.instructions[-1].is_terminator():
+                if (
+                    target_block.instructions
+                    and target_block.instructions[-1].is_terminator()
+                ):
                     target_block.instructions.insert(-1, instr)
                 else:
                     target_block.instructions.append(instr)
@@ -858,104 +875,105 @@ class LoopInvariantCodeMotion:
 # 强度削减
 # =============================================================================
 
+
 class StrengthReduction:
     """
     强度削减 (Strength Reduction)
-    
+
     ================================================================================
     算法概述
     ================================================================================
-    
+
     将昂贵的操作（如乘法）替换为较便宜的操作（如加法）。
     特别适用于循环中的线性表达式。
-    
+
     ================================================================================
     为什么需要强度削减？
     ================================================================================
-    
+
     性能差异：
     - 乘法：通常需要多个时钟周期（如 3-10 个周期）
     - 加法：通常只需要 1 个时钟周期
     - 在循环中，每次迭代节省几个周期，累积效果显著
-    
+
     示例优化：
     原代码：
       for i in range(100):
           x = i * 4  # 每次迭代都做乘法
-      
+
     优化后：
       temp = 0
       for i in range(100):
           x = temp   # 使用加法累积
           temp += 4  # 每次迭代只做加法
-    
+
     ================================================================================
     归纳变量 (Induction Variable)
     ================================================================================
-    
+
     定义：
     归纳变量是在循环每次迭代中以常数值增加（或减少）的变量。
-    
+
     基本归纳变量：
       i = i + c  或  i = i - c
-    
+
     派生归纳变量：
       j = i * c  （其中 i 是基本归纳变量）
-    
+
     强度削减的核心思想：
     - 对于派生归纳变量 j = i * c
     - 可以用 j = j + c 替换（在循环内）
     - 初始化 j = i₀ * c（在循环外）
-    
+
     ================================================================================
     算法步骤
     ================================================================================
-    
+
     1. 识别归纳变量
        - 在循环头中查找形如 i = i + c 的定义
        - 检查操作数是否包含常量
-       
+
     2. 识别可削减的表达式
        - 查找形如 j = i * c 的表达式
        - 其中 i 是归纳变量，c 是常量
-       
+
     3. 替换表达式
        - 在循环外初始化：j₀ = i₀ * c
        - 在循环内替换：j = j + c
        - 删除原来的乘法指令
-       
+
     ================================================================================
     实现细节
     ================================================================================
-    
+
     归纳变量识别：
       is_induction(instr) ⟺
         instr.opcode ∈ {ADD, SUB} 且
         ∃ operand ∈ instr.operands: operand 是常量 且
         ∃ operand ∈ instr.operands: operand 是循环变量
-    
+
     强度削减：
       reduce(i * c) ⟺
         在循环外：temp = i₀ * c
         在循环内：temp = temp + c
         替换所有 i * c 的使用为 temp
-    
+
     ================================================================================
     复杂度分析
     ================================================================================
-    
+
     时间复杂度：O(n * m * l)
     - n: 基本块数量
     - m: 平均基本块大小
     - l: 循环数量
-    
+
     空间复杂度：O(l)
     - 存储归纳变量信息
     """
 
     def __init__(self, function: IRFunction):
         """初始化强度削减优化器
-        
+
         Args:
             function: 要优化的 IR 函数
         """
@@ -974,11 +992,11 @@ class StrengthReduction:
     def optimize(self) -> int:
         """
         执行强度削减
-        
+
         对每个循环：
         1. 识别归纳变量
         2. 削减与归纳变量相关的表达式
-        
+
         Returns:
             削减的表达式数量
         """
@@ -991,7 +1009,7 @@ class StrengthReduction:
 
     def _optimize_loop(self, loop: LoopInfo):
         """优化单个循环
-        
+
         Args:
             loop: 循环信息
         """
@@ -1005,33 +1023,33 @@ class StrengthReduction:
     def _find_induction_variables(self, loop: LoopInfo) -> List[str]:
         """
         查找循环归纳变量
-        
+
         ================================================================================
         归纳变量的定义
         ================================================================================
-        
+
         归纳变量是在循环每次迭代中以常数值增加的变量。
-        
+
         形式：
           i = i + c  （基本归纳变量）
           i = i - c  （基本归纳变量）
-        
+
         其中：
         - i 是循环变量（在循环内定义）
         - c 是常量
-        
+
         ================================================================================
         识别算法
         ================================================================================
-        
+
         在循环头中查找：
         1. opcode 是 ADD 或 SUB
         2. 有一个操作数是常量
         3. 有一个操作数是循环变量（之前定义的值）
-        
+
         Args:
             loop: 循环信息
-            
+
         Returns:
             归纳变量名列表
         """
@@ -1065,10 +1083,10 @@ class StrengthReduction:
 
     def _extract_result_name(self, instr: IRInstruction) -> Optional[str]:
         """提取结果变量名
-        
+
         Args:
             instr: IR 指令
-            
+
         Returns:
             结果变量名（不含 % 前缀），如果没有结果则返回 None
         """
@@ -1079,16 +1097,16 @@ class StrengthReduction:
 
     def _extract_variable_name(self, value: IRValue) -> Optional[str]:
         """提取变量名
-        
+
         Args:
             value: IR 值对象
-            
+
         Returns:
             提取的变量名（不含 % 前缀），如果不是变量则返回 None
         """
         if value.kind == ValueKind.VAR or value.kind == ValueKind.TEMP:
             name = value.name
-            if name.startswith('%'):
+            if name.startswith("%"):
                 name = name[1:]
             return name
         return None
@@ -1096,33 +1114,33 @@ class StrengthReduction:
     def _reduce_expressions(self, loop: LoopInfo, induction_var: str):
         """
         削减与归纳变量相关的表达式
-        
+
         ================================================================================
         削减策略
         ================================================================================
-        
+
         对于形如 j = i * c 的表达式（其中 i 是归纳变量）：
-        
+
         原代码：
           for i in range(n):
               j = i * 4
               ...
-        
+
         优化后：
           j = 0  # 初始化（i₀ * c）
           for i in range(n):
               ...
               j = j + 4  # 用加法替代乘法
-        
+
         ================================================================================
         实现逻辑
         ================================================================================
-        
+
         遍历循环体中的所有指令：
         - 查找乘法指令
         - 检查是否包含归纳变量
         - 尝试削减
-        
+
         Args:
             loop: 循环信息
             induction_var: 归纳变量名
@@ -1136,7 +1154,7 @@ class StrengthReduction:
                 # 查找包含归纳变量的乘法
                 if instr.opcode == Opcode.MUL:
                     self._try_reduce_multiply(block, instr, induction_var, loop)
-    
+
     def _try_reduce_multiply(
         self,
         block: IRBasicBlock,
@@ -1146,57 +1164,57 @@ class StrengthReduction:
     ) -> bool:
         """
         尝试削减乘法表达式
-        
+
         ================================================================================
         削减条件
         ================================================================================
-        
+
         乘法指令可以削减，当且仅当：
         1. 有一个操作数是归纳变量
         2. 有一个操作数是常量
-        
+
         ================================================================================
         削减方法
         ================================================================================
-        
+
         将 i * c 替换为：
         - 在循环外：temp = i₀ * c（初始值）
         - 在循环内：temp = temp + c（每次迭代）
-        
+
         注意：当前实现是简化版本，只标记成功，不实际替换。
         完整实现需要：
         1. 创建新的临时变量
         2. 在 preheader 中插入初始化指令
         3. 在循环内插入加法指令
         4. 替换所有使用
-        
+
         Args:
             block: 指令所在的基本块
             instr: 乘法指令
             induction_var: 归纳变量名
             loop: 循环信息
-            
+
         Returns:
             是否成功削减（当前实现只标记，不实际替换）
         """
         # 检查操作数是否包含归纳变量
         if len(instr.operands) < 2:
             return False
-        
+
         operand_names = []
         constant_operand = None
-        
+
         for op in instr.operands:
             if isinstance(op, IRValue):
                 if op.kind == ValueKind.CONST:
                     constant_operand = op
                 name = self._extract_variable_name(op)
                 operand_names.append(name)
-        
+
         # 检查是否有一个操作数是常量
         if constant_operand is None:
             return False
-        
+
         # 检查是否有一个操作数是归纳变量或被归纳变量使用
         # 这里简化处理：实际实现需要更复杂的分析
         # 目前只是标记成功
@@ -1207,6 +1225,7 @@ class StrengthReduction:
 # =============================================================================
 # 循环优化器
 # =============================================================================
+
 
 class LoopOptimizer:
     """
@@ -1247,6 +1266,7 @@ class LoopOptimizer:
 # =============================================================================
 # 便捷函数
 # =============================================================================
+
 
 def detect_loops(function: IRFunction) -> List[LoopInfo]:
     """

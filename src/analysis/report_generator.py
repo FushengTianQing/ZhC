@@ -6,7 +6,7 @@
 Phase 4 - Stage 3 - Task 14.3
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, List
 from datetime import datetime
 import json
 
@@ -17,21 +17,21 @@ from zhc.analysis.analyzer_scheduler import AnalysisStats
 class ReportGenerator:
     """
     分析报告生成器
-    
+
     支持多种输出格式：文本、Markdown、JSON、HTML。
     """
-    
+
     def __init__(self, results: Dict[str, List[AnalysisResult]], stats: AnalysisStats):
         """
         初始化报告生成器
-        
+
         Args:
             results: 分析结果字典
             stats: 分析统计信息
         """
         self.results = results
         self.stats = stats
-    
+
     def generate_text(self) -> str:
         """生成文本格式报告"""
         lines = []
@@ -39,7 +39,7 @@ class ReportGenerator:
         lines.append("静态分析报告")
         lines.append("=" * 60)
         lines.append("")
-        
+
         # 统计摘要
         lines.append("【统计摘要】")
         lines.append(f"  总问题数: {self.stats.total_issues}")
@@ -49,21 +49,28 @@ class ReportGenerator:
         lines.append(f"  提示: {self.stats.hints}")
         lines.append(f"  执行时间: {self.stats.execution_time:.2f}s")
         lines.append("")
-        
+
         # 按严重程度分组
-        for severity in [Severity.ERROR, Severity.WARNING, Severity.INFO, Severity.HINT]:
+        for severity in [
+            Severity.ERROR,
+            Severity.WARNING,
+            Severity.INFO,
+            Severity.HINT,
+        ]:
             severity_results = self._filter_by_severity(severity)
             if severity_results:
-                lines.append(f"【{severity.value.upper()}】({len(severity_results)} 个)")
+                lines.append(
+                    f"【{severity.value.upper()}】({len(severity_results)} 个)"
+                )
                 for result in severity_results:
                     lines.append(f"  - {result.message}")
                     lines.append(f"    位置: {result.location}")
                     if result.suggestion:
                         lines.append(f"    建议: {result.suggestion}")
                 lines.append("")
-        
+
         return "\n".join(lines)
-    
+
     def generate_markdown(self) -> str:
         """生成 Markdown 格式报告"""
         lines = []
@@ -71,7 +78,7 @@ class ReportGenerator:
         lines.append("")
         lines.append(f"**生成时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         lines.append("")
-        
+
         # 统计摘要
         lines.append("## 统计摘要")
         lines.append("")
@@ -82,49 +89,50 @@ class ReportGenerator:
         lines.append(f"- **提示**: {self.stats.hints}")
         lines.append(f"- **执行时间**: {self.stats.execution_time:.2f}s")
         lines.append("")
-        
+
         # 按分析器分组
         lines.append("## 分析结果")
         lines.append("")
-        
+
         for analyzer_name, results in self.results.items():
             if results:
                 lines.append(f"### {analyzer_name}")
                 lines.append("")
-                
+
                 for result in results:
                     severity_emoji = {
                         Severity.ERROR: "❌",
                         Severity.WARNING: "⚠️",
                         Severity.INFO: "ℹ️",
-                        Severity.HINT: "💡"
+                        Severity.HINT: "💡",
                     }.get(result.severity, "")
-                    
+
                     lines.append(f"#### {severity_emoji} {result.message}")
                     lines.append("")
                     lines.append(f"- **位置**: `{result.location}`")
                     if result.suggestion:
                         lines.append(f"- **建议**: {result.suggestion}")
                     lines.append("")
-        
+
         return "\n".join(lines)
-    
+
     def generate_json(self) -> str:
         """生成 JSON 格式报告"""
         report = {
-            'timestamp': datetime.now().isoformat(),
-            'stats': self.stats.to_dict(),
-            'results': {}
+            "timestamp": datetime.now().isoformat(),
+            "stats": self.stats.to_dict(),
+            "results": {},
         }
-        
+
         for analyzer_name, results in self.results.items():
-            report['results'][analyzer_name] = [r.to_dict() for r in results]
-        
+            report["results"][analyzer_name] = [r.to_dict() for r in results]
+
         return json.dumps(report, indent=2, ensure_ascii=False)
-    
+
     def generate_html(self) -> str:
         """生成 HTML 格式报告"""
-        html = """<!DOCTYPE html>
+        html = (
+            """<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -210,39 +218,52 @@ class ReportGenerator:
 <body>
     <div class="header">
         <h1>静态分析报告</h1>
-        <p>生成时间: """ + datetime.now().strftime('%Y-%m-%d %H:%M:%S') + """</p>
+        <p>生成时间: """
+            + datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            + """</p>
     </div>
-    
+
     <div class="stats">
         <div class="stat-card">
-            <div class="stat-value">""" + str(self.stats.total_issues) + """</div>
+            <div class="stat-value">"""
+            + str(self.stats.total_issues)
+            + """</div>
             <div class="stat-label">总问题数</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value error">""" + str(self.stats.errors) + """</div>
+            <div class="stat-value error">"""
+            + str(self.stats.errors)
+            + """</div>
             <div class="stat-label">错误</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value warning">""" + str(self.stats.warnings) + """</div>
+            <div class="stat-value warning">"""
+            + str(self.stats.warnings)
+            + """</div>
             <div class="stat-label">警告</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value info">""" + str(self.stats.infos) + """</div>
+            <div class="stat-value info">"""
+            + str(self.stats.infos)
+            + """</div>
             <div class="stat-label">信息</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value hint">""" + str(self.stats.hints) + """</div>
+            <div class="stat-value hint">"""
+            + str(self.stats.hints)
+            + """</div>
             <div class="stat-label">提示</div>
         </div>
     </div>
-    
+
     <h2>分析结果</h2>
 """
-        
+        )
+
         for analyzer_name, results in self.results.items():
             if results:
                 html += f"    <h3>{analyzer_name}</h3>\n"
-                
+
                 for result in results:
                     severity_class = result.severity.value
                     html += f"""
@@ -259,34 +280,34 @@ class ReportGenerator:
         </div>
 """
                     html += "    </div>\n"
-        
+
         html += """
 </body>
 </html>
 """
         return html
-    
+
     def _filter_by_severity(self, severity: Severity) -> List[AnalysisResult]:
         """按严重程度过滤结果"""
         filtered = []
         for results in self.results.values():
             filtered.extend([r for r in results if r.severity == severity])
         return filtered
-    
-    def save_to_file(self, filepath: str, format: str = 'text') -> None:
+
+    def save_to_file(self, filepath: str, format: str = "text") -> None:
         """
         保存报告到文件
-        
+
         Args:
             filepath: 文件路径
             format: 输出格式（text, markdown, json, html）
         """
         content = {
-            'text': self.generate_text,
-            'markdown': self.generate_markdown,
-            'json': self.generate_json,
-            'html': self.generate_html
+            "text": self.generate_text,
+            "markdown": self.generate_markdown,
+            "json": self.generate_json,
+            "html": self.generate_html,
         }.get(format, self.generate_text)()
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
+
+        with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)

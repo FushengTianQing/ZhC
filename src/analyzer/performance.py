@@ -16,14 +16,10 @@ Day 9: 性能分析器
 """
 
 import time
-import sys
-import os
 import tracemalloc
 import gc
-from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Any
-from dataclasses import dataclass, field
-from functools import wraps
+from dataclasses import dataclass
 
 # 使用相对导入，避免 sys.path 魔法
 # Phase 7 M7 TD2: 废弃导入（day2/day3 路径不存在）
@@ -32,24 +28,63 @@ from functools import wraps
 
 # 类型存根（避免引用报错）
 from enum import Enum
-class Visibility(Enum): PUBLIC = 'public'; PRIVATE = 'private'
-class ScopeType(Enum): MODULE = 'module'
+
+
+class Visibility(Enum):
+    PUBLIC = "public"
+    PRIVATE = "private"
+
+
+class ScopeType(Enum):
+    MODULE = "module"
+
+
 class SymbolInfo:
-    def __init__(self, *a, **kw): pass
+    def __init__(self, *a, **kw):
+        pass
+
+
 class ScopeManager:
-    def __init__(self): pass
+    def __init__(self):
+        pass
+
     @property
-    def current_scope(self): return None
-    def all_symbols(self): return {}
-    def lookup_symbol(self, *a, **kw): return None
-    def add_symbol(self, *a, **kw): return None
-    def enter_scope(self, *a, **kw): pass
-    def exit_scope(self, *a, **kw): pass
+    def current_scope(self):
+        return None
+
+    def all_symbols(self):
+        return {}
+
+    def lookup_symbol(self, *a, **kw):
+        return None
+
+    def add_symbol(self, *a, **kw):
+        return None
+
+    def enter_scope(self, *a, **kw):
+        pass
+
+    def exit_scope(self, *a, **kw):
+        pass
+
+
+class ModuleParser:
+    """模块解析器存根（原导入路径已废弃，此为性能测试占位实现）"""
+
+    def __init__(self):
+        self._lines: list = []
+
+    def parse_line(self, line: str, lineno: int) -> None:
+        self._lines.append((lineno, line))
+
+    def get_result(self):
+        return self._lines
 
 
 @dataclass
 class PerformanceMetrics:
     """性能指标"""
+
     operation_name: str
     start_time: float = 0.0
     end_time: float = 0.0
@@ -75,10 +110,12 @@ class PerformanceMetrics:
         return self.memory_end - self.memory_start
 
     def __str__(self) -> str:
-        return (f"{self.operation_name}: "
-                f"耗时={self.elapsed_time*1000:.2f}ms, "
-                f"吞吐量={self.throughput:.2f}项/秒, "
-                f"内存变化={self.memory_delta/1024:.2f}KB")
+        return (
+            f"{self.operation_name}: "
+            f"耗时={self.elapsed_time * 1000:.2f}ms, "
+            f"吞吐量={self.throughput:.2f}项/秒, "
+            f"内存变化={self.memory_delta / 1024:.2f}KB"
+        )
 
 
 class PerformanceAnalyzer:
@@ -98,7 +135,7 @@ class PerformanceAnalyzer:
             operation_name=operation_name,
             start_time=time.perf_counter(),
             memory_start=tracemalloc.get_traced_memory()[0],
-            items_processed=items_count
+            items_processed=items_count,
         )
         self.current_metric = metric
         return metric
@@ -116,7 +153,9 @@ class PerformanceAnalyzer:
             return result
         return None
 
-    def measure_operation(self, operation_name: str, func, *args, **kwargs) -> Tuple[Any, PerformanceMetrics]:
+    def measure_operation(
+        self, operation_name: str, func, *args, **kwargs
+    ) -> Tuple[Any, PerformanceMetrics]:
         """测量单个操作的性能"""
         metric = self.start_profiling(operation_name)
         result = func(*args, **kwargs)
@@ -131,14 +170,20 @@ class PerformanceAnalyzer:
         summary = {
             "total_operations": len(self.metrics),
             "total_time": sum(m.elapsed_time for m in self.metrics),
-            "slowest_operation": max(self.metrics, key=lambda m: m.elapsed_time).operation_name,
-            "fastest_operation": min(self.metrics, key=lambda m: m.elapsed_time).operation_name,
+            "slowest_operation": max(
+                self.metrics, key=lambda m: m.elapsed_time
+            ).operation_name,
+            "fastest_operation": min(
+                self.metrics, key=lambda m: m.elapsed_time
+            ).operation_name,
             "total_memory_delta": sum(m.memory_delta for m in self.metrics),
         }
 
         # 计算平均吞吐量
         total_throughput = sum(m.throughput for m in self.metrics if m.throughput > 0)
-        summary["average_throughput"] = total_throughput / len(self.metrics) if self.metrics else 0
+        summary["average_throughput"] = (
+            total_throughput / len(self.metrics) if self.metrics else 0
+        )
 
         return summary
 
@@ -153,8 +198,8 @@ class PerformanceAnalyzer:
             return
 
         print(f"\n总操作数: {len(self.metrics)}")
-        print(f"总耗时: {sum(m.elapsed_time for m in self.metrics)*1000:.2f}ms")
-        print(f"总内存变化: {sum(m.memory_delta for m in self.metrics)/1024:.2f}KB")
+        print(f"总耗时: {sum(m.elapsed_time for m in self.metrics) * 1000:.2f}ms")
+        print(f"总内存变化: {sum(m.memory_delta for m in self.metrics) / 1024:.2f}KB")
 
         print("\n详细指标:")
         print("-" * 70)
@@ -164,7 +209,9 @@ class PerformanceAnalyzer:
         # 找出最慢的操作
         if self.metrics:
             slowest = max(self.metrics, key=lambda m: m.elapsed_time)
-            print(f"\n最慢操作: {slowest.operation_name} ({slowest.elapsed_time*1000:.2f}ms)")
+            print(
+                f"\n最慢操作: {slowest.operation_name} ({slowest.elapsed_time * 1000:.2f}ms)"
+            )
 
         print("=" * 70)
 
@@ -188,7 +235,9 @@ class OptimizedScopeManager:
         self._cache_enabled = False
         self._symbol_cache.clear()
 
-    def add_symbol(self, name: str, visibility: Visibility, line_num: int) -> SymbolInfo:
+    def add_symbol(
+        self, name: str, visibility: Visibility, line_num: int
+    ) -> SymbolInfo:
         """添加符号（带缓存优化）"""
         symbol = super().add_symbol(name, visibility, line_num)
 
@@ -244,7 +293,9 @@ class SymbolLookupOptimizer:
 
             # 更新模块索引
             if symbol.scope_type == ScopeType.MODULE:
-                module_name = symbol.name.split('_')[0] if '_' in symbol.name else symbol.name
+                module_name = (
+                    symbol.name.split("_")[0] if "_" in symbol.name else symbol.name
+                )
                 if module_name not in self._module_index:
                     self._module_index[module_name] = set()
                 self._module_index[module_name].add(symbol_name)
@@ -266,14 +317,16 @@ def benchmark_module_parsing(test_size: int = 100) -> Dict[str, float]:
     """模块解析基准测试"""
     print(f"\n开始模块解析基准测试（模块数={test_size}）...")
 
-    analyzer = PerformanceAnalyzer()
+    PerformanceAnalyzer()
 
     # 生成测试代码
     functions = []
     privates = []
     for j in range(5):
-        functions.append(f"        函数 公开函数{j}(整数型 x{j}) -> 整数型 {{ 返回 x{j}; }}")
-        privates.append(f"        整数型 私有变量{j} = {j*10};")
+        functions.append(
+            f"        函数 公开函数{j}(整数型 x{j}) -> 整数型 {{ 返回 x{j}; }}"
+        )
+        privates.append(f"        整数型 私有变量{j} = {j * 10};")
 
     test_code = f"""
 模块 测试模块0 {{
@@ -288,7 +341,7 @@ def benchmark_module_parsing(test_size: int = 100) -> Dict[str, float]:
     print("\n1. 测试原始ModuleParser...")
     parser = ModuleParser()
 
-    lines = test_code.strip().split('\n')
+    lines = test_code.strip().split("\n")
     start = time.perf_counter()
     for _ in range(test_size):
         parser = ModuleParser()
@@ -296,7 +349,7 @@ def benchmark_module_parsing(test_size: int = 100) -> Dict[str, float]:
             parser.parse_line(line, i)
     elapsed_original = time.perf_counter() - start
 
-    print(f"   原始解析器: {elapsed_original*1000:.2f}ms ({test_size}个模块)")
+    print(f"   原始解析器: {elapsed_original * 1000:.2f}ms ({test_size}个模块)")
 
     # 测试优化后的作用域管理器
     print("\n2. 测试优化后的ScopeManager...")
@@ -311,7 +364,9 @@ def benchmark_module_parsing(test_size: int = 100) -> Dict[str, float]:
         manager.exit_scope()
     elapsed_optimized = time.perf_counter() - start
 
-    print(f"   优化后ScopeManager: {elapsed_optimized*1000:.2f}ms ({test_size}个模块)")
+    print(
+        f"   优化后ScopeManager: {elapsed_optimized * 1000:.2f}ms ({test_size}个模块)"
+    )
 
     # 计算性能提升
     if elapsed_original > 0:
@@ -319,21 +374,25 @@ def benchmark_module_parsing(test_size: int = 100) -> Dict[str, float]:
     else:
         improvement = 0
 
-    print(f"\n3. 性能对比:")
-    print(f"   原始解析器: {elapsed_original*1000:.2f}ms")
-    print(f"   优化后: {elapsed_optimized*1000:.2f}ms")
+    print("\n3. 性能对比:")
+    print(f"   原始解析器: {elapsed_original * 1000:.2f}ms")
+    print(f"   优化后: {elapsed_optimized * 1000:.2f}ms")
     print(f"   性能提升: {improvement:.1f}%")
 
     return {
         "original_time": elapsed_original,
         "optimized_time": elapsed_optimized,
-        "improvement_percent": improvement
+        "improvement_percent": improvement,
     }
 
 
-def benchmark_symbol_lookup(module_count: int = 10, symbols_per_module: int = 100) -> Dict[str, float]:
+def benchmark_symbol_lookup(
+    module_count: int = 10, symbols_per_module: int = 100
+) -> Dict[str, float]:
     """符号查找基准测试"""
-    print(f"\n开始符号查找基准测试（模块数={module_count}, 每模块符号={symbols_per_module}）...")
+    print(
+        f"\n开始符号查找基准测试（模块数={module_count}, 每模块符号={symbols_per_module}）..."
+    )
 
     # 创建测试数据
     manager = OptimizedScopeManager()
@@ -357,7 +416,7 @@ def benchmark_symbol_lookup(module_count: int = 10, symbols_per_module: int = 10
         manager.lookup_symbol(lookup_target)
     elapsed_normal = time.perf_counter() - start
 
-    print(f"   普通查找: {elapsed_normal*1000:.2f}ms ({iterations}次)")
+    print(f"   普通查找: {elapsed_normal * 1000:.2f}ms ({iterations}次)")
 
     # 测试优化索引查找
     print("\n2. 测试优化索引查找...")
@@ -366,7 +425,7 @@ def benchmark_symbol_lookup(module_count: int = 10, symbols_per_module: int = 10
         optimizer.fast_lookup(lookup_target)
     elapsed_optimized = time.perf_counter() - start
 
-    print(f"   优化查找: {elapsed_optimized*1000:.2f}ms ({iterations}次)")
+    print(f"   优化查找: {elapsed_optimized * 1000:.2f}ms ({iterations}次)")
 
     # 计算性能提升
     if elapsed_normal > 0:
@@ -374,15 +433,15 @@ def benchmark_symbol_lookup(module_count: int = 10, symbols_per_module: int = 10
     else:
         improvement = 0
 
-    print(f"\n3. 性能对比:")
-    print(f"   普通查找: {elapsed_normal*1000:.2f}ms")
-    print(f"   优化查找: {elapsed_optimized*1000:.2f}ms")
+    print("\n3. 性能对比:")
+    print(f"   普通查找: {elapsed_normal * 1000:.2f}ms")
+    print(f"   优化查找: {elapsed_optimized * 1000:.2f}ms")
     print(f"   性能提升: {improvement:.1f}%")
 
     return {
         "normal_time": elapsed_normal,
         "optimized_time": elapsed_optimized,
-        "improvement_percent": improvement
+        "improvement_percent": improvement,
     }
 
 
@@ -403,7 +462,9 @@ if __name__ == "__main__":
     print("基准测试总结")
     print("=" * 70)
 
-    total_improvement = (result1["improvement_percent"] + result2["improvement_percent"]) / 2
+    total_improvement = (
+        result1["improvement_percent"] + result2["improvement_percent"]
+    ) / 2
     print(f"\n模块解析性能提升: {result1['improvement_percent']:.1f}%")
     print(f"符号查找性能提升: {result2['improvement_percent']:.1f}%")
     print(f"平均性能提升: {total_improvement:.1f}%")
@@ -411,6 +472,6 @@ if __name__ == "__main__":
     if total_improvement >= 20:
         print("\n✅ 性能提升达到20%+目标!")
     else:
-        print(f"\n⚠️ 性能提升未达到20%目标，还需要优化")
+        print("\n⚠️ 性能提升未达到20%目标，还需要优化")
 
     print("=" * 70)

@@ -10,25 +10,30 @@ from .semantic_analyzer import (
     SemanticError,
     SymbolTable,
     Symbol,
-    ScopeType
+    ScopeType,
 )
 
 from .cfg_analyzer import CFGAnalyzer, UninitAnalyzer
 
 # Phase 7 M0: 新的统一 Symbol/Scope 兼容别名
-from ..ir.symbol import Symbol as IRSymbol, Scope as IRScope, ScopeType as IRScopeType, SymbolCategory as IRSymbolCategory
+from ..ir.symbol import (
+    Symbol as IRSymbol,
+    Scope as IRScope,
+    ScopeType as IRScopeType,
+    SymbolCategory as IRSymbolCategory,
+)
 
 __all__ = [
-    'SemanticAnalyzer',
-    'SemanticError',
-    'SymbolTable',
-    'Symbol',
-    'ScopeType',
-    'CFGAnalyzer',
-    'UninitAnalyzer',
+    "SemanticAnalyzer",
+    "SemanticError",
+    "SymbolTable",
+    "Symbol",
+    "ScopeType",
+    "CFGAnalyzer",
+    "UninitAnalyzer",
     # Phase 7 M0 兼容别名
-    'IRSymbol',
-    'IRScope',
-    'IRScopeType',
-    'IRSymbolCategory',
+    "IRSymbol",
+    "IRScope",
+    "IRScopeType",
+    "IRSymbolCategory",
 ]

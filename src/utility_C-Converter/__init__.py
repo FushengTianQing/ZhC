@@ -12,5 +12,7 @@ from .error import ErrorHandler, ErrorType, ErrorSeverity
 
 __all__ = [
     "CodeConverter",
-    "ErrorHandler", "ErrorType", "ErrorSeverity",
+    "ErrorHandler",
+    "ErrorType",
+    "ErrorSeverity",
 ]

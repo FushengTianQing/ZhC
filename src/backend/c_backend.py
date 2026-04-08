@@ -13,9 +13,8 @@ IRProgram → CBackend → C代码 → GCC/Clang → 目标文件
 """
 
 import subprocess
-import tempfile
 from pathlib import Path
-from typing import Optional, Dict, Any, List, TYPE_CHECKING
+from typing import Optional, Any, TYPE_CHECKING
 
 from .base import (
     BackendBase,
@@ -23,7 +22,6 @@ from .base import (
     CompileOptions,
     CompileResult,
     OutputFormat,
-    BackendError,
     ToolNotFoundError,
 )
 
@@ -70,11 +68,7 @@ class CBackend(BackendBase):
         self.compiler = compiler
         self._check_compiler_available()
 
-    def _create_debug_listener(
-        self,
-        source_file: str,
-        output_file: str = "debug.json"
-    ):
+    def _create_debug_listener(self, source_file: str, output_file: str = "debug.json"):
         """
         创建 C 后端专用调试监听器
 
@@ -86,6 +80,7 @@ class CBackend(BackendBase):
             CDebugListener: C 后端调试监听器
         """
         from .c_debug_listener import CDebugListener
+
         return CDebugListener(source_file=source_file, output_file=output_file)
 
     @property
@@ -164,9 +159,7 @@ class CBackend(BackendBase):
         return self._compile_c_file(c_file, output_path, options)
 
     def _generate_c_code(
-        self,
-        ir: "IRProgram",
-        debug_manager: Optional[Any] = None
+        self, ir: "IRProgram", debug_manager: Optional[Any] = None
     ) -> str:
         """
         从 IR 生成 C 代码
@@ -179,14 +172,14 @@ class CBackend(BackendBase):
             str: C 代码
         """
         # 获取源文件路径
-        source_file = getattr(ir, 'source_file', 'unknown.zhc')
+        source_file = getattr(ir, "source_file", "unknown.zhc")
 
         # 发射编译单元调试事件
         self._emit_compile_unit_debug(
             debug_manager,
-            name=ir.name if hasattr(ir, 'name') else 'main',
+            name=ir.name if hasattr(ir, "name") else "main",
             source_file=source_file,
-            comp_dir=''
+            comp_dir="",
         )
 
         lines = [
@@ -206,7 +199,6 @@ class CBackend(BackendBase):
         # 生成函数实现（发射调试事件）
         addr_counter = 0  # 模拟地址计数器
         for func in ir.functions:
-            func_start_addr = addr_counter
             func_lines = self._generate_function(func, debug_manager, addr_counter)
             lines.append(func_lines)
             lines.append("")
@@ -225,18 +217,14 @@ class CBackend(BackendBase):
         """生成函数声明"""
         ret_type = self.TYPE_MAP.get(func.return_type, func.return_type)
         params = ", ".join(
-            f"{self.TYPE_MAP.get(p.type, p.type)} {p.name}"
-            for p in func.params
+            f"{self.TYPE_MAP.get(p.type, p.type)} {p.name}" for p in func.params
         )
         if not params:
             params = "void"
         return f"{ret_type} {func.name}({params});"
 
     def _generate_function(
-        self,
-        func,
-        debug_manager: Optional[Any] = None,
-        start_addr: int = 0
+        self, func, debug_manager: Optional[Any] = None, start_addr: int = 0
     ) -> str:
         """
         生成函数实现
@@ -255,8 +243,7 @@ class CBackend(BackendBase):
 
         # 发射函数调试事件
         params = [
-            {'name': p.name, 'type': p.type, 'line': start_line}
-            for p in func.params
+            {"name": p.name, "type": p.type, "line": start_line} for p in func.params
         ]
         self._emit_function_debug(
             debug_manager,
@@ -266,7 +253,7 @@ class CBackend(BackendBase):
             start_addr=start_addr,
             end_addr=start_addr + 100,  # 估算
             return_type=func.return_type,
-            parameters=params
+            parameters=params,
         )
 
         # 发射参数调试事件
@@ -278,7 +265,7 @@ class CBackend(BackendBase):
                 type_name=p.type,
                 line_number=start_line,
                 address=start_addr + addr_offset,
-                is_parameter=True
+                is_parameter=True,
             )
             addr_offset += 8
 
@@ -287,8 +274,7 @@ class CBackend(BackendBase):
         # 函数头
         ret_type = self.TYPE_MAP.get(func.return_type, func.return_type)
         params_str = ", ".join(
-            f"{self.TYPE_MAP.get(p.type, p.type)} {p.name}"
-            for p in func.params
+            f"{self.TYPE_MAP.get(p.type, p.type)} {p.name}" for p in func.params
         )
         if not params_str:
             params_str = "void"
@@ -298,7 +284,9 @@ class CBackend(BackendBase):
         addr_counter = start_addr + 16  # 假设从 rbp+16 开始局部变量
         for block in func.blocks:
             for inst in block.instructions:
-                inst_code = self._generate_instruction(inst, debug_manager, addr_counter)
+                inst_code = self._generate_instruction(
+                    inst, debug_manager, addr_counter
+                )
                 lines.append(f"    {inst_code}")
                 addr_counter += 4
 
@@ -307,10 +295,7 @@ class CBackend(BackendBase):
         return "\n".join(lines)
 
     def _generate_instruction(
-        self,
-        inst,
-        debug_manager: Optional[Any] = None,
-        addr: int = 0
+        self, inst, debug_manager: Optional[Any] = None, addr: int = 0
     ) -> str:
         """
         生成指令的 C 代码
@@ -324,12 +309,10 @@ class CBackend(BackendBase):
             str: C 代码
         """
         # 发射行号映射调试事件
-        line_number = getattr(inst, 'line_number', 0)
+        line_number = getattr(inst, "line_number", 0)
         if line_number > 0:
             self._emit_line_mapping_debug(
-                debug_manager,
-                line_number=line_number,
-                address=addr
+                debug_manager, line_number=line_number, address=addr
             )
 
         # 简化实现，实际需要完整的 IR → C 映射
@@ -358,13 +341,13 @@ class CBackend(BackendBase):
             return f"*{inst.operands[0]} = {inst.operands[1]};"
         elif opcode == "ALLOC":
             # 发射变量调试事件
-            if hasattr(inst, 'result') and hasattr(inst, 'type'):
+            if hasattr(inst, "result") and hasattr(inst, "type"):
                 self._emit_variable_debug(
                     debug_manager,
                     name=inst.result,
                     type_name=inst.type,
                     line_number=line_number,
-                    address=addr
+                    address=addr,
                 )
             return f"{inst.result} = malloc(sizeof({inst.type}));"
 

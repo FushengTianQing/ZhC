@@ -75,43 +75,44 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--profile", action="store_true", help="启用性能分析（测量各编译阶段耗时）"
     )
     parser.add_argument(
-        "-g", "--debug",
+        "-g",
+        "--debug",
         action="store_true",
-        help="生成 DWARF 调试信息（支持 GDB/LLDB 调试）"
+        help="生成 DWARF 调试信息（支持 GDB/LLDB 调试）",
     )
     parser.add_argument(
         "--analyze",
         action="store_true",
-        help="运行静态分析（代码质量检查、安全漏洞检测等）"
+        help="运行静态分析（代码质量检查、安全漏洞检测等）",
     )
     parser.add_argument(
         "--analyze-format",
         dest="analyze_format",
         default="text",
         choices=["text", "markdown", "json", "html"],
-        help="静态分析报告格式 (默认: text)"
+        help="静态分析报告格式 (默认: text)",
     )
     parser.add_argument(
         "--analyze-output",
         dest="analyze_output",
-        help="静态分析报告输出文件（默认输出到控制台）"
+        help="静态分析报告输出文件（默认输出到控制台）",
     )
     parser.add_argument("--clean-cache", action="store_true", help="清理编译缓存")
     parser.add_argument(
         "--backend",
         choices=["ir", "llvm", "wasm"],
         default="ir",
-        help="编译后端: ir=IR中间表示→C, llvm=LLVM IR, wasm=WebAssembly"
+        help="编译后端: ir=IR中间表示→C, llvm=LLVM IR, wasm=WebAssembly",
     )
     parser.add_argument(
         "--dump-ir",
         action="store_true",
-        help="打印 IR 中间表示（仅 --backend ir/llvm 时有效）"
+        help="打印 IR 中间表示（仅 --backend ir/llvm 时有效）",
     )
     parser.add_argument(
         "--no-optimize",
         action="store_true",
-        help="禁用 IR 优化（仅 --backend ir/llvm 时有效）"
+        help="禁用 IR 优化（仅 --backend ir/llvm 时有效）",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
     parser.add_argument("--version", action="version", version="%(prog)s 3.0.0")

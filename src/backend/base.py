@@ -26,34 +26,37 @@ if TYPE_CHECKING:
 
 class OutputFormat(Enum):
     """输出格式"""
-    EXECUTABLE = "exe"      # 可执行文件
-    OBJECT = "o"           # 目标文件
-    STATIC_LIB = "a"      # 静态库
-    SHARED_LIB = "so"      # 共享库
-    LLVM_IR = "ll"         # LLVM IR 文本
-    LLVM_BC = "bc"         # LLVM bitcode
-    WASM = "wasm"          # WebAssembly
-    ASSEMBLY = "s"         # 汇编文件
-    C_CODE = "c"           # C 代码
+
+    EXECUTABLE = "exe"  # 可执行文件
+    OBJECT = "o"  # 目标文件
+    STATIC_LIB = "a"  # 静态库
+    SHARED_LIB = "so"  # 共享库
+    LLVM_IR = "ll"  # LLVM IR 文本
+    LLVM_BC = "bc"  # LLVM bitcode
+    WASM = "wasm"  # WebAssembly
+    ASSEMBLY = "s"  # 汇编文件
+    C_CODE = "c"  # C 代码
 
 
 @dataclass
 class CompileOptions:
     """编译选项"""
-    optimization_level: str = "O2"          # 优化级别 O0-O3, Os, Oz
-    debug: bool = False                      # 生成调试信息
-    target: Optional[str] = None              # 目标平台
+
+    optimization_level: str = "O2"  # 优化级别 O0-O3, Os, Oz
+    debug: bool = False  # 生成调试信息
+    target: Optional[str] = None  # 目标平台
     output_format: OutputFormat = OutputFormat.EXECUTABLE
-    emit_llvm: bool = False                  # 输出 LLVM IR
-    emit_assembly: bool = False              # 输出汇编
-    link_static: bool = False                # 静态链接
-    link_shared: bool = False                # 共享链接
+    emit_llvm: bool = False  # 输出 LLVM IR
+    emit_assembly: bool = False  # 输出汇编
+    link_static: bool = False  # 静态链接
+    link_shared: bool = False  # 共享链接
     extra_flags: List[str] = field(default_factory=list)  # 额外编译参数
 
 
 @dataclass
 class CompileResult:
     """编译结果"""
+
     success: bool
     output_files: List[Path] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
@@ -65,17 +68,18 @@ class CompileResult:
         if self.success:
             return f"编译成功: {', '.join(str(f) for f in self.output_files)}"
         else:
-            return f"编译失败:\n" + "\n".join(self.errors)
+            return "编译失败:\n" + "\n".join(self.errors)
 
 
 @dataclass
 class BackendCapabilities:
     """后端能力"""
-    supports_jit: bool = False               # JIT 执行
-    supports_debug: bool = True              # 调试信息
-    supports_optimization: bool = True       # 优化
-    supports_cross_compile: bool = False     # 跨平台编译
-    supports_lto: bool = False              # 链接时优化
+
+    supports_jit: bool = False  # JIT 执行
+    supports_debug: bool = True  # 调试信息
+    supports_optimization: bool = True  # 优化
+    supports_cross_compile: bool = False  # 跨平台编译
+    supports_lto: bool = False  # 链接时优化
     target_platforms: List[str] = field(default_factory=list)  # 支持的平台
     output_formats: List[OutputFormat] = field(default_factory=list)  # 输出格式
     required_tools: List[str] = field(default_factory=list)  # 需要的外部工具
@@ -124,7 +128,7 @@ class BackendBase(ABC):
         self,
         ir: "IRProgram",
         output_path: Path,
-        options: Optional[CompileOptions] = None
+        options: Optional[CompileOptions] = None,
     ) -> CompileResult:
         """
         编译 IR 到目标代码
@@ -143,7 +147,7 @@ class BackendBase(ABC):
         self,
         ir: "IRProgram",
         output_path: Path,
-        options: Optional[CompileOptions] = None
+        options: Optional[CompileOptions] = None,
     ) -> Path:
         """
         编译并写入文件
@@ -162,9 +166,7 @@ class BackendBase(ABC):
         result = self.compile(ir, output_path, options)
 
         if not result.success:
-            raise BackendError(
-                f"{self.name} 编译失败:\n" + "\n".join(result.errors)
-            )
+            raise BackendError(f"{self.name} 编译失败:\n" + "\n".join(result.errors))
 
         if not result.output_files:
             raise BackendError(f"{self.name} 未生成任何输出文件")
@@ -175,7 +177,7 @@ class BackendBase(ABC):
         self,
         object_files: List[Path],
         output_path: Path,
-        options: Optional[CompileOptions] = None
+        options: Optional[CompileOptions] = None,
     ) -> CompileResult:
         """
         链接目标文件
@@ -224,9 +226,7 @@ class BackendBase(ABC):
     # ========== 调试信息接口 ==========
 
     def _create_debug_listener(
-        self,
-        source_file: str,
-        output_file: str = "debug.json"
+        self, source_file: str, output_file: str = "debug.json"
     ) -> "DebugListener":
         """
         创建后端专用调试监听器
@@ -244,9 +244,7 @@ class BackendBase(ABC):
         return None
 
     def _setup_debug(
-        self,
-        ir: "IRProgram",
-        options: CompileOptions
+        self, ir: "IRProgram", options: CompileOptions
     ) -> Optional["DebugManager"]:
         """
         设置调试信息生成
@@ -272,7 +270,7 @@ class BackendBase(ABC):
         from zhc.debug.debug_manager import DebugManager
 
         # 获取源文件路径
-        source_file = getattr(ir, 'source_file', 'unknown.zhc')
+        source_file = getattr(ir, "source_file", "unknown.zhc")
 
         # 创建调试管理器
         manager = DebugManager(source_file=source_file, enable_debug=True)
@@ -289,7 +287,7 @@ class BackendBase(ABC):
         debug_manager: Optional["DebugManager"],
         name: str,
         source_file: str,
-        comp_dir: str = ""
+        comp_dir: str = "",
     ) -> None:
         """
         发射编译单元调试事件
@@ -312,7 +310,7 @@ class BackendBase(ABC):
         start_addr: int = 0,
         end_addr: int = 0,
         return_type: str = "void",
-        parameters: Optional[List[Dict]] = None
+        parameters: Optional[List[Dict]] = None,
     ) -> None:
         """
         发射函数定义调试事件
@@ -335,7 +333,7 @@ class BackendBase(ABC):
                 start_addr=start_addr,
                 end_addr=end_addr,
                 return_type=return_type,
-                parameters=parameters
+                parameters=parameters,
             )
 
     def _emit_variable_debug(
@@ -345,7 +343,7 @@ class BackendBase(ABC):
         type_name: str,
         line_number: int,
         address: int = 0,
-        is_parameter: bool = False
+        is_parameter: bool = False,
     ) -> None:
         """
         发射变量定义调试事件
@@ -364,7 +362,7 @@ class BackendBase(ABC):
                 type_name=type_name,
                 line_number=line_number,
                 address=address,
-                is_parameter=is_parameter
+                is_parameter=is_parameter,
             )
 
     def _emit_line_mapping_debug(
@@ -373,7 +371,7 @@ class BackendBase(ABC):
         line_number: int,
         address: int,
         column: int = 0,
-        file_index: int = 0
+        file_index: int = 0,
     ) -> None:
         """
         发射行号映射调试事件
@@ -390,12 +388,11 @@ class BackendBase(ABC):
                 line_number=line_number,
                 address=address,
                 column=column,
-                file_index=file_index
+                file_index=file_index,
             )
 
     def _finalize_debug(
-        self,
-        debug_manager: Optional["DebugManager"]
+        self, debug_manager: Optional["DebugManager"]
     ) -> Dict[str, Any]:
         """
         完成调试信息生成
@@ -435,8 +432,7 @@ class BackendBase(ABC):
             supported = self.get_supported_targets()
             if supported and options.target not in supported:
                 errors.append(
-                    f"不支持的目标平台: {options.target}，"
-                    f"支持: {', '.join(supported)}"
+                    f"不支持的目标平台: {options.target}，支持: {', '.join(supported)}"
                 )
 
         return errors
@@ -447,16 +443,19 @@ class BackendBase(ABC):
 
 class BackendError(Exception):
     """后端错误"""
+
     pass
 
 
 class CompilationError(BackendError):
     """编译错误"""
+
     pass
 
 
 class LinkingError(BackendError):
     """链接错误"""
+
     pass
 
 
@@ -474,4 +473,5 @@ class ToolNotFoundError(BackendError):
 
 class UnsupportedTargetError(BackendError):
     """不支持的目标平台错误"""
+
     pass

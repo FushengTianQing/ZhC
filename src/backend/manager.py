@@ -21,8 +21,7 @@ ZhC 后端管理器 - 统一管理所有编译后端
 日期：2026-04-08
 """
 
-from typing import Dict, List, Optional, Type
-from pathlib import Path
+from typing import Dict, List, Optional
 
 from .base import BackendBase, BackendError
 
@@ -121,9 +120,7 @@ class BackendManager:
         """
         cls._ensure_initialized()
         return [
-            name
-            for name, backend in cls._backends.items()
-            if backend.is_available()
+            name for name, backend in cls._backends.items() if backend.is_available()
         ]
 
     @classmethod
@@ -205,7 +202,9 @@ class BackendManager:
                     "supports_optimization": backend.capabilities.supports_optimization,
                     "supports_cross_compile": backend.capabilities.supports_cross_compile,
                     "target_platforms": backend.capabilities.target_platforms,
-                    "output_formats": [f.value for f in backend.capabilities.output_formats],
+                    "output_formats": [
+                        f.value for f in backend.capabilities.output_formats
+                    ],
                 },
             }
 
@@ -226,6 +225,7 @@ class BackendManager:
         # GCC 后端
         try:
             from .gcc_backend import GCCBackend
+
             cls.register(GCCBackend())
         except Exception:
             pass
@@ -233,6 +233,7 @@ class BackendManager:
         # Clang 后端
         try:
             from .clang_backend import ClangBackend
+
             cls.register(ClangBackend())
         except Exception:
             pass
@@ -240,6 +241,7 @@ class BackendManager:
         # LLVM 后端
         try:
             from .llvm_backend import LLVMBackend
+
             cls.register(LLVMBackend())
         except Exception:
             pass
@@ -247,6 +249,7 @@ class BackendManager:
         # WASM 后端
         try:
             from .wasm_backend import WebAssemblyBackend
+
             cls.register(WebAssemblyBackend())
         except Exception:
             pass

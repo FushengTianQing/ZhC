@@ -27,9 +27,13 @@ class ConcurrentCompiler:
         """
         self.max_workers = max_workers or multiprocessing.cpu_count()
         self.use_processes = use_processes
-        self.executor_class = ProcessPoolExecutor if use_processes else ThreadPoolExecutor
+        self.executor_class = (
+            ProcessPoolExecutor if use_processes else ThreadPoolExecutor
+        )
 
-    def compile_files_concurrently(self, files: List[Path], compile_func: Callable) -> Dict[Path, Any]:
+    def compile_files_concurrently(
+        self, files: List[Path], compile_func: Callable
+    ) -> Dict[Path, Any]:
         """
         并发编译多个文件
 
@@ -45,8 +49,7 @@ class ConcurrentCompiler:
         with self.executor_class(max_workers=self.max_workers) as executor:
             # 提交所有任务
             future_to_file = {
-                executor.submit(compile_func, file): file
-                for file in files
+                executor.submit(compile_func, file): file for file in files
             }
 
             # 收集结果
@@ -80,6 +83,7 @@ class ConcurrentCompiler:
         # 创建线程执行每个阶段
         threads = []
         for i, stage_func in enumerate(stages):
+
             def stage_worker(stage_idx, input_queue, output_queue, is_last_stage=False):
                 while True:
                     try:
@@ -96,10 +100,10 @@ class ConcurrentCompiler:
                     except queue.Empty:
                         continue
 
-            is_last = (i == len(stages) - 1)
+            is_last = i == len(stages) - 1
             thread = threading.Thread(
                 target=stage_worker,
-                args=(i, stage_queues[i], stage_queues[i+1], is_last)
+                args=(i, stage_queues[i], stage_queues[i + 1], is_last),
             )
             threads.append(thread)
             thread.start()

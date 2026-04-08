@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from typing import List
 
 from zhc.ir.program import IRProgram, IRFunction
-from zhc.ir.instructions import IRBasicBlock, IRInstruction
+from zhc.ir.instructions import IRInstruction
 from zhc.ir.values import IRValue, ValueKind
 from zhc.ir.opcodes import Opcode
 
@@ -37,7 +37,7 @@ class PassManager:
     def __init__(self):
         self.passes: List[OptimizationPass] = []
 
-    def register(self, pass_: OptimizationPass) -> 'PassManager':
+    def register(self, pass_: OptimizationPass) -> "PassManager":
         """注册一个 Pass"""
         self.passes.append(pass_)
         return self
@@ -84,9 +84,7 @@ class ConstantFolding(OptimizationPass):
     }
 
     # 可折叠的操作符集合
-    FOLDABLE_OPS = frozenset(
-        list(BINARY_OPS.keys()) + list(UNARY_OPS.keys())
-    )
+    FOLDABLE_OPS = frozenset(list(BINARY_OPS.keys()) + list(UNARY_OPS.keys()))
 
     def name(self) -> str:
         return "常量折叠"
@@ -108,8 +106,7 @@ class ConstantFolding(OptimizationPass):
                         if result is not None:
                             # 将指令替换为常量赋值
                             bb.instructions[i] = self._make_const_instr(
-                                instr.result[0] if instr.result else None,
-                                result
+                                instr.result[0] if instr.result else None, result
                             )
                             changed = True
 
@@ -144,11 +141,13 @@ class ConstantFolding(OptimizationPass):
         """生成常量赋值指令"""
         const_val = IRValue(
             name=str(const_value),
-            ty=getattr(result_var, 'ty', None),
+            ty=getattr(result_var, "ty", None),
             kind=ValueKind.CONST,
             const_value=const_value,
         )
-        return IRInstruction(Opcode.CONST, [const_val], [result_var] if result_var else [])
+        return IRInstruction(
+            Opcode.CONST, [const_val], [result_var] if result_var else []
+        )
 
 
 class DeadCodeElimination(OptimizationPass):
@@ -213,8 +212,11 @@ class DeadCodeElimination(OptimizationPass):
         # 删除 CONST 指令但其结果未被使用
         for bb in func.basic_blocks:
             bb.instructions = [
-                i for i in bb.instructions
-                if not (i.opcode == Opcode.CONST and
-                        i.result and
-                        i.result[0].name not in used)
+                i
+                for i in bb.instructions
+                if not (
+                    i.opcode == Opcode.CONST
+                    and i.result
+                    and i.result[0].name not in used
+                )
             ]

@@ -14,14 +14,14 @@ Day 13: 属性转换器
 - 保护属性 -> 保护成员（派生类可访问）
 """
 
-import re
-from typing import List, Dict, Optional, Tuple, Set
+from typing import List, Dict, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 
 
 class Visibility(Enum):
     """可见性枚举"""
+
     PUBLIC = "public"
     PRIVATE = "private"
     PROTECTED = "protected"
@@ -29,6 +29,7 @@ class Visibility(Enum):
 
 class AttributeType(Enum):
     """属性类型枚举"""
+
     INSTANCE = "instance"
     CLASS_VAR = "class_var"
     CONSTANT = "constant"
@@ -36,22 +37,23 @@ class AttributeType(Enum):
 
 # 中文类型到C类型映射
 TYPE_MAPPING = {
-    '整数型': 'int',
-    '浮点型': 'float',
-    '双精度浮点型': 'double',
-    '字符型': 'char',
-    '字符串型': 'char*',
-    '逻辑型': 'int',
-    '短整数型': 'short',
-    '长整数型': 'long',
-    '空型': 'void',
-    '无类型': 'void',
+    "整数型": "int",
+    "浮点型": "float",
+    "双精度浮点型": "double",
+    "字符型": "char",
+    "字符串型": "char*",
+    "逻辑型": "int",
+    "短整数型": "short",
+    "长整数型": "long",
+    "空型": "void",
+    "无类型": "void",
 }
 
 
 @dataclass
 class AttributeInfo:
     """属性信息"""
+
     name: str
     type_name: str
     c_type: str  # 转换后的C类型
@@ -71,13 +73,14 @@ class AttributeInfo:
             self.c_type = self.type_name
 
         # 检查是否是指针类型
-        if '型' not in self.type_name and '*' in self.type_name:
+        if "型" not in self.type_name and "*" in self.type_name:
             self.is_pointer = True
 
 
 @dataclass
 class StructMember:
     """struct成员信息"""
+
     name: str
     c_type: str
     visibility: Visibility
@@ -90,6 +93,7 @@ class StructMember:
 @dataclass
 class ConversionResult:
     """转换结果"""
+
     struct_declaration: str
     struct_definition: str
     errors: List[str] = field(default_factory=list)
@@ -109,10 +113,16 @@ class AttributeConverter:
         self.errors: List[str] = []
         self.warnings: List[str] = []
 
-    def add_attribute(self, name: str, type_name: str, visibility: str = "private",
-                    default_value: Optional[str] = None,
-                    is_static: bool = False, is_const: bool = False,
-                    line_number: int = 0) -> bool:
+    def add_attribute(
+        self,
+        name: str,
+        type_name: str,
+        visibility: str = "private",
+        default_value: Optional[str] = None,
+        is_static: bool = False,
+        is_const: bool = False,
+        line_number: int = 0,
+    ) -> bool:
         """添加属性"""
         # 类型检查
         if type_name not in TYPE_MAPPING and not self._is_valid_c_type(type_name):
@@ -133,7 +143,7 @@ class AttributeConverter:
             line_number=line_number,
             default_value=default_value,
             is_static=is_static,
-            is_const=is_const
+            is_const=is_const,
         )
 
         self.attributes.append(attr)
@@ -145,13 +155,19 @@ class AttributeConverter:
             visibility=vis,
             is_static=is_static,
             is_const=is_const,
-            default_value=default_value
+            default_value=default_value,
         )
         self.struct_members.append(member)
 
         return True
 
-    def convert_attribute(self, attr_info_or_name, type_name=None, visibility='private', default_value=None) -> StructMember:
+    def convert_attribute(
+        self,
+        attr_info_or_name,
+        type_name=None,
+        visibility="private",
+        default_value=None,
+    ) -> StructMember:
         """转换属性 - 兼容测试接口"""
         # 支持两种调用方式：
         # 1. convert_attribute(attr_info) - 传入AttributeInfo对象
@@ -162,18 +178,18 @@ class AttributeConverter:
             attr_info = attr_info_or_name
             name = attr_info.name
             type_name = attr_info.type_name
-            vis = getattr(attr_info, 'visibility', Visibility.PRIVATE)
-            default_value = getattr(attr_info, 'default_value', None)
+            vis = getattr(attr_info, "visibility", Visibility.PRIVATE)
+            default_value = getattr(attr_info, "default_value", None)
 
             # 转换枚举类型
-            if hasattr(vis, 'value'):
+            if hasattr(vis, "value"):
                 vis_str = vis.value
             else:
                 vis_str = str(vis)
             visibility_map = {
-                'public': Visibility.PUBLIC,
-                'private': Visibility.PRIVATE,
-                'protected': Visibility.PROTECTED,
+                "public": Visibility.PUBLIC,
+                "private": Visibility.PRIVATE,
+                "protected": Visibility.PROTECTED,
             }
             vis = visibility_map.get(vis_str.lower(), Visibility.PRIVATE)
         else:
@@ -187,22 +203,26 @@ class AttributeConverter:
             name=name,
             c_type=c_type,
             visibility=vis,
-            is_static=getattr(attr_info_or_name, 'is_static', False) if not isinstance(attr_info_or_name, str) else False,
-            is_const=getattr(attr_info_or_name, 'is_const', False) if not isinstance(attr_info_or_name, str) else False,
-            default_value=default_value
+            is_static=getattr(attr_info_or_name, "is_static", False)
+            if not isinstance(attr_info_or_name, str)
+            else False,
+            is_const=getattr(attr_info_or_name, "is_const", False)
+            if not isinstance(attr_info_or_name, str)
+            else False,
+            default_value=default_value,
         )
         return member
 
     def _is_valid_c_type(self, type_name: str) -> bool:
         """检查是否是有效的C类型"""
         # 基本C类型
-        basic_types = {'int', 'float', 'double', 'char', 'void', 'short', 'long'}
+        basic_types = {"int", "float", "double", "char", "void", "short", "long"}
         if type_name in basic_types:
             return True
 
         # 指针类型
-        if '*' in type_name:
-            base_type = type_name.replace('*', '').strip()
+        if "*" in type_name:
+            base_type = type_name.replace("*", "").strip()
             return base_type in basic_types or base_type in TYPE_MAPPING.values()
 
         return False
@@ -236,7 +256,7 @@ class AttributeConverter:
         lines.append(f"}} {class_name};")
         lines.append(f"typedef struct {class_name} {class_name};")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def convert_to_struct_definition(self, class_name: str) -> str:
         """转换为struct定义（源文件用）"""
@@ -248,21 +268,29 @@ class AttributeConverter:
         if static_members:
             for member in static_members:
                 if member.default_value:
-                    lines.append(f"{member.c_type} {class_name}::{member.name} = {member.default_value};")
+                    lines.append(
+                        f"{member.c_type} {class_name}::{member.name} = {member.default_value};"
+                    )
                 else:
                     lines.append(f"{member.c_type} {class_name}::{member.name};")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def get_statistics(self) -> Dict[str, int]:
         """获取统计信息"""
         return {
-            'total_attributes': len(self.attributes),
-            'public_attributes': sum(1 for a in self.attributes if a.visibility == Visibility.PUBLIC),
-            'private_attributes': sum(1 for a in self.attributes if a.visibility == Visibility.PRIVATE),
-            'protected_attributes': sum(1 for a in self.attributes if a.visibility == Visibility.PROTECTED),
-            'static_attributes': sum(1 for a in self.attributes if a.is_static),
-            'const_attributes': sum(1 for a in self.attributes if a.is_const),
+            "total_attributes": len(self.attributes),
+            "public_attributes": sum(
+                1 for a in self.attributes if a.visibility == Visibility.PUBLIC
+            ),
+            "private_attributes": sum(
+                1 for a in self.attributes if a.visibility == Visibility.PRIVATE
+            ),
+            "protected_attributes": sum(
+                1 for a in self.attributes if a.visibility == Visibility.PROTECTED
+            ),
+            "static_attributes": sum(1 for a in self.attributes if a.is_static),
+            "const_attributes": sum(1 for a in self.attributes if a.is_const),
         }
 
 
@@ -273,25 +301,26 @@ class ClassToStructConverter:
         self.type_mapping = TYPE_MAPPING.copy()
         self.converter = AttributeConverter()
 
-    def convert_attribute(self, name: str, type_name: str,
-                      visibility: str = "private",
-                      default_value: Optional[str] = None,
-                      is_static: bool = False,
-                      is_const: bool = False,
-                      line_number: int = 0) -> bool:
+    def convert_attribute(
+        self,
+        name: str,
+        type_name: str,
+        visibility: str = "private",
+        default_value: Optional[str] = None,
+        is_static: bool = False,
+        is_const: bool = False,
+        line_number: int = 0,
+    ) -> bool:
         """转换单个属性"""
         return self.converter.add_attribute(
-            name, type_name, visibility,
-            default_value, is_static, is_const, line_number
+            name, type_name, visibility, default_value, is_static, is_const, line_number
         )
 
-    def convert_class(self, class_name: str,
-                       base_class: Optional[str] = None) -> ConversionResult:
+    def convert_class(
+        self, class_name: str, base_class: Optional[str] = None
+    ) -> ConversionResult:
         """转换整个类"""
-        result = ConversionResult(
-            struct_declaration="",
-            struct_definition=""
-        )
+        result = ConversionResult(struct_declaration="", struct_definition="")
 
         # 生成struct声明
         result.struct_declaration = self._generate_struct_declaration(
@@ -299,9 +328,7 @@ class ClassToStructConverter:
         )
 
         # 生成struct定义
-        result.struct_definition = self._generate_struct_definition(
-            class_name
-        )
+        result.struct_definition = self._generate_struct_definition(class_name)
 
         # 填充统计信息
         result.statistics = self.converter.get_statistics()
@@ -311,8 +338,9 @@ class ClassToStructConverter:
 
         return result
 
-    def _generate_struct_declaration(self, class_name: str,
-                                   base_class: Optional[str]) -> str:
+    def _generate_struct_declaration(
+        self, class_name: str, base_class: Optional[str]
+    ) -> str:
         """生成struct声明"""
         lines = []
 
@@ -354,7 +382,7 @@ class ClassToStructConverter:
         lines.append("")
         lines.append(f"#endif /* __{class_name.upper()}_H__ */")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def _generate_struct_definition(self, class_name: str) -> str:
         """生成struct定义"""
@@ -367,7 +395,7 @@ class ClassToStructConverter:
         # 静态成员定义
         static_members = [m for m in self.converter.struct_members if m.is_static]
         if static_members:
-            lines.append(f"/* 静态成员定义 */")
+            lines.append("/* 静态成员定义 */")
             for member in static_members:
                 if member.default_value:
                     lines.append(
@@ -376,7 +404,7 @@ class ClassToStructConverter:
                 else:
                     lines.append(f"{member.c_type} {class_name}::{member.name};")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def get_type_mapping(self) -> Dict[str, str]:
         """获取类型映射表"""
@@ -417,7 +445,7 @@ class ClassToStructConverter:
 
         lines.append("=" * 60)
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
 
 # 测试代码

@@ -9,15 +9,15 @@ Day 27: 工具链优化
 4. 开发者工具包
 """
 
-import sys
 import time
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 from enum import Enum
 
 
 class ErrorLevel(Enum):
     """错误级别"""
+
     INFO = "信息"
     WARNING = "警告"
     ERROR = "错误"
@@ -26,6 +26,7 @@ class ErrorLevel(Enum):
 
 class ErrorCode(Enum):
     """错误代码"""
+
     # 词法错误 (1000-1999)
     LEX_UNEXPECTED_CHAR = 1001
     LEX_UNCLOSED_STRING = 1002
@@ -51,6 +52,7 @@ class ErrorCode(Enum):
 @dataclass
 class CompilerError:
     """编译器错误"""
+
     code: ErrorCode
     level: ErrorLevel
     line: int
@@ -83,8 +85,14 @@ class EnhancedErrorHandler:
         self.errors: List[CompilerError] = []
         self.warnings: List[CompilerError] = []
 
-    def add_error(self, code: ErrorCode, line: int, column: int = 0,
-                  message: str = "", suggestion: str = ""):
+    def add_error(
+        self,
+        code: ErrorCode,
+        line: int,
+        column: int = 0,
+        message: str = "",
+        suggestion: str = "",
+    ):
         """添加错误"""
         if not message:
             msg, sugg = self.ERROR_MESSAGES.get(code, ("未知错误", ""))
@@ -99,7 +107,7 @@ class EnhancedErrorHandler:
             line=line,
             column=column,
             message=message,
-            suggestion=suggestion
+            suggestion=suggestion,
         )
 
         if level == ErrorLevel.ERROR or level == ErrorLevel.FATAL:
@@ -128,7 +136,7 @@ class EnhancedErrorHandler:
         ]
         if error.suggestion:
             lines.append(f"  建议: {error.suggestion}")
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def format_summary(self) -> str:
         """格式化错误摘要"""
@@ -147,7 +155,7 @@ class EnhancedErrorHandler:
         if not self.errors and not self.warnings:
             lines.append("\n编译成功，无错误或警告")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def has_fatal_errors(self) -> bool:
         """是否有致命错误"""
@@ -159,11 +167,11 @@ class PerformanceOptimizer:
 
     def __init__(self):
         self.stats: Dict[str, float] = {
-            'lexical_time': 0.0,
-            'syntax_time': 0.0,
-            'semantic_time': 0.0,
-            'codegen_time': 0.0,
-            'total_time': 0.0,
+            "lexical_time": 0.0,
+            "syntax_time": 0.0,
+            "semantic_time": 0.0,
+            "codegen_time": 0.0,
+            "total_time": 0.0,
         }
 
     def measure(self, phase: str, func, *args, **kwargs):
@@ -186,38 +194,39 @@ class PerformanceOptimizer:
         ]
 
         for phase, time_val in self.stats.items():
-            lines.append(f"{phase}: {time_val*1000:.2f}ms")
+            lines.append(f"{phase}: {time_val * 1000:.2f}ms")
 
         total = sum(self.stats.values())
-        lines.append(f"总计: {total*1000:.2f}ms")
+        lines.append(f"总计: {total * 1000:.2f}ms")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
 
 class DebugInfoGenerator:
     """
     调试信息生成器
-    
+
     .. deprecated::
         此类的功能已被 backend/base.py 的 BackendBase 调试接口取代。
         请使用 BackendBase._setup_debug() 和 BackendBase._emit_*_debug() 方法。
-        
+
         示例::
             # 新方式（推荐）
             backend = GCCBackend()
             debug_manager = backend._setup_debug(ir, options)
             backend._emit_function_debug(debug_manager, ...)
-            
+
             # 旧方式（已废弃）
             generator = DebugInfoGenerator()  # 不要使用
     """
 
     def __init__(self):
         import warnings
+
         warnings.warn(
             "DebugInfoGenerator 已废弃，请使用 BackendBase._setup_debug() 方法",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
         self.line_mapping: Dict[int, str] = {}
         self.symbol_table: Dict[str, Dict] = {}
@@ -229,8 +238,8 @@ class DebugInfoGenerator:
     def add_symbol(self, name: str, type_name: str, line: int):
         """添加符号信息"""
         self.symbol_table[name] = {
-            'type': type_name,
-            'line': line,
+            "type": type_name,
+            "line": line,
         }
 
     def get_symbol_info(self, name: str) -> Optional[Dict]:
@@ -244,11 +253,11 @@ class DebugInfoGenerator:
         lines.append(f"// 源文件行数: {len(self.line_mapping)}")
         lines.append(f"// 符号数: {len(self.symbol_table)}")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
 
 # 测试
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("=== Day 27 工具链测试 ===")
 
     # 测试错误处理
@@ -267,7 +276,7 @@ if __name__ == '__main__':
         time.sleep(0.01)
         return 42
 
-    optimizer.measure('lexical_time', dummy_function)
+    optimizer.measure("lexical_time", dummy_function)
     print(optimizer.get_report())
 
     # 测试调试信息

@@ -24,7 +24,7 @@ import time
 import hashlib
 import concurrent.futures
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional, Set, Any, Callable
+from typing import List, Dict, Optional, Set
 from dataclasses import dataclass, field
 from enum import Enum
 from collections import defaultdict
@@ -36,14 +36,16 @@ from .pipeline import CompilationPipeline
 
 class ParallelStrategy(Enum):
     """并行策略"""
-    THREAD = "thread"           # 线程池（适合I/O密集型）
-    PROCESS = "process"          # 进程池（适合CPU密集型）
-    AUTO = "auto"               # 自动选择
+
+    THREAD = "thread"  # 线程池（适合I/O密集型）
+    PROCESS = "process"  # 进程池（适合CPU密集型）
+    AUTO = "auto"  # 自动选择
 
 
 @dataclass
 class ModuleInfo:
     """模块信息"""
+
     name: str
     file_path: str
     dependencies: List[str] = field(default_factory=list)
@@ -56,6 +58,7 @@ class ModuleInfo:
 @dataclass
 class CompilationResult:
     """编译结果"""
+
     module_name: str
     success: bool
     output_path: Optional[str] = None
@@ -67,6 +70,7 @@ class CompilationResult:
 @dataclass
 class ParallelStats:
     """并行编译统计"""
+
     total_modules: int = 0
     cached_modules: int = 0
     parallel_modules: int = 0
@@ -166,7 +170,7 @@ class ParallelCompilationPipeline:
         self,
         max_workers: int = None,
         strategy: ParallelStrategy = ParallelStrategy.AUTO,
-        enable_cache: bool = True
+        enable_cache: bool = True,
     ):
         """
         初始化并行编译流水线
@@ -211,8 +215,7 @@ class ParallelCompilationPipeline:
         """创建执行器"""
         if self.strategy == ParallelStrategy.THREAD:
             self.executor = concurrent.futures.ThreadPoolExecutor(
-                max_workers=self.max_workers,
-                thread_name_prefix="zhc_parallel"
+                max_workers=self.max_workers, thread_name_prefix="zhc_parallel"
             )
             self._executor_type = "thread"
         else:
@@ -222,10 +225,7 @@ class ParallelCompilationPipeline:
             self._executor_type = "process"
 
     def add_module(
-        self,
-        module_name: str,
-        file_path: str,
-        dependencies: List[str] = None
+        self, module_name: str, file_path: str, dependencies: List[str] = None
     ):
         """
         添加模块
@@ -247,7 +247,7 @@ class ParallelCompilationPipeline:
             file_path=file_path,
             dependencies=dependencies,
             size=file_size,
-            priority=0
+            priority=0,
         )
 
         with self._lock:
@@ -255,9 +255,7 @@ class ParallelCompilationPipeline:
             self.layer_calculator.add_module(module_name, dependencies)
 
     def _compile_single_module(
-        self,
-        module_name: str,
-        force: bool = False
+        self, module_name: str, force: bool = False
     ) -> CompilationResult:
         """
         编译单个模块
@@ -273,7 +271,7 @@ class ParallelCompilationPipeline:
             return CompilationResult(
                 module_name=module_name,
                 success=False,
-                error_message=f"模块不存在: {module_name}"
+                error_message=f"模块不存在: {module_name}",
             )
 
         module_info = self.modules[module_name]
@@ -288,9 +286,9 @@ class ParallelCompilationPipeline:
                     return CompilationResult(
                         module_name=module_name,
                         success=True,
-                        output_path=cached.get('output_path'),
+                        output_path=cached.get("output_path"),
                         compile_time=time.time() - start_time,
-                        cached=True
+                        cached=True,
                     )
 
             # 使用底层流水线编译
@@ -305,23 +303,23 @@ class ParallelCompilationPipeline:
                     self._save_to_cache(
                         self._get_cache_key(module_info.file_path),
                         {
-                            'output_path': str(result.get('c_filepath', '')),
-                            'module_name': module_name
-                        }
+                            "output_path": str(result.get("c_filepath", "")),
+                            "module_name": module_name,
+                        },
                     )
 
                 return CompilationResult(
                     module_name=module_name,
                     success=True,
-                    output_path=str(result.get('c_filepath', '')),
-                    compile_time=compile_time
+                    output_path=str(result.get("c_filepath", "")),
+                    compile_time=compile_time,
                 )
             else:
                 return CompilationResult(
                     module_name=module_name,
                     success=False,
                     error_message="编译失败",
-                    compile_time=time.time() - start_time
+                    compile_time=time.time() - start_time,
                 )
 
         except Exception as e:
@@ -329,13 +327,11 @@ class ParallelCompilationPipeline:
                 module_name=module_name,
                 success=False,
                 error_message=str(e),
-                compile_time=time.time() - start_time
+                compile_time=time.time() - start_time,
             )
 
     def _compile_layer_parallel(
-        self,
-        layer_modules: List[str],
-        force: bool = False
+        self, layer_modules: List[str], force: bool = False
     ) -> Dict[str, CompilationResult]:
         """
         并行编译同一层级的模块
@@ -353,9 +349,7 @@ class ParallelCompilationPipeline:
         futures = {}
         for module_name in layer_modules:
             future = self.executor.submit(
-                self._compile_single_module,
-                module_name,
-                force
+                self._compile_single_module, module_name, force
             )
             futures[future] = module_name
 
@@ -366,17 +360,13 @@ class ParallelCompilationPipeline:
                 results[module_name] = future.result()
             except Exception as e:
                 results[module_name] = CompilationResult(
-                    module_name=module_name,
-                    success=False,
-                    error_message=str(e)
+                    module_name=module_name, success=False, error_message=str(e)
                 )
 
         return results
 
     def compile_parallel(
-        self,
-        force: bool = False,
-        show_progress: bool = True
+        self, force: bool = False, show_progress: bool = True
     ) -> Dict[str, CompilationResult]:
         """
         并行编译所有模块
@@ -398,7 +388,7 @@ class ParallelCompilationPipeline:
         layers = self.layer_calculator.get_layers()
 
         if show_progress:
-            print(f"📊 并行编译计划:")
+            print("📊 并行编译计划:")
             print(f"   工作线程: {self.max_workers} ({self._executor_type})")
             print(f"   模块总数: {len(self.modules)}")
             print(f"   编译层级: {len(layers)}")
@@ -425,8 +415,9 @@ class ParallelCompilationPipeline:
 
             if show_progress:
                 success_count = sum(1 for r in level_results.values() if r.success)
-                print(f"   完成: {success_count}/{len(layer_modules)} "
-                      f"({level_time:.2f}s)")
+                print(
+                    f"   完成: {success_count}/{len(layer_modules)} ({level_time:.2f}s)"
+                )
 
         # 统计
         total_time = time.time() - start_time
@@ -552,7 +543,9 @@ class AdaptiveParallelPipeline(ParallelCompilationPipeline):
         # 锁
         self._freq_lock = threading.Lock()
 
-    def add_module(self, module_name: str, file_path: str, dependencies: List[str] = None):
+    def add_module(
+        self, module_name: str, file_path: str, dependencies: List[str] = None
+    ):
         """添加模块（带频率统计）"""
         super().add_module(module_name, file_path, dependencies)
 
@@ -603,15 +596,11 @@ class AdaptiveParallelPipeline(ParallelCompilationPipeline):
             按优先级排序的模块列表
         """
         return sorted(
-            layer_modules,
-            key=lambda m: self._compute_module_priority(m),
-            reverse=True
+            layer_modules, key=lambda m: self._compute_module_priority(m), reverse=True
         )
 
     def compile_parallel_adaptive(
-        self,
-        force: bool = False,
-        show_progress: bool = True
+        self, force: bool = False, show_progress: bool = True
     ) -> Dict[str, CompilationResult]:
         """
         自适应并行编译
@@ -633,7 +622,7 @@ class AdaptiveParallelPipeline(ParallelCompilationPipeline):
         layers = self.layer_calculator.get_layers()
 
         if show_progress:
-            print(f"📊 自适应并行编译计划:")
+            print("📊 自适应并行编译计划:")
             print(f"   工作线程: {self.max_workers} ({self._executor_type})")
             print(f"   模块总数: {len(self.modules)}")
             print(f"   热点模块: {len(self.hot_modules)}")
@@ -656,8 +645,9 @@ class AdaptiveParallelPipeline(ParallelCompilationPipeline):
 
             if show_progress:
                 success_count = sum(1 for r in level_results.values() if r.success)
-                print(f"   完成: {success_count}/{len(layer_modules)} "
-                      f"({level_time:.2f}s)")
+                print(
+                    f"   完成: {success_count}/{len(layer_modules)} ({level_time:.2f}s)"
+                )
 
         # 更新统计
         total_time = time.time() - start_time

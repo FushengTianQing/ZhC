@@ -16,54 +16,65 @@ from enum import Enum
 
 # 类型检查时导入，运行时延迟导入
 if TYPE_CHECKING:
-    from zhc.ir.register_allocator import (
-        Register, RegisterKind, VirtualRegister,
-        LiveInterval, AllocationResult, TargetArchitecture,
-        LinearScanRegisterAllocator, GraphColorRegisterAllocator
-    )
+    from zhc.ir.register_allocator import AllocationResult
+
 
 # 延迟导入，避免循环依赖
 def _get_allocator_classes():
     """延迟导入分配器类"""
     from zhc.ir.register_allocator import (
-        Register, RegisterKind, VirtualRegister,
-        LiveInterval, AllocationResult, TargetArchitecture,
-        LinearScanRegisterAllocator, GraphColorRegisterAllocator
+        Register,
+        RegisterKind,
+        VirtualRegister,
+        LiveInterval,
+        AllocationResult,
+        TargetArchitecture,
+        LinearScanRegisterAllocator,
+        GraphColorRegisterAllocator,
     )
+
     return (
-        Register, RegisterKind, VirtualRegister,
-        LiveInterval, AllocationResult, TargetArchitecture,
-        LinearScanRegisterAllocator, GraphColorRegisterAllocator
+        Register,
+        RegisterKind,
+        VirtualRegister,
+        LiveInterval,
+        AllocationResult,
+        TargetArchitecture,
+        LinearScanRegisterAllocator,
+        GraphColorRegisterAllocator,
     )
 
 
 class AllocationStrategy(Enum):
     """分配策略"""
-    LINEAR_SCAN = "linear_scan"    # 线性扫描（快速，适合 JIT）
-    GRAPH_COLOR = "graph_color"   # 图着色（更优，但慢）
-    SIMPLE = "simple"              # 简单分配（溢出所有）
-    NONE = "none"                  # 不分配（依赖目标后端）
+
+    LINEAR_SCAN = "linear_scan"  # 线性扫描（快速，适合 JIT）
+    GRAPH_COLOR = "graph_color"  # 图着色（更优，但慢）
+    SIMPLE = "simple"  # 简单分配（溢出所有）
+    NONE = "none"  # 不分配（依赖目标后端）
 
 
 @dataclass
 class Instruction:
     """中间表示指令（用于寄存器分配）"""
-    id: int                          # 指令 ID
-    opcode: str                      # 操作码
-    defs: List[int] = field(default_factory=list)   # 定义列表（虚拟寄存器 ID）
-    uses: List[int] = field(default_factory=list)   # 使用列表
-    live_out: Set[int] = field(default_factory=set) # 活跃变量
+
+    id: int  # 指令 ID
+    opcode: str  # 操作码
+    defs: List[int] = field(default_factory=list)  # 定义列表（虚拟寄存器 ID）
+    uses: List[int] = field(default_factory=list)  # 使用列表
+    live_out: Set[int] = field(default_factory=set)  # 活跃变量
 
 
 @dataclass
 class BackendCapabilities:
     """后端能力描述"""
-    name: str                        # 后端名称（如 "x86_64", "arm64", "wasm"）
-    max_int_regs: int = 16           # 最大整数寄存器数
-    max_float_regs: int = 16         # 最大浮点寄存器数
-    has_callee_saved: bool = True    # 是否有 callee-saved 寄存器
-    has_vector_regs: bool = False    # 是否有向量寄存器
-    stack_alignment: int = 16       # 栈对齐要求
+
+    name: str  # 后端名称（如 "x86_64", "arm64", "wasm"）
+    max_int_regs: int = 16  # 最大整数寄存器数
+    max_float_regs: int = 16  # 最大浮点寄存器数
+    has_callee_saved: bool = True  # 是否有 callee-saved 寄存器
+    has_vector_regs: bool = False  # 是否有向量寄存器
+    stack_alignment: int = 16  # 栈对齐要求
 
 
 class RegisterAllocator(ABC):
@@ -79,7 +90,7 @@ class RegisterAllocator(ABC):
         pass
 
     @abstractmethod
-    def allocate(self, instructions: List[Instruction]) -> 'AllocationResult':
+    def allocate(self, instructions: List[Instruction]) -> "AllocationResult":
         """
         执行寄存器分配
 
@@ -115,7 +126,7 @@ class UnifiedRegisterAllocator(RegisterAllocator):
     def __init__(
         self,
         strategy: AllocationStrategy = AllocationStrategy.LINEAR_SCAN,
-        backend_caps: Optional[BackendCapabilities] = None
+        backend_caps: Optional[BackendCapabilities] = None,
     ):
         """
         初始化统一寄存器分配器
@@ -128,7 +139,9 @@ class UnifiedRegisterAllocator(RegisterAllocator):
         self.backend_caps = backend_caps or BackendCapabilities(name="generic")
 
         # 延迟导入
-        (_, _, _, _, _, _, LinearScanRegisterAllocator, GraphColorRegisterAllocator) = _get_allocator_classes()
+        (_, _, _, _, _, _, LinearScanRegisterAllocator, GraphColorRegisterAllocator) = (
+            _get_allocator_classes()
+        )
 
         # 选择底层实现
         if strategy == AllocationStrategy.LINEAR_SCAN:
@@ -148,14 +161,16 @@ class UnifiedRegisterAllocator(RegisterAllocator):
         """设置后端能力"""
         self.backend_caps = caps
         # 延迟导入
-        (_, _, _, _, _, _, LinearScanRegisterAllocator, GraphColorRegisterAllocator) = _get_allocator_classes()
+        (_, _, _, _, _, _, LinearScanRegisterAllocator, GraphColorRegisterAllocator) = (
+            _get_allocator_classes()
+        )
         # 重新创建分配器
         if self.strategy == AllocationStrategy.LINEAR_SCAN:
             self._allocator = LinearScanRegisterAllocator(num_regs=caps.max_int_regs)
         elif self.strategy == AllocationStrategy.GRAPH_COLOR:
             self._allocator = GraphColorRegisterAllocator(num_regs=caps.max_int_regs)
 
-    def allocate(self, instructions: List[Instruction]) -> 'AllocationResult':
+    def allocate(self, instructions: List[Instruction]) -> "AllocationResult":
         """执行寄存器分配"""
         if self._allocator is None:
             # SIMPLE 或 NONE 策略：返回空结果
@@ -184,11 +199,9 @@ class UnifiedRegisterAllocator(RegisterAllocator):
         """转换为内部指令格式"""
         result = []
         for instr in instructions:
-            result.append({
-                'def': instr.defs,
-                'use': instr.uses,
-                'live_out': instr.live_out
-            })
+            result.append(
+                {"def": instr.defs, "use": instr.uses, "live_out": instr.live_out}
+            )
         return result
 
     def get_register_name(self, virtual_reg_id: int) -> str:
@@ -203,12 +216,7 @@ class UnifiedRegisterAllocator(RegisterAllocator):
         """获取溢出槽编号"""
         return self._spill_map.get(virtual_reg_id)
 
-    def generate_spill_code(
-        self,
-        vreg_id: int,
-        position: int,
-        is_load: bool
-    ) -> str:
+    def generate_spill_code(self, vreg_id: int, position: int, is_load: bool) -> str:
         """
         生成溢出代码
 
@@ -245,16 +253,17 @@ class UnifiedRegisterAllocator(RegisterAllocator):
 
 # ==================== 后端特定分配器 ====================
 
+
 class X86_64RegisterAllocator(UnifiedRegisterAllocator):
     """x86-64 专用寄存器分配器"""
 
     def __init__(self, strategy: AllocationStrategy = AllocationStrategy.LINEAR_SCAN):
         caps = BackendCapabilities(
             name="x86_64",
-            max_int_regs=16,   # rax, rcx, rdx, rbx, rsp, rbp, rsi, rdi, r8-r15
-            max_float_regs=16, # xmm0-xmm15
+            max_int_regs=16,  # rax, rcx, rdx, rbx, rsp, rbp, rsi, rdi, r8-r15
+            max_float_regs=16,  # xmm0-xmm15
             has_callee_saved=True,
-            stack_alignment=16
+            stack_alignment=16,
         )
         super().__init__(strategy, caps)
 
@@ -265,10 +274,10 @@ class Arm64RegisterAllocator(UnifiedRegisterAllocator):
     def __init__(self, strategy: AllocationStrategy = AllocationStrategy.LINEAR_SCAN):
         caps = BackendCapabilities(
             name="arm64",
-            max_int_regs=32,   # x0-x31
-            max_float_regs=32, # v0-v31
+            max_int_regs=32,  # x0-x31
+            max_float_regs=32,  # v0-v31
             has_callee_saved=True,
-            stack_alignment=16
+            stack_alignment=16,
         )
         super().__init__(strategy, caps)
 
@@ -283,10 +292,10 @@ class WASMRegisterAllocator(UnifiedRegisterAllocator):
     def __init__(self, strategy: AllocationStrategy = AllocationStrategy.NONE):
         caps = BackendCapabilities(
             name="wasm",
-            max_int_regs=0,     # WASM 不使用寄存器
+            max_int_regs=0,  # WASM 不使用寄存器
             max_float_regs=0,
             has_callee_saved=False,
-            stack_alignment=16
+            stack_alignment=16,
         )
         super().__init__(strategy, caps)
 
@@ -306,16 +315,16 @@ class LLVMRegisterAllocator(UnifiedRegisterAllocator):
             max_float_regs=32,
             has_callee_saved=True,
             has_vector_regs=True,
-            stack_alignment=16
+            stack_alignment=16,
         )
         super().__init__(strategy, caps)
 
 
 # ==================== 工厂函数 ====================
 
+
 def create_allocator(
-    backend: str,
-    strategy: AllocationStrategy = AllocationStrategy.LINEAR_SCAN
+    backend: str, strategy: AllocationStrategy = AllocationStrategy.LINEAR_SCAN
 ) -> RegisterAllocator:
     """
     创建后端特定的寄存器分配器
@@ -345,8 +354,7 @@ def create_allocator(
 
 
 def register_for_all_backends(
-    instructions: List[Instruction],
-    backend: str = "x86_64"
+    instructions: List[Instruction], backend: str = "x86_64"
 ) -> Tuple[Dict[int, str], Dict[int, int]]:
     """
     为所有后端执行寄存器分配的便捷函数
@@ -376,7 +384,7 @@ def register_for_all_backends(
 
 
 # 测试代码
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("=== 统一寄存器分配器测试 ===\n")
 
     # 创建 x86-64 分配器
@@ -394,13 +402,13 @@ if __name__ == '__main__':
 
     # 执行分配
     result = allocator.allocate(instructions)
-    print(f"\n分配结果:")
+    print("\n分配结果:")
     print(f"  成功: {result.success}")
     print(f"  分配数: {len(result.allocations)}")
     print(f"  溢出数: {len(result.spills)}")
 
     # 打印分配映射
-    print(f"\n寄存器映射:")
+    print("\n寄存器映射:")
     for vreg_id in range(3):
         if allocator.is_spilled(vreg_id):
             print(f"  v{vreg_id} -> [spill slot {allocator.get_spill_slot(vreg_id)}]")

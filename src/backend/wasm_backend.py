@@ -21,11 +21,9 @@ WebAssembly Backend
 """
 
 import subprocess
-import re
-from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Dict, List, Optional, TYPE_CHECKING
 from pathlib import Path
 from dataclasses import dataclass, field
-import json
 
 # 导入基类
 from .base import (
@@ -34,7 +32,6 @@ from .base import (
     CompileOptions,
     CompileResult,
     OutputFormat,
-    BackendError,
 )
 
 if TYPE_CHECKING:
@@ -44,13 +41,14 @@ if TYPE_CHECKING:
 @dataclass
 class WASMCompileResult:
     """WASM编译结果（遗留兼容）"""
-    success: bool              # 是否成功
-    wasm_file: Optional[str]   # WASM文件路径
-    js_file: Optional[str]     # JavaScript胶水文件路径
-    html_file: Optional[str]   # HTML文件路径（可选）
-    errors: List[str] = field(default_factory=list)          # 错误信息
-    warnings: List[str] = field(default_factory=list)         # 警告信息
-    metadata: Dict = field(default_factory=dict)             # 元数据（文件大小等）
+
+    success: bool  # 是否成功
+    wasm_file: Optional[str]  # WASM文件路径
+    js_file: Optional[str]  # JavaScript胶水文件路径
+    html_file: Optional[str]  # HTML文件路径（可选）
+    errors: List[str] = field(default_factory=list)  # 错误信息
+    warnings: List[str] = field(default_factory=list)  # 警告信息
+    metadata: Dict = field(default_factory=dict)  # 元数据（文件大小等）
 
 
 class WebAssemblyBackend(BackendBase):
@@ -71,7 +69,7 @@ class WebAssemblyBackend(BackendBase):
 
     @property
     def description(self) -> str:
-        return f"WASM 后端 (Emscripten)"
+        return "WASM 后端 (Emscripten)"
 
     @property
     def capabilities(self) -> BackendCapabilities:
@@ -85,11 +83,13 @@ class WebAssemblyBackend(BackendBase):
             required_tools=["emcc"],
         )
 
-    def __init__(self,
-                 emscripten_path: str = "emcc",
-                 optimization_level: str = "O2",
-                 enable_simd: bool = True,
-                 enable_threads: bool = False):
+    def __init__(
+        self,
+        emscripten_path: str = "emcc",
+        optimization_level: str = "O2",
+        enable_simd: bool = True,
+        enable_threads: bool = False,
+    ):
         """
         初始化WASM后端
 
@@ -109,18 +109,14 @@ class WebAssemblyBackend(BackendBase):
 
         # 统计信息
         self.stats = {
-            'total_compiles': 0,
-            'successful_compiles': 0,
-            'failed_compiles': 0,
-            'total_wasm_size': 0,
-            'total_js_size': 0
+            "total_compiles": 0,
+            "successful_compiles": 0,
+            "failed_compiles": 0,
+            "total_wasm_size": 0,
+            "total_js_size": 0,
         }
 
-    def _create_debug_listener(
-        self,
-        source_file: str,
-        output_file: str = "debug.json"
-    ):
+    def _create_debug_listener(self, source_file: str, output_file: str = "debug.json"):
         """
         创建 WASM 后端专用调试监听器
 
@@ -132,7 +128,8 @@ class WebAssemblyBackend(BackendBase):
             WASMDebugListener: WASM 后端调试监听器
         """
         from .wasm_debug_listener import WASMDebugListener
-        return WASMDebugListener(source_file=source_file, module_name='main')
+
+        return WASMDebugListener(source_file=source_file, module_name="main")
 
     # ===== BackendBase 接口实现 =====
 
@@ -188,21 +185,21 @@ class WebAssemblyBackend(BackendBase):
         """检查Emscripten是否可用"""
         try:
             result = subprocess.run(
-                [self.emscripten_path, "--version"],
-                capture_output=True,
-                timeout=5
+                [self.emscripten_path, "--version"], capture_output=True, timeout=5
             )
             return result.returncode == 0
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
 
-    def compile_to_wasm(self,
-                       c_file: str,
-                       output_dir: str,
-                       output_name: Optional[str] = None,
-                       export_functions: Optional[List[str]] = None,
-                       export_memory: bool = True,
-                       generate_html: bool = False) -> WASMCompileResult:
+    def compile_to_wasm(
+        self,
+        c_file: str,
+        output_dir: str,
+        output_name: Optional[str] = None,
+        export_functions: Optional[List[str]] = None,
+        export_memory: bool = True,
+        generate_html: bool = False,
+    ) -> WASMCompileResult:
         """
         将C代码编译为WebAssembly
 
@@ -240,9 +237,12 @@ class WebAssemblyBackend(BackendBase):
         cmd = [
             self.emscripten_path,
             c_file,
-            "-o", js_file,
-            "-s", f"WASM={1}",
-            "-s", f"EXPORTED_FUNCTIONS={export_functions or ['_main']}",
+            "-o",
+            js_file,
+            "-s",
+            f"WASM={1}",
+            "-s",
+            f"EXPORTED_FUNCTIONS={export_functions or ['_main']}",
         ]
 
         if export_memory:
@@ -285,18 +285,18 @@ class WebAssemblyBackend(BackendBase):
             success = result.returncode == 0 and Path(wasm_file).exists()
 
             if success:
-                self.stats['total_compiles'] += 1
-                self.stats['successful_compiles'] += 1
+                self.stats["total_compiles"] += 1
+                self.stats["successful_compiles"] += 1
 
                 # 更新统计
                 wasm_size = Path(wasm_file).stat().st_size
                 js_size = Path(js_file).stat().st_size
-                self.stats['total_wasm_size'] += wasm_size
-                self.stats['total_js_size'] += js_size
+                self.stats["total_wasm_size"] += wasm_size
+                self.stats["total_js_size"] += js_size
 
             else:
-                self.stats['total_compiles'] += 1
-                self.stats['failed_compiles'] += 1
+                self.stats["total_compiles"] += 1
+                self.stats["failed_compiles"] += 1
                 if not errors:
                     errors.append("编译失败")
 
@@ -304,7 +304,9 @@ class WebAssemblyBackend(BackendBase):
                 success=success,
                 wasm_file=wasm_file if success else None,
                 js_file=js_file if success else None,
-                html_file=str(output_path / f"{output_name}.html") if generate_html else None,
+                html_file=str(output_path / f"{output_name}.html")
+                if generate_html
+                else None,
                 errors=errors,
                 warnings=warnings,
                 metadata={

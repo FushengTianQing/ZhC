@@ -19,7 +19,7 @@
 
 import os
 import re
-from typing import List, Dict, Tuple, Optional, Set
+from typing import List, Dict, Tuple, Optional
 
 from .conversion_error_handler import ConversionErrorHandler
 from .type_converter import TypeConverter
@@ -27,6 +27,7 @@ from .type_converter import TypeConverter
 
 class ConversionType:
     """转换类型枚举（兼容性别名）"""
+
     MODULE_DECLARATION = "module_declaration"
     IMPORT_STATEMENT = "import_statement"
     SYMBOL_DEFINITION = "symbol_definition"
@@ -46,7 +47,9 @@ class CodeConverter:
     注意：错误处理已委托给 ConversionErrorHandler
     """
 
-    def __init__(self, scope_manager=None, error_handler: ConversionErrorHandler = None):
+    def __init__(
+        self, scope_manager=None, error_handler: ConversionErrorHandler = None
+    ):
         """
         初始化代码转换器
 
@@ -57,11 +60,11 @@ class CodeConverter:
         self.scope_manager = scope_manager
         self.output_lines = []
         self.conversion_stats = {
-            'modules_converted': 0,
-            'imports_converted': 0,
-            'symbols_converted': 0,
-            'errors_found': 0,
-            'warnings_found': 0
+            "modules_converted": 0,
+            "imports_converted": 0,
+            "symbols_converted": 0,
+            "errors_found": 0,
+            "warnings_found": 0,
         }
 
         # 模块映射表：模块名 -> (头文件路径, 源文件路径)
@@ -72,7 +75,7 @@ class CodeConverter:
 
         # 错误处理器
         self._error_handler = error_handler or ConversionErrorHandler()
-        
+
         # 类型转换器
         self._type_converter = TypeConverter()
 
@@ -90,11 +93,11 @@ class CodeConverter:
         """重置转换器状态"""
         self.output_lines = []
         self.conversion_stats = {
-            'modules_converted': 0,
-            'imports_converted': 0,
-            'symbols_converted': 0,
-            'errors_found': 0,
-            'warnings_found': 0
+            "modules_converted": 0,
+            "imports_converted": 0,
+            "symbols_converted": 0,
+            "errors_found": 0,
+            "warnings_found": 0,
         }
         self._error_handler.clear()
         self.converted_symbols.clear()
@@ -109,7 +112,7 @@ class CodeConverter:
             line_no: 行号
         """
         self._error_handler.add_error(error_type, message, line_no)
-        self.conversion_stats['errors_found'] += 1
+        self.conversion_stats["errors_found"] += 1
 
     def add_warning(self, warning_type: str, message: str, line_no: int = -1):
         """
@@ -121,10 +124,11 @@ class CodeConverter:
             line_no: 行号
         """
         self._error_handler.add_warning(warning_type, message, line_no)
-        self.conversion_stats['warnings_found'] += 1
+        self.conversion_stats["warnings_found"] += 1
 
-    def convert_module_declaration(self, module_name: str, content_lines: List[str],
-                                  line_no: int = -1) -> Tuple[str, str]:
+    def convert_module_declaration(
+        self, module_name: str, content_lines: List[str], line_no: int = -1
+    ) -> Tuple[str, str]:
         """
         转换模块声明为C代码
 
@@ -136,7 +140,7 @@ class CodeConverter:
         Returns:
             (header_code, source_code) 元组
         """
-        self.conversion_stats['modules_converted'] += 1
+        self.conversion_stats["modules_converted"] += 1
 
         # 生成头文件保护宏
         guard_macro = f"__{module_name.upper()}_H__"
@@ -150,20 +154,18 @@ class CodeConverter:
             "#ifdef __cplusplus",
             'extern "C" {',
             "#endif",
-            ""
+            "",
         ]
 
         # 构建源文件内容
         source_lines = [
             f"/* {module_name}模块 - 自动生成的源文件 */",
             f'#include "{module_name}.h"',
-            ""
+            "",
         ]
 
         # 解析模块内容
-        in_public_section = False
-        in_private_section = False
-        current_visibility = 'private'  # 默认私有
+        current_visibility = "private"  # 默认私有
 
         for i, line in enumerate(content_lines, 1):
             line = line.strip()
@@ -171,47 +173,36 @@ class CodeConverter:
                 continue
 
             # 检查可见性区域开始
-            if line == '公开:':
-                current_visibility = 'public'
-                in_public_section = True
-                in_private_section = False
+            if line == "公开:":
+                current_visibility = "public"
                 continue
-            elif line == '私有:':
-                current_visibility = 'private'
-                in_private_section = True
-                in_public_section = False
+            elif line == "私有:":
+                current_visibility = "private"
                 continue
-            elif line == '保护:':
-                current_visibility = 'protected'
-                in_public_section = False
-                in_private_section = False
+            elif line == "保护:":
+                current_visibility = "protected"
                 continue
 
             # 转换符号定义
-            if current_visibility in ['public', 'private']:
+            if current_visibility in ["public", "private"]:
                 converted = self.convert_symbol_definition(
                     line, module_name, current_visibility, line_no + i
                 )
 
                 if converted:
-                    if current_visibility == 'public':
+                    if current_visibility == "public":
                         # 公开符号添加到头文件
-                        header_lines.append(converted + ';')
+                        header_lines.append(converted + ";")
                     # 所有符号定义都添加到源文件
-                    source_lines.append(converted + ';')
+                    source_lines.append(converted + ";")
 
         # 结束头文件
-        header_lines.extend([
-            "",
-            "#ifdef __cplusplus",
-            "}",
-            "#endif",
-            "",
-            f"#endif /* {guard_macro} */"
-        ])
+        header_lines.extend(
+            ["", "#ifdef __cplusplus", "}", "#endif", "", f"#endif /* {guard_macro} */"]
+        )
 
-        header_code = '\n'.join(header_lines)
-        source_code = '\n'.join(source_lines)
+        header_code = "\n".join(header_lines)
+        source_code = "\n".join(source_lines)
 
         # 记录模块映射
         self.module_map[module_name] = (f"{module_name}.h", f"{module_name}.c")
@@ -229,20 +220,21 @@ class CodeConverter:
         Returns:
             C的#include指令字符串
         """
-        self.conversion_stats['imports_converted'] += 1
+        self.conversion_stats["imports_converted"] += 1
 
         # 检查模块是否存在
         if module_name not in self.module_map:
             self.add_warning(
-                'UNDEFINED_MODULE',
+                "UNDEFINED_MODULE",
                 f"模块 '{module_name}' 未定义，可能需要在其他地方定义",
-                line_no
+                line_no,
             )
 
         return f'#include "{module_name}.h"'
 
-    def convert_symbol_definition(self, line: str, module_name: str,
-                                 visibility: str, line_no: int = -1) -> Optional[str]:
+    def convert_symbol_definition(
+        self, line: str, module_name: str, visibility: str, line_no: int = -1
+    ) -> Optional[str]:
         """
         转换符号定义（函数、变量等）
 
@@ -256,36 +248,39 @@ class CodeConverter:
             转换后的C代码行，如果没有匹配则返回None
         """
         # 检查是否是函数定义
-        func_match = re.match(r'函数\s+(\w+)\s*\((.*)\)\s*->\s*(\w+)\s*\{', line)
+        func_match = re.match(r"函数\s+(\w+)\s*\((.*)\)\s*->\s*(\w+)\s*\{", line)
         if func_match:
-            return self.convert_function_definition(func_match, module_name, visibility, line_no)
+            return self.convert_function_definition(
+                func_match, module_name, visibility, line_no
+            )
 
         # 检查是否是变量定义
         var_patterns = [
-            r'(\w+型)\s+(\w+)\s*=\s*(.+);',  # 类型 变量 = 值;
-            r'(\w+型)\s+(\w+)\s*;',          # 类型 变量;
+            r"(\w+型)\s+(\w+)\s*=\s*(.+);",  # 类型 变量 = 值;
+            r"(\w+型)\s+(\w+)\s*;",  # 类型 变量;
         ]
 
         for pattern in var_patterns:
             var_match = re.match(pattern, line)
             if var_match:
-                return self.convert_variable_definition(var_match, module_name, visibility, line_no)
+                return self.convert_variable_definition(
+                    var_match, module_name, visibility, line_no
+                )
 
         # 检查是否是其他声明
-        if ';' in line and ('=' in line or re.search(r'\w+型', line)):
+        if ";" in line and ("=" in line or re.search(r"\w+型", line)):
             # 可能是简化的变量声明
-            return self.convert_general_declaration(line, module_name, visibility, line_no)
+            return self.convert_general_declaration(
+                line, module_name, visibility, line_no
+            )
 
         # 未匹配任何模式
-        self.add_warning(
-            'UNKNOWN_SYNTAX',
-            f"无法识别的语法: {line}",
-            line_no
-        )
+        self.add_warning("UNKNOWN_SYNTAX", f"无法识别的语法: {line}", line_no)
         return None
 
-    def convert_function_definition(self, match, module_name: str,
-                                   visibility: str, line_no: int) -> str:
+    def convert_function_definition(
+        self, match, module_name: str, visibility: str, line_no: int
+    ) -> str:
         """
         转换函数定义
 
@@ -309,10 +304,10 @@ class CodeConverter:
         if params.strip():
             c_params = self.convert_parameter_list(params)
         else:
-            c_params = 'void'
+            c_params = "void"
 
         # 生成限定函数名
-        if visibility == 'public':
+        if visibility == "public":
             qualified_name = f"{module_name}_{func_name}"
         else:
             qualified_name = f"{module_name}_{func_name}"
@@ -322,11 +317,7 @@ class CodeConverter:
         # 记录已转换的符号
         symbol_key = f"{module_name}.{func_name}"
         if symbol_key in self.converted_symbols:
-            self.add_error(
-                'DUPLICATE_SYMBOL',
-                f"符号 '{func_name}' 重复定义",
-                line_no
-            )
+            self.add_error("DUPLICATE_SYMBOL", f"符号 '{func_name}' 重复定义", line_no)
             is_duplicate = True
         else:
             self.converted_symbols.add(symbol_key)
@@ -334,12 +325,13 @@ class CodeConverter:
 
         # 只有在不是重复符号时才增加计数
         if not is_duplicate:
-            self.conversion_stats['symbols_converted'] += 1
+            self.conversion_stats["symbols_converted"] += 1
 
         return f"{c_return_type} {qualified_name}({c_params})"
 
-    def convert_variable_definition(self, match, module_name: str,
-                                   visibility: str, line_no: int) -> str:
+    def convert_variable_definition(
+        self, match, module_name: str, visibility: str, line_no: int
+    ) -> str:
         """
         转换变量定义
 
@@ -359,7 +351,7 @@ class CodeConverter:
         c_type = self.convert_type_keyword(var_type)
 
         # 生成限定变量名
-        if visibility == 'public':
+        if visibility == "public":
             qualified_name = f"{module_name}_{var_name}"
         else:
             qualified_name = f"{module_name}_{var_name}"
@@ -369,11 +361,7 @@ class CodeConverter:
         # 检查重复符号
         symbol_key = f"{module_name}.{var_name}"
         if symbol_key in self.converted_symbols:
-            self.add_error(
-                'DUPLICATE_SYMBOL',
-                f"符号 '{var_name}' 重复定义",
-                line_no
-            )
+            self.add_error("DUPLICATE_SYMBOL", f"符号 '{var_name}' 重复定义", line_no)
             is_duplicate = True
         else:
             self.converted_symbols.add(symbol_key)
@@ -381,7 +369,7 @@ class CodeConverter:
 
         # 只有在不是重复符号时才增加计数
         if not is_duplicate:
-            self.conversion_stats['symbols_converted'] += 1
+            self.conversion_stats["symbols_converted"] += 1
 
         # 检查是否有初始值
         if len(match.groups()) > 2 and match.group(3):
@@ -390,8 +378,9 @@ class CodeConverter:
         else:
             return f"{c_type} {qualified_name}"
 
-    def convert_general_declaration(self, line: str, module_name: str,
-                                   visibility: str, line_no: int) -> str:
+    def convert_general_declaration(
+        self, line: str, module_name: str, visibility: str, line_no: int
+    ) -> str:
         """
         转换一般声明
 
@@ -415,25 +404,23 @@ class CodeConverter:
         # 添加模块前缀
         is_duplicate = False  # 初始化变量
 
-        if '=' in converted:
+        if "=" in converted:
             # 变量定义，在变量名前添加模块前缀
-            parts = converted.split('=')
+            parts = converted.split("=")
             var_decl = parts[0].strip()
 
             # 查找变量名（最后一个单词）
             words = var_decl.split()
             if words:
                 var_name = words[-1]
-                if var_name.endswith(';'):
+                if var_name.endswith(";"):
                     var_name = var_name[:-1]
 
                 # 检查重复符号
                 symbol_key = f"{module_name}.{var_name}"
                 if symbol_key in self.converted_symbols:
                     self.add_error(
-                        'DUPLICATE_SYMBOL',
-                        f"符号 '{var_name}' 重复定义",
-                        line_no
+                        "DUPLICATE_SYMBOL", f"符号 '{var_name}' 重复定义", line_no
                     )
                     is_duplicate = True
                 else:
@@ -441,21 +428,21 @@ class CodeConverter:
                     is_duplicate = False
 
                 # 添加模块前缀
-                if visibility == 'public':
+                if visibility == "public":
                     qualified_name = f"{module_name}_{var_name}"
                 else:
                     qualified_name = f"{module_name}_{var_name}"
                     # 如果是私有，需要添加static
-                    if words[0] != 'static':
+                    if words[0] != "static":
                         words[0] = f"static {words[0]}"
 
-                words[-1] = qualified_name + (';' if var_name.endswith(';') else '')
-                parts[0] = ' '.join(words)
-                converted = ' = '.join(parts)
+                words[-1] = qualified_name + (";" if var_name.endswith(";") else "")
+                parts[0] = " ".join(words)
+                converted = " = ".join(parts)
 
         # 只有在不是重复符号时才增加计数
         if not is_duplicate:
-            self.conversion_stats['symbols_converted'] += 1
+            self.conversion_stats["symbols_converted"] += 1
         return converted
 
     def convert_type_keyword(self, zh_type: str) -> str:
@@ -482,8 +469,12 @@ class CodeConverter:
         """
         return self._type_converter.convert_parameter_list(params)
 
-    def process_file(self, input_file: str, output_header: Optional[str] = None,
-                    output_source: Optional[str] = None) -> bool:
+    def process_file(
+        self,
+        input_file: str,
+        output_header: Optional[str] = None,
+        output_source: Optional[str] = None,
+    ) -> bool:
         """
         处理整个文件
 
@@ -498,8 +489,8 @@ class CodeConverter:
         self.reset()
 
         try:
-            with open(input_file, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
+            with open(input_file, "r", encoding="utf-8") as f:
+                f.readlines()
 
             # 确定输出文件名
             base_name = os.path.splitext(os.path.basename(input_file))[0]
@@ -525,7 +516,7 @@ class CodeConverter:
                 "}",
                 "#endif",
                 "",
-                f"#endif /* __{base_name.upper()}_H__ */"
+                f"#endif /* __{base_name.upper()}_H__ */",
             ]
 
             source_lines = [
@@ -533,18 +524,18 @@ class CodeConverter:
                 f'#include "{base_name}.h"',
                 "",
                 "/* 函数定义 */",
-                ""
+                "",
             ]
 
             # 写入头文件
-            with open(output_header, 'w', encoding='utf-8') as f:
-                f.write('\n'.join(header_lines))
+            with open(output_header, "w", encoding="utf-8") as f:
+                f.write("\n".join(header_lines))
 
             # 写入源文件
-            with open(output_source, 'w', encoding='utf-8') as f:
-                f.write('\n'.join(source_lines))
+            with open(output_source, "w", encoding="utf-8") as f:
+                f.write("\n".join(source_lines))
 
-            print(f"✓ 文件转换完成:")
+            print("✓ 文件转换完成:")
             print(f"  输入: {input_file}")
             print(f"  输出头文件: {output_header}")
             print(f"  输出源文件: {output_source}")
@@ -562,12 +553,14 @@ class CodeConverter:
             if warnings:
                 print(f"\nℹ️  发现 {len(warnings)} 个警告:")
                 for warning in warnings:
-                    print(f"  行{warning.line_no}: [{warning.error_type}] {warning.message}")
+                    print(
+                        f"  行{warning.line_no}: [{warning.error_type}] {warning.message}"
+                    )
 
             return len(errors) == 0
 
         except Exception as e:
-            self.add_error('FILE_IO', f"文件处理失败: {e}", -1)
+            self.add_error("FILE_IO", f"文件处理失败: {e}", -1)
             print(f"✗ 文件处理失败: {e}")
             return False
 

@@ -9,7 +9,6 @@ ZhC GCC 后端 - GCC 工具链集成
 日期：2026-04-08
 """
 
-import subprocess
 from pathlib import Path
 from typing import Optional, List
 
@@ -17,7 +16,6 @@ from .c_backend import CBackend
 from .base import (
     CompileOptions,
     CompileResult,
-    OutputFormat,
     BackendCapabilities,
 )
 

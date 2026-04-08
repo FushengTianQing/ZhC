@@ -36,34 +36,36 @@ class IncrementalOptimizer:
             变更分析结果
         """
         changes: Dict[str, List[Path]] = {
-            'modified': [],
-            'added': [],
-            'deleted': [],
-            'unchanged': []
+            "modified": [],
+            "added": [],
+            "deleted": [],
+            "unchanged": [],
         }
 
-        current_time = time.time()
+        time.time()
 
         for file in files:
             if not file.exists():
-                changes['deleted'].append(file)
+                changes["deleted"].append(file)
                 continue
 
             mtime = file.stat().st_mtime
             last_mtime = self.file_modification_times.get(file)
 
             if last_mtime is None:
-                changes['added'].append(file)
+                changes["added"].append(file)
             elif mtime > last_mtime:
-                changes['modified'].append(file)
+                changes["modified"].append(file)
             else:
-                changes['unchanged'].append(file)
+                changes["unchanged"].append(file)
 
             self.file_modification_times[file] = mtime
 
         return changes
 
-    def get_affected_files(self, changed_files: List[Path], dependency_graph: Dict[str, List[str]]) -> Set[Path]:
+    def get_affected_files(
+        self, changed_files: List[Path], dependency_graph: Dict[str, List[str]]
+    ) -> Set[Path]:
         """
         获取受变更影响的所有文件
 
@@ -104,7 +106,9 @@ class IncrementalOptimizer:
 
         return affected
 
-    def optimize_recompilation(self, files: List[Path], compile_func) -> Dict[Path, Any]:
+    def optimize_recompilation(
+        self, files: List[Path], compile_func
+    ) -> Dict[Path, Any]:
         """
         优化重新编译过程
 
@@ -120,14 +124,13 @@ class IncrementalOptimizer:
 
         # 获取受影响的所有文件
         all_affected = self.get_affected_files(
-            changes['modified'] + changes['added'],
-            self.dependency_graph
+            changes["modified"] + changes["added"], self.dependency_graph
         )
 
         # 只编译受影响的文件
         files_to_compile = list(all_affected)
 
-        print(f"🔄 增量编译:")
+        print("🔄 增量编译:")
         print(f"  修改文件: {len(changes['modified'])}")
         print(f"  新增文件: {len(changes['added'])}")
         print(f"  删除文件: {len(changes['deleted'])}")
