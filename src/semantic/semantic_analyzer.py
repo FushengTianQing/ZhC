@@ -261,6 +261,12 @@ class SemanticAnalyzer:
         self.symbol_lookup_enabled = False
         self._symbol_lookup_optimizer = None  # 延迟初始化，bug 修复
 
+        # Phase 8: 泛型管理器 — 管理泛型类型和函数的注册与实例化
+        self._generic_manager = None  # 延迟初始化
+
+        # Phase 8: 类型推导引擎 — Hindley-Milner 算法，作为 _infer_expr_type 后备
+        self._type_inference_engine = None  # 延迟初始化
+
         self.stats = {
             'nodes_visited': 0,
             'symbols_added': 0,
@@ -291,6 +297,22 @@ class SemanticAnalyzer:
             from ..analyzer.symbol_lookup_optimizer import SymbolLookupOptimizer
             self._symbol_lookup_optimizer = SymbolLookupOptimizer()
         return self._symbol_lookup_optimizer
+    
+    @property
+    def generic_manager(self):
+        """延迟获取泛型管理器实例（Phase 8）"""
+        if self._generic_manager is None:
+            from .generics import GenericManager
+            self._generic_manager = GenericManager()
+        return self._generic_manager
+    
+    @property
+    def type_inference_engine(self):
+        """延迟获取类型推导引擎实例（Phase 8，Hindley-Milner 算法）"""
+        if self._type_inference_engine is None:
+            from ..typeinfer.engine import TypeInferenceEngine
+            self._type_inference_engine = TypeInferenceEngine()
+        return self._type_inference_engine
     
     def _node_location(self, node: ASTNode) -> str:
         """获取节点的位置描述"""
@@ -463,6 +485,9 @@ class SemanticAnalyzer:
 
         self.symbol_table.exit_scope()
         self.current_function = None
+        
+        # Phase 8: 检查是否是泛型函数，若是则注册到 GenericManager
+        self._register_generic_function(node)
     
     def _analyze_struct_decl(self, node: StructDeclNode) -> None:
         """分析结构体声明节点"""
@@ -499,6 +524,9 @@ class SemanticAnalyzer:
         
         self.symbol_table.exit_scope()
         self.current_struct = None
+        
+        # Phase 8: 检查是否是泛型类型，若是则注册到 GenericManager
+        self._register_generic_type(node)
     
     def _analyze_variable_decl(self, node: VariableDeclNode) -> None:
         """分析变量声明节点"""
@@ -1192,6 +1220,69 @@ class SemanticAnalyzer:
     
     # ===== Phase 5 T2.2-T2.4: 类型检查集成 =====
     
+    # ===== Phase 8: 泛型模块集成 =====
+    
+    def _register_generic_function(self, node: FunctionDeclNode) -> None:
+        """
+        检查并注册泛型函数（Phase 8）
+        
+        如果节点包含 type_params 属性（泛型函数），则注册到 GenericManager。
+        """
+        if not hasattr(node, 'type_params') or not node.type_params:
+            return
+        
+        try:
+            from .generics import GenericFunction, TypeParameter
+            
+            type_params = []
+            for tp in node.type_params:
+                if hasattr(tp, 'name'):
+                    type_params.append(TypeParameter(name=tp.name))
+            
+            generic_func = GenericFunction(
+                name=node.name,
+                type_params=type_params,
+                return_type=self._get_type_name(node.return_type),
+                params=[]  # 泛型函数参数类型待确定
+            )
+            self.generic_manager.register_generic_function(generic_func)
+        except Exception as e:
+            # 泛型注册失败不影响主流程
+            pass
+    
+    def _register_generic_type(self, node: StructDeclNode) -> None:
+        """
+        检查并注册泛型类型（Phase 8）
+        
+        如果节点包含 type_params 属性（泛型类型），则注册到 GenericManager。
+        """
+        if not hasattr(node, 'type_params') or not node.type_params:
+            return
+        
+        try:
+            from .generics import GenericType, TypeParameter
+            
+            type_params = []
+            for tp in node.type_params:
+                if hasattr(tp, 'name'):
+                    type_params.append(TypeParameter(name=tp.name))
+            
+            # 收集成员类型
+            member_types = []
+            for member in node.members:
+                if hasattr(member, 'var_type'):
+                    member_types.append(self._get_type_name(member.var_type))
+            
+            generic_type = GenericType(
+                name=node.name,
+                type_params=type_params,
+                members=member_types
+            )
+            self.generic_manager.register_generic_type(generic_type)
+        except Exception as e:
+            # 泛型注册失败不影响主流程
+            pass
+    
     def _infer_expr_type(self, node: ASTNode):
         """推导表达式的类型（返回 TypeInfo 或 None）"""
         if node is None:
@@ -1310,6 +1401,69 @@ class SemanticAnalyzer:
                 return ast_type_to_typeinfo(node.target_type)
             return None
         
+        # Phase 8: 后备 — 使用 Hindley-Milner 类型推导引擎
+        return self._infer_with_engine(node)
+    
+    def _infer_with_engine(self, node: ASTNode):
+        """
+        使用 Hindley-Milner 引擎推导类型（Phase 8 后备机制）
+        
+        当 _infer_expr_type 的简单推导失败时，尝试使用约束求解引擎。
+        """
+        from ..typeinfer.engine import TypeEnv, BaseType, TypeVariable, FunctionType
+        
+        # 构建类型环境
+        env = TypeEnv()
+        for name, symbol in self.symbol_table.all_symbols.items():
+            if symbol.data_type:
+                type_ = self._symbol_to_infer_type(symbol.data_type)
+                if type_:
+                    env.bindings[name] = type_
+        
+        try:
+            inferred = self.type_inference_engine.infer(node, env)
+            
+            # 求解约束
+            if self.type_inference_engine.solve_constraints():
+                return self._infer_type_to_typeinfo(inferred)
+        except Exception:
+            pass  # 类型推导失败，静默返回 None
+        
+        return None
+    
+    def _symbol_to_infer_type(self, data_type: str):
+        """将符号表类型转换为 TypeInferenceEngine 的类型"""
+        from ..typeinfer.engine import BaseType
+        mapping = {
+            "整数型": BaseType.INT,
+            "浮点型": BaseType.FLOAT,
+            "双精度型": BaseType.FLOAT,
+            "字符型": BaseType.CHAR,
+            "字符串型": BaseType.STRING,
+            "逻辑型": BaseType.BOOL,
+            "空型": BaseType.VOID,
+            "布尔型": BaseType.BOOL,
+        }
+        return mapping.get(data_type)
+    
+    def _infer_type_to_typeinfo(self, type_):
+        """将 TypeInferenceEngine 类型转换为 TypeInfo"""
+        from ..typeinfer.engine import BaseType, TypeVariable, FunctionType, ArrayType
+        
+        if isinstance(type_, BaseType):
+            return self.type_checker.get_type(str(type_))
+        elif isinstance(type_, TypeVariable):
+            if type_.instance:
+                return self._infer_type_to_typeinfo(type_.instance)
+            return None
+        elif isinstance(type_, FunctionType):
+            # 函数类型：返回返回类型
+            return self._infer_type_to_typeinfo(type_.return_type)
+        elif isinstance(type_, ArrayType):
+            # 数组类型：返回元素类型
+            return self._infer_type_to_typeinfo(type_.element_type)
+        elif hasattr(type_, '__str__'):
+            return self.type_checker.get_type(str(type_))
         return None
     
     def _check_type_compat(self, target_type_info, value_type_info, node: ASTNode,
