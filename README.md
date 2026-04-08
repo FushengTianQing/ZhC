@@ -9,66 +9,11 @@
 
 ---
 
-## 🏗️ 架构设计
+### 1.1 项目规模
 
-> 详细架构文档: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+| 核心模块 | parser、semantic、analyzer、ir、codegen、backend |
+| 估计代码量 | 50,000+ 行 Python |
 
-### 编译流水线
-
-```mermaid
-flowchart TB
-    subgraph 输入
-        A[.zhc 源文件]
-    end
-
-    subgraph 词法分析
-        B[Lexer<br/>Token 分词]
-    end
-
-    subgraph 语法分析
-        C[Parser<br/>AST 构建]
-    end
-
-    subgraph 语义分析
-        D[SemanticAnalyzer<br/>类型检查 + 作用域]
-    end
-
-    subgraph IR 生成
-        E[IRGenerator<br/>AST → IR]
-    end
-
-    subgraph 优化
-        F[IROptimizer<br/>常量折叠 + DCE + 内联 + 循环优化]
-    end
-
-    subgraph 代码生成
-        G[CBackend / LLVM Backend<br/>IR → C/LLVM IR]
-    end
-
-    subgraph 输出
-        H[.c 文件]
-        I[可执行文件]
-    end
-
-    A --> B --> C --> D --> E --> F --> G
-    G --> H
-    H --> I
-
-    style A fill:#e1f5fe
-    style H fill:#c8e6c9
-    style I fill:#a5d6a7
-```
-
-### 核心模块
-
-| 模块 | 文件数 | 主要职责 |
-|:-----|:-------|:---------|
-| **parser/** | 14 | 词法分析、语法分析、AST 构建 |
-| **semantic/** | 13 | 类型检查、作用域分析、泛型、模式匹配、异步系统 |
-| **ir/** | 22 | IR 生成、SSA、数据流分析、支配树、函数内联、循环优化、寄存器分配 |
-| **codegen/** | 8 | C 代码生成、LLVM 后端、异步/泛型/模式匹配代码生成 |
-| **analysis/** | 9 | 复杂度分析、空指针检测、资源泄漏检测、未使用变量检测 |
-| **compiler/** | 13 | 编译流水线、缓存系统、性能优化 |
 
 ### 阶段详细说明
 
@@ -81,15 +26,29 @@ flowchart TB
 | IR 优化 | IROptimizer | ZHC IR | 优化后的 IR | 常量折叠、死代码消除、函数内联、循环优化 |
 | 代码生成 | CBackend/LLVM | IR | C/LLVM IR | 生成目标代码 |
 
+### 编译后端
+
+| 后端 | 输出 | 优化 | JIT | 适用场景 |
+|:---|:---|:---|:---|:---|
+| **CBackend** | .c 文件 | 中等 | 否 | 跨平台、调试、gcc/clang 工具链 |
+| **LLVMBackend** | .ll/.bc | 高 | 是 | 高性能、原生执行、即时编译 |
+| **WASMBackend** | .wasm | 中等 | 否 | Web 部署、浏览器运行（实验性） |
+
+### LLVM JIT 示例
+
+```python
+from zhc.backend.llvm_jit import LLVMJIT
+
+# JIT 编译并执行
+jit = LLVMJIT(opt_level=2)
+jit.compile(ir_program)
+result = jit.call("main", 42)  # 调用 main 函数
+
+# 获取 LLVM IR 文本
+llvm_ir = jit.get_llvm_ir()
+```
+
 ---
-
-## 一、现状分析
-
-### 1.1 项目规模
-
-| 核心模块 | parser、semantic、analyzer、ir、codegen、backend |
-| 估计代码量 | 50,000+ 行 Python |
-
 
 ### 1.2 当前编译流水线/ ZhC+LLVM
 
@@ -99,52 +58,6 @@ flowchart TB
 4. **Python 基础设施完善**：AST 验证器、内存安全检查、数据流分析、循环优化、内联优化均已实现
 
 ### 
-
-```
-源代码 (.zhc)
-    │
-    ▼
-┌─────────────────────────────────────────────┐
-│  Lexer (parser/lexer.py)          ~24KB     │
-└──────────────────┬──────────────────────────┘
-                   ▼
-┌─────────────────────────────────────────────┐
-│  Parser (parser/parser.py)       ~52KB     │
-│  AST Nodes (parser/ast_nodes.py)  ~48KB     │
-└──────────────────┬──────────────────────────┘
-                   ▼
-┌─────────────────────────────────────────────┐
-│  Semantic Analyzer (semantic/)   ~84KB 主文件│
-│  Generics (semantic/generics.py)            │
-│  Pattern Matching (semantic/pattern_matching.py) │
-│  Async System (semantic/async_system.py)    │
-└──────────────────┬──────────────────────────┘
-                   ▼
-┌─────────────────────────────────────────────┐
-│  IR Generator (ir/ir_generator.py) ~29KB   │
-│  SSA (ir/ssa.py)                            │
-│  Dominator (ir/dominator.py)                 │
-│  Dataflow (ir/dataflow.py)                  │
-│  Loop Optimizer (ir/loop_optimizer.py)      │
-│  Inline Optimizer (ir/inline_optimizer.py)  │
-│  Register Allocator (ir/register_allocator.py) ~20KB │
-└──────────────────┬──────────────────────────┘
-                   ▼
-┌─────────────────────────────────────────────┐
-│  Code Generation                            │
-│  ┌──────────────┬────────────────┬────────┐ │
-│  │ CBackend     │ LLVM Backend   │ WASM   │ │
-│  │ (c_backend)  │ (llvm_backend) │Backend │ │
-│  └──────┬───────┴────────┬───────┴────────┘ │
-│         ▼                ▼                  │
-│     .c → gcc/clang   .ll/.bc → LLVM        │
-└─────────────────────────────────────────────┘
-```
-
-//////////////////////////////////////////////////////////////////////////////
-
-
-
 
 
 

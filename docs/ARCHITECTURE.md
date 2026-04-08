@@ -501,6 +501,118 @@ src/ir/
 
 ---
 
+### 3.9 后端模块 (backend/)
+
+**职责**：多后端代码生成，支持 C、LLVM IR、WASM
+
+```
+src/backend/
+├── __init__.py
+├── allocator_interface.py   # 分配器接口
+├── llvm_backend.py          # LLVM IR 后端
+├── llvm_instruction.py      # LLVM 指令生成器
+├── llvm_jit.py              # LLVM JIT 执行引擎
+├── llvm_type_mapper.py      # LLVM 类型映射器
+└── wasm_backend.py          # WASM 后端（实验性）
+```
+
+#### 3.9.1 LLVM 后端
+
+**核心组件**：
+
+| 组件 | 文件 | 职责 |
+|:---|:---|:---|
+| LLVMBackend | llvm_backend.py | ZHC IR → LLVM IR 主编译器 |
+| LLVMTypeMapper | llvm_type_mapper.py | ZhC 类型 → LLVM 类型映射 |
+| LLVMInstructionGenerator | llvm_instruction.py | ZhC Opcode → LLVM 指令生成 |
+| LLVMJIT | llvm_jit.py | JIT 即时编译与执行 |
+
+**类型映射**：
+
+```python
+# ZhC 类型 → LLVM 类型
+ZHCT_TO_LLVM = {
+    "整数型": "i32",
+    "长整数型": "i64",
+    "短整数型": "i16",
+    "字节型": "i8",
+    "浮点型": "float",
+    "双精度浮点型": "double",
+    "字符型": "i8",
+    "布尔型": "i1",
+    "空型": "void",
+}
+```
+
+**指令映射**：
+
+| 类别 | ZhC Opcode | LLVM 指令 |
+|:---|:---|:---|
+| 算术 | ADD, SUB, MUL, DIV, MOD | add, sub, mul, sdiv, srem |
+| 比较 | EQ, NE, LT, LE, GT, GE | icmp eq/ne/slt/sle/sgt/sge |
+| 位运算 | AND, OR, XOR, NOT, SHL, SHR | and, or, xor, not, shl, shr |
+| 内存 | ALLOC, LOAD, STORE, GEP | alloca, load, store, getelementptr |
+| 控制流 | JMP, JZ, RET, CALL, PHI | br, br, ret, call, phi |
+| 转换 | ZEXT, SEXT, TRUNC, BITCAST | zext, sext, trunc, bitcast |
+
+#### 3.9.2 LLVM JIT 执行引擎
+
+**功能**：
+- 即时编译 ZHC IR 到原生机器码
+- 支持 Python 调用编译后的函数
+- 支持优化级别控制 (O0-O3)
+
+**使用示例**：
+
+```python
+from zhc.backend.llvm_jit import LLVMJIT, jit_compile_and_run
+
+# 方式1: 便捷函数
+result = jit_compile_and_run(ir_program, "main", 42)
+
+# 方式2: 完整控制
+jit = LLVMJIT(opt_level=2)
+jit.compile(ir_program)
+func = jit.get_function("main")
+result = func(42)
+
+# 获取 LLVM IR 文本
+llvm_ir = jit.get_llvm_ir()
+```
+
+#### 3.9.3 编译后端对比
+
+| 后端 | 输出 | 优化 | JIT | 适用场景 |
+|:---|:---|:---|:---|:---|
+| CBackend | .c 文件 | 中等 | 否 | 跨平台、调试、gcc/clang 工具链 |
+| LLVMBackend | .ll/.bc | 高 | 是 | 高性能、原生执行、即时编译 |
+| WASMBackend | .wasm | 中等 | 否 | Web 部署、浏览器运行 |
+
+#### 3.9.4 编译流程对比
+
+```
+                    ┌─────────────────┐
+                    │   ZHC IR        │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              ▼              ▼              ▼
+        ┌──────────┐  ┌──────────┐  ┌──────────┐
+        │ CBackend │  │   LLVM   │  │   WASM   │
+        └────┬─────┘  └────┬─────┘  └────┬─────┘
+             │             │             │
+             ▼             ▼             ▼
+          .c 文件      .ll/.bc       .wasm
+             │             │             │
+             ▼             ▼             ▼
+        gcc/clang      llc/opt      浏览器运行
+             │             │
+             ▼             ▼
+        可执行文件    原生机器码
+```
+
+---
+
 ### 3.9 命令行模块 (cli/)
 
 **职责**：提供用户友好的命令行接口
