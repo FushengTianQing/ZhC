@@ -15,20 +15,20 @@ from .base import ZHCError, SourceLocation
 class SemanticError(ZHCError):
     """
     语义分析错误
-    
+
     在语义分析阶段发生的错误，例如：
     - 类型错误
     - 未定义的变量
     - 重复定义
     - 作用域错误
     - 类型不兼容
-    
+
     Attributes:
         symbol_name: 相关的符号名称（可选）
         expected_type: 期望的类型（可选）
         actual_type: 实际的类型（可选）
         scope_info: 作用域信息（可选）
-    
+
     Example:
         >>> error = SemanticError(
         ...     "类型不匹配",
@@ -39,7 +39,7 @@ class SemanticError(ZHCError):
         ...     suggestion="请进行类型转换或检查表达式类型"
         ... )
     """
-    
+
     def __init__(
         self,
         message: str,
@@ -55,7 +55,7 @@ class SemanticError(ZHCError):
     ):
         """
         初始化语义分析错误
-        
+
         Args:
             message: 错误消息
             location: 错误位置
@@ -73,34 +73,38 @@ class SemanticError(ZHCError):
         self.actual_type = actual_type
         self.scope_info = scope_info or {}
         super().__init__(message, location, error_code, severity, context, suggestion)
-    
+
     def _format_message(self) -> str:
         """格式化错误消息，添加类型信息"""
         base_message = super()._format_message()
-        
+
         # 添加符号名称
         if self.symbol_name:
             base_message += f"\n符号: {self.symbol_name}"
-        
+
         # 添加类型信息
         if self.expected_type and self.actual_type:
-            base_message += f"\n期望类型: {self.expected_type}, 实际类型: {self.actual_type}"
+            base_message += (
+                f"\n期望类型: {self.expected_type}, 实际类型: {self.actual_type}"
+            )
         elif self.expected_type:
             base_message += f"\n期望类型: {self.expected_type}"
         elif self.actual_type:
             base_message += f"\n实际类型: {self.actual_type}"
-        
+
         return base_message
-    
+
     def to_dict(self) -> dict:
         """转换为字典格式"""
         data = super().to_dict()
-        data.update({
-            "symbol_name": self.symbol_name,
-            "expected_type": self.expected_type,
-            "actual_type": self.actual_type,
-            "scope_info": self.scope_info,
-        })
+        data.update(
+            {
+                "symbol_name": self.symbol_name,
+                "expected_type": self.expected_type,
+                "actual_type": self.actual_type,
+                "scope_info": self.scope_info,
+            }
+        )
         return data
 
 
@@ -154,6 +158,7 @@ SEMANTIC_POINTER_TYPE_MISMATCH = "S063"  # 指针类型不匹配
 # 便捷工厂函数
 # ============================================================================
 
+
 def type_mismatch(
     expected: str,
     actual: str,
@@ -162,13 +167,13 @@ def type_mismatch(
 ) -> SemanticError:
     """
     创建类型不匹配错误
-    
+
     Args:
         expected: 期望的类型
         actual: 实际的类型
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         SemanticError 实例
     """
@@ -190,12 +195,12 @@ def undefined_variable(
 ) -> SemanticError:
     """
     创建未定义变量错误
-    
+
     Args:
         variable_name: 未定义的变量名
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         SemanticError 实例
     """
@@ -216,12 +221,12 @@ def undefined_function(
 ) -> SemanticError:
     """
     创建未定义函数错误
-    
+
     Args:
         function_name: 未定义的函数名
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         SemanticError 实例
     """
@@ -243,20 +248,22 @@ def duplicate_definition(
 ) -> SemanticError:
     """
     创建重复定义错误
-    
+
     Args:
         symbol_name: 重复定义的符号名
         symbol_type: 符号类型（变量/函数/结构体等）
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         SemanticError 实例
     """
     return SemanticError(
         message=f"重复定义的{symbol_type} '{symbol_name}'",
         location=location,
-        error_code=SEMANTIC_DUPLICATE_VARIABLE if symbol_type == "变量" else SEMANTIC_DUPLICATE_FUNCTION,
+        error_code=SEMANTIC_DUPLICATE_VARIABLE
+        if symbol_type == "变量"
+        else SEMANTIC_DUPLICATE_FUNCTION,
         symbol_name=symbol_name,
         context=context,
         suggestion=f"请检查{symbol_type}是否已在当前作用域中定义",
@@ -271,13 +278,13 @@ def invalid_member_access(
 ) -> SemanticError:
     """
     创建无效成员访问错误
-    
+
     Args:
         struct_name: 结构体名称
         member_name: 成员名称
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         SemanticError 实例
     """
@@ -300,14 +307,14 @@ def parameter_mismatch(
 ) -> SemanticError:
     """
     创建参数不匹配错误
-    
+
     Args:
         function_name: 函数名称
         expected_count: 期望的参数数量
         actual_count: 实际的参数数量
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         SemanticError 实例
     """

@@ -6,8 +6,8 @@ DWARF Debug Information Generator
 事件驱动架构，支持多后端扩展。
 """
 
-__version__ = '1.0.0'
-__author__ = '中文C编译器团队'
+__version__ = "1.0.0"
+__author__ = "中文C编译器团队"
 
 from .debug_generator import (
     DebugInfoGenerator,
@@ -25,16 +25,16 @@ from .debug_manager import DebugManager
 
 __all__ = [
     # 核心生成器
-    'DebugInfoGenerator',
-    'DWARFGenerator',
-    'LineNumberTable',
-    'DebugSymbolTable',
-    'TypeInfoGenerator',
+    "DebugInfoGenerator",
+    "DWARFGenerator",
+    "LineNumberTable",
+    "DebugSymbolTable",
+    "TypeInfoGenerator",
     # 数据结构
-    'SourceLocation',
-    'AddressRange',
-    'CompileUnit',
+    "SourceLocation",
+    "AddressRange",
+    "CompileUnit",
     # 事件驱动架构
-    'DebugListener',
-    'DebugManager',
+    "DebugListener",
+    "DebugManager",
 ]

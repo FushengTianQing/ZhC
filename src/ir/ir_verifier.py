@@ -17,18 +17,17 @@ ZHC IR - IR 验证器
 日期：2026-04-03
 """
 
-from typing import List, Optional
+from typing import List
 from dataclasses import dataclass
 
 from zhc.ir.program import IRProgram, IRFunction
-from zhc.ir.instructions import IRBasicBlock, IRInstruction
-from zhc.ir.values import IRValue
 from zhc.ir.opcodes import Opcode
 
 
 @dataclass
 class VerificationError:
     """验证错误"""
+
     error_type: str
     message: str
     function: str = ""
@@ -69,20 +68,24 @@ class IRVerifier:
             for bb in func.basic_blocks:
                 for succ in bb.successors:
                     if succ not in defined_blocks:
-                        self.errors.append(VerificationError(
-                            error_type="未定义基本块",
-                            message=f"跳转到未定义的基本块 '{succ}'",
-                            function=func.name,
-                            block=bb.label,
-                        ))
+                        self.errors.append(
+                            VerificationError(
+                                error_type="未定义基本块",
+                                message=f"跳转到未定义的基本块 '{succ}'",
+                                function=func.name,
+                                block=bb.label,
+                            )
+                        )
                 for pred in bb.predecessors:
                     if pred not in defined_blocks:
-                        self.errors.append(VerificationError(
-                            error_type="未定义基本块",
-                            message=f"前驱引用未定义的基本块 '{pred}'",
-                            function=func.name,
-                            block=bb.label,
-                        ))
+                        self.errors.append(
+                            VerificationError(
+                                error_type="未定义基本块",
+                                message=f"前驱引用未定义的基本块 '{pred}'",
+                                function=func.name,
+                                block=bb.label,
+                            )
+                        )
 
     def _verify_function(self, func: IRFunction):
         """验证单个函数"""
@@ -105,12 +108,14 @@ class IRVerifier:
                 if instr.opcode == Opcode.RET:
                     # 检查 RET 是否是该基本块的唯一终止指令
                     if not bb.is_terminated():
-                        self.errors.append(VerificationError(
-                            error_type="RET位置错误",
-                            message="RET 指令后面还有其他指令",
-                            function=func.name,
-                            block=bb.label,
-                        ))
+                        self.errors.append(
+                            VerificationError(
+                                error_type="RET位置错误",
+                                message="RET 指令后面还有其他指令",
+                                function=func.name,
+                                block=bb.label,
+                            )
+                        )
 
     def _check_alloc_usage(self, func: IRFunction):
         """V3: ALLOC 结果应该被使用或赋值给变量"""
@@ -133,12 +138,14 @@ class IRVerifier:
                     # phi operands[1:] 是 (value, block) 对，每对2个操作数
                     phi_args = instr.operands[1:] if len(instr.operands) > 1 else []
                     if len(phi_args) // 2 != expected_count:
-                        self.errors.append(VerificationError(
-                            error_type="PHI操作数数量错误",
-                            message=f"PHI 节点有 {len(phi_args)//2} 个参数，期望 {expected_count} 个（前驱数量）",
-                            function=func.name,
-                            block=bb.label,
-                        ))
+                        self.errors.append(
+                            VerificationError(
+                                error_type="PHI操作数数量错误",
+                                message=f"PHI 节点有 {len(phi_args) // 2} 个参数，期望 {expected_count} 个（前驱数量）",
+                                function=func.name,
+                                block=bb.label,
+                            )
+                        )
 
     def _check_call_args(self, func: IRFunction):
         """V4: CALL 参数数量匹配（基本检查）"""
@@ -147,9 +154,11 @@ class IRVerifier:
                 if instr.opcode == Opcode.CALL:
                     # 检查是否有函数名和参数
                     if not instr.operands:
-                        self.errors.append(VerificationError(
-                            error_type="CALL参数错误",
-                            message="CALL 指令缺少函数操作数",
-                            function=func.name,
-                            block=bb.label,
-                        ))
+                        self.errors.append(
+                            VerificationError(
+                                error_type="CALL参数错误",
+                                message="CALL 指令缺少函数操作数",
+                                function=func.name,
+                                block=bb.label,
+                            )
+                        )

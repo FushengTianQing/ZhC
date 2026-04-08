@@ -16,13 +16,14 @@ Day 12: 类解析器扩展实现
 """
 
 import re
-from typing import List, Dict, Optional, Set, Tuple, Any
+from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass, field
 from enum import Enum
 
 
 class Visibility(Enum):
     """可见性枚举"""
+
     PUBLIC = "public"
     PRIVATE = "private"
     PROTECTED = "protected"
@@ -30,6 +31,7 @@ class Visibility(Enum):
 
 class AttributeType(Enum):
     """属性类型枚举"""
+
     INSTANCE = "instance"
     CLASS_VAR = "class_var"
     CONSTANT = "constant"
@@ -38,6 +40,7 @@ class AttributeType(Enum):
 @dataclass
 class AttributeInfo:
     """属性信息"""
+
     name: str
     type_name: str
     visibility: Visibility
@@ -51,6 +54,7 @@ class AttributeInfo:
 @dataclass
 class ParameterInfo:
     """参数信息"""
+
     name: str
     type_name: str
     is_reference: bool = False
@@ -60,6 +64,7 @@ class ParameterInfo:
 @dataclass
 class MethodBody:
     """方法体信息"""
+
     lines: List[str]
     local_variables: List[Tuple[str, str]] = field(default_factory=list)
     statements: List[str] = field(default_factory=list)
@@ -68,6 +73,7 @@ class MethodBody:
 @dataclass
 class MethodInfo:
     """方法信息"""
+
     name: str
     return_type: str
     parameters: List[ParameterInfo]
@@ -84,6 +90,7 @@ class MethodInfo:
 @dataclass
 class ClassInfo:
     """类信息"""
+
     name: str
     base_class: Optional[str] = None
     attributes: List[AttributeInfo] = field(default_factory=list)
@@ -120,6 +127,7 @@ class ClassInfo:
 
 class ParseState(Enum):
     """解析状态枚举 - 用于状态机模式"""
+
     IDLE = "idle"
     IN_CLASS = "in_class"
     IN_METHOD_BODY = "in_method_body"
@@ -129,14 +137,14 @@ class ClassParserExtended:
     """扩展的类解析器 - 使用状态机模式"""
 
     # 正则表达式模式
-    CLASS_PATTERN = r'类\s+(\w+)(?:\s*:\s*(\w+))?\s*\{'
-    ATTRIBUTE_PATTERN = r'^\s*([\w\u4e00-\u9fff]+型)\s+(\w+)(?:\s*=\s*([^;]+))?;'
-    METHOD_PATTERN = r'^\s*(?:静态\s+)?(?:虚函数\s+)?(?:函数\s+)?(\w+)\s*\(([^)]*)\)(?:\s*->\s*([\w\u4e00-\u9fff]+型))?\s*\{'
-    CONSTRUCTOR_PATTERN = r'^\s*(?:函数\s+)?构造函数\s*\(([^)]*)\)\s*->\s*空型\s*\{'
-    DESTRUCTOR_PATTERN = r'^\s*(?:函数\s+)?析构函数\s*\(\s*\)\s*->\s*空型\s*\{'
-    VISIBILITY_PATTERN = r'^\s*(公开:|私有:|保护:)'
-    SECTION_PATTERN = r'^\s*(属性:|方法:)'
-    CLASS_END_PATTERN = r'^\s*\}'
+    CLASS_PATTERN = r"类\s+(\w+)(?:\s*:\s*(\w+))?\s*\{"
+    ATTRIBUTE_PATTERN = r"^\s*([\w\u4e00-\u9fff]+型)\s+(\w+)(?:\s*=\s*([^;]+))?;"
+    METHOD_PATTERN = r"^\s*(?:静态\s+)?(?:虚函数\s+)?(?:函数\s+)?(\w+)\s*\(([^)]*)\)(?:\s*->\s*([\w\u4e00-\u9fff]+型))?\s*\{"
+    CONSTRUCTOR_PATTERN = r"^\s*(?:函数\s+)?构造函数\s*\(([^)]*)\)\s*->\s*空型\s*\{"
+    DESTRUCTOR_PATTERN = r"^\s*(?:函数\s+)?析构函数\s*\(\s*\)\s*->\s*空型\s*\{"
+    VISIBILITY_PATTERN = r"^\s*(公开:|私有:|保护:)"
+    SECTION_PATTERN = r"^\s*(属性:|方法:)"
+    CLASS_END_PATTERN = r"^\s*\}"
 
     def __init__(self):
         self.classes: Dict[str, ClassInfo] = {}
@@ -180,16 +188,13 @@ class ClassParserExtended:
             base_class = match.group(2)  # 可能为None
 
             if class_name in self.classes:
-                self.errors.append({
-                    'line': line_num,
-                    'message': f"类 '{class_name}' 重复定义"
-                })
+                self.errors.append(
+                    {"line": line_num, "message": f"类 '{class_name}' 重复定义"}
+                )
                 return None
 
             class_info = ClassInfo(
-                name=class_name,
-                base_class=base_class,
-                line_number=line_num
+                name=class_name, base_class=base_class, line_number=line_num
             )
             self.classes[class_name] = class_info
             self.current_class = class_info
@@ -293,11 +298,13 @@ class ClassParserExtended:
         base_class = match.group(2)
 
         if class_name in self.classes:
-            self.errors.append({
-                "type": "DUPLICATE_CLASS",
-                "message": f"类 '{class_name}' 重复定义",
-                "line": line_num
-            })
+            self.errors.append(
+                {
+                    "type": "DUPLICATE_CLASS",
+                    "message": f"类 '{class_name}' 重复定义",
+                    "line": line_num,
+                }
+            )
             return
 
         # 构建继承链
@@ -306,13 +313,15 @@ class ClassParserExtended:
             inheritance_chain.insert(0, base_class)
             # 递归获取基类的继承链
             if base_class in self.classes:
-                inheritance_chain = self.classes[base_class].inheritance_chain + [class_name]
+                inheritance_chain = self.classes[base_class].inheritance_chain + [
+                    class_name
+                ]
 
         class_info = ClassInfo(
             name=class_name,
             base_class=base_class,
             line_number=line_num,
-            inheritance_chain=inheritance_chain
+            inheritance_chain=inheritance_chain,
         )
 
         self.classes[class_name] = class_info
@@ -344,12 +353,14 @@ class ClassParserExtended:
             visibility=self.current_visibility,
             attribute_type=AttributeType.INSTANCE,
             line_number=line_num,
-            default_value=default_value.strip() if default_value else None
+            default_value=default_value.strip() if default_value else None,
         )
 
         return attr
 
-    def _parse_method_declaration(self, line: str, line_num: int) -> Optional[MethodInfo]:
+    def _parse_method_declaration(
+        self, line: str, line_num: int
+    ) -> Optional[MethodInfo]:
         """解析方法声明"""
         # 检查构造函数
         match = re.match(self.CONSTRUCTOR_PATTERN, line)
@@ -363,7 +374,7 @@ class ClassParserExtended:
                 parameters=params,
                 visibility=Visibility.PUBLIC,
                 is_constructor=True,
-                line_number=line_num
+                line_number=line_num,
             )
 
         # 检查析构函数
@@ -374,7 +385,7 @@ class ClassParserExtended:
                 parameters=[],
                 visibility=Visibility.PUBLIC,
                 is_destructor=True,
-                line_number=line_num
+                line_number=line_num,
             )
 
         # 普通方法
@@ -387,8 +398,8 @@ class ClassParserExtended:
             params = self._parse_parameters(params_str)
 
             # 检查修饰符
-            is_static = '静态' in line
-            is_virtual = '虚函数' in line or '虚方法' in line
+            is_static = "静态" in line
+            is_virtual = "虚函数" in line or "虚方法" in line
 
             return MethodInfo(
                 name=method_name,
@@ -397,7 +408,7 @@ class ClassParserExtended:
                 visibility=self.current_visibility,
                 is_static=is_static,
                 is_virtual=is_virtual,
-                line_number=line_num
+                line_number=line_num,
             )
 
         return None
@@ -407,7 +418,7 @@ class ClassParserExtended:
         if self.current_method and self.current_class:
             method_body = MethodBody(
                 lines=self.method_body_lines.copy(),
-                statements=self._extract_statements(self.method_body_lines)
+                statements=self._extract_statements(self.method_body_lines),
             )
             self.current_method.body = method_body
             self.current_class.add_method(self.current_method)
@@ -422,7 +433,7 @@ class ClassParserExtended:
         if not params_str.strip():
             return params
 
-        param_matches = re.findall(r'([\w\u4e00-\u9fff]+型)\s+(\w+)', params_str)
+        param_matches = re.findall(r"([\w\u4e00-\u9fff]+型)\s+(\w+)", params_str)
         for type_name, param_name in param_matches:
             params.append(ParameterInfo(name=param_name, type_name=type_name))
 
@@ -443,7 +454,7 @@ class ClassParserExtended:
         self.reset()
 
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
 
             for i, line in enumerate(lines, 1):
@@ -454,11 +465,9 @@ class ClassParserExtended:
                 self._finish_method_body()
 
         except Exception as e:
-            self.errors.append({
-                "type": "PARSE_ERROR",
-                "message": f"解析文件失败: {e}",
-                "line": 0
-            })
+            self.errors.append(
+                {"type": "PARSE_ERROR", "message": f"解析文件失败: {e}", "line": 0}
+            )
 
         return list(self.classes.values())
 
@@ -477,7 +486,9 @@ class ClassParserExtended:
         if self.errors:
             lines.append("\n错误列表:")
             for error in self.errors:
-                lines.append(f"  - [{error['type']}] {error['message']} (行{error['line']})")
+                lines.append(
+                    f"  - [{error['type']}] {error['message']} (行{error['line']})"
+                )
 
         for class_name, class_info in self.classes.items():
             lines.append(f"\n类: {class_name}")
@@ -552,7 +563,7 @@ if __name__ == "__main__":
 """
 
     print("1. 解析测试代码...")
-    lines = test_code.strip().split('\n')
+    lines = test_code.strip().split("\n")
     for i, line in enumerate(lines, 1):
         parser.parse_line(line, i)
 
@@ -561,23 +572,23 @@ if __name__ == "__main__":
     print("\n2. 类详情:")
     student = parser.get_class("学生")
     if student:
-        print(f"\n学生类:")
+        print("\n学生类:")
         print(f"  - 属性数: {len(student.attributes)}")
         print(f"  - 方法数: {len(student.methods)}")
         print(f"  - 继承链: {' -> '.join(student.inheritance_chain)}")
 
-        print(f"\n  公开属性:")
+        print("\n  公开属性:")
         for attr in student.get_public_attributes():
             print(f"    - {attr.name} ({attr.type_name})")
 
-        print(f"\n  公开方法:")
+        print("\n  公开方法:")
         for method in student.get_public_methods():
             params = ", ".join([f"{p.type_name} {p.name}" for p in method.parameters])
             print(f"    - {method.name}({params}) -> {method.return_type}")
 
     undergrad = parser.get_class("大学生")
     if undergrad:
-        print(f"\n大学生类:")
+        print("\n大学生类:")
         print(f"  - 基类: {undergrad.base_class}")
         print(f"  - 继承链: {' -> '.join(undergrad.inheritance_chain)}")
         print(f"  - 属性数: {len(undergrad.attributes)}")

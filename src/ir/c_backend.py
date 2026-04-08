@@ -38,6 +38,7 @@ try:
         FunctionOptimizationHints,
         CBackendHintAdapter,
     )
+
     OPTIMIZATION_HINTS_AVAILABLE = True
 except ImportError:
     OPTIMIZATION_HINTS_AVAILABLE = False
@@ -77,7 +78,7 @@ class CBackend:
 
     将 IRProgram 转换为 C 代码字符串。使用指令分发表（dispatch table）
     将每种 opcode 映射到对应的生成方法，替代传统的 if/elif 链。
-    
+
     TASK-P3-003 新增功能：
     - 支持优化提示分析
     - 自动添加 inline 关键字和 GCC/Clang 属性
@@ -85,18 +86,20 @@ class CBackend:
 
     def __init__(self, enable_optimization_hints: bool = True):
         """初始化 C 后端
-        
+
         Args:
             enable_optimization_hints: 是否启用优化提示（默认 True）
         """
         self.output_lines: List[str] = []
         self.temp_names: dict = {}  # IR temp name -> C temp name
-        
+
         # 优化提示配置
-        self.enable_optimization_hints = enable_optimization_hints and OPTIMIZATION_HINTS_AVAILABLE
+        self.enable_optimization_hints = (
+            enable_optimization_hints and OPTIMIZATION_HINTS_AVAILABLE
+        )
         self.optimization_hints: Optional[ProgramOptimizationHints] = None
         self.hint_adapter: Optional[CBackendHintAdapter] = None
-        
+
         if self.enable_optimization_hints:
             self.hint_adapter = CBackendHintAdapter()
 
@@ -182,10 +185,10 @@ class CBackend:
         params = ", ".join(
             f"{resolve_type(p.ty or 'int')} {p.name}" for p in func.params
         )
-        
+
         # TASK-P3-003：获取优化提示前缀
         hint_prefix = self._get_function_hint_prefix(func.name)
-        
+
         self._emit(f"{hint_prefix}{ret_type} {func_name}({params}) {{")
 
         # 展平所有基本块的指令
@@ -194,25 +197,25 @@ class CBackend:
 
         self._emit("}")
         self._emit("")
-    
+
     def _get_function_hint_prefix(self, func_name: str) -> str:
         """获取函数的优化提示前缀
-        
+
         TASK-P3-003 新增
-        
+
         Args:
             func_name: 函数名
-            
+
         Returns:
             优化提示前缀字符串
         """
         if not self.enable_optimization_hints or not self.hint_adapter:
             return ""
-        
+
         func_hints = self.optimization_hints.get_function_hints(func_name)
         if func_hints and self.hint_adapter:
             return self.hint_adapter.get_function_prefix(func_hints)
-        
+
         return ""
 
     def _generate_basic_block(self, bb: IRBasicBlock) -> None:

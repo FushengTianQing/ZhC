@@ -7,16 +7,26 @@ ZHC Language Server
 import json
 import sys
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 from threading import Lock
 
 from .protocol import (
-    Position, Range, Location, Diagnostic, DiagnosticSeverity,
-    CompletionItem, CompletionItemKind, Hover, TextEdit,
-    ServerCapabilities, ResponseError, SignatureHelp, SignatureInformation,
-    DocumentSymbol, SymbolKind, SymbolInformation
+    Position,
+    Range,
+    Location,
+    Diagnostic,
+    DiagnosticSeverity,
+    CompletionItem,
+    CompletionItemKind,
+    Hover,
+    ServerCapabilities,
+    SignatureHelp,
+    SignatureInformation,
+    DocumentSymbol,
+    SymbolKind,
+    SymbolInformation,
 )
-from .jsonrpc import JSONRPCServer, StdinTransport, ErrorCode
+from .jsonrpc import JSONRPCServer
 
 
 class LanguageServer:
@@ -59,27 +69,41 @@ class LanguageServer:
         self.server.register_handler("initialized", self._handle_initialized)
 
         # 文档同步
-        self.server.register_handler("textDocument/didOpen", self._handle_text_document_did_open)
-        self.server.register_handler("textDocument/didChange", self._handle_text_document_did_change)
-        self.server.register_handler("textDocument/didClose", self._handle_text_document_did_close)
-        self.server.register_handler("textDocument/didSave", self._handle_text_document_did_save)
+        self.server.register_handler(
+            "textDocument/didOpen", self._handle_text_document_did_open
+        )
+        self.server.register_handler(
+            "textDocument/didChange", self._handle_text_document_did_change
+        )
+        self.server.register_handler(
+            "textDocument/didClose", self._handle_text_document_did_close
+        )
+        self.server.register_handler(
+            "textDocument/didSave", self._handle_text_document_did_save
+        )
 
         # 代码补全
         self.server.register_handler("textDocument/completion", self._handle_completion)
-        self.server.register_handler("completionItem/resolve", self._handle_completion_resolve)
+        self.server.register_handler(
+            "completionItem/resolve", self._handle_completion_resolve
+        )
 
         # 悬停
         self.server.register_handler("textDocument/hover", self._handle_hover)
 
         # 签名帮助
-        self.server.register_handler("textDocument/signatureHelp", self._handle_signature_help)
+        self.server.register_handler(
+            "textDocument/signatureHelp", self._handle_signature_help
+        )
 
         # 定义和引用
         self.server.register_handler("textDocument/definition", self._handle_definition)
         self.server.register_handler("textDocument/references", self._handle_references)
 
         # 文档符号
-        self.server.register_handler("textDocument/documentSymbol", self._handle_document_symbol)
+        self.server.register_handler(
+            "textDocument/documentSymbol", self._handle_document_symbol
+        )
         self.server.register_handler("workspace/symbol", self._handle_workspace_symbol)
 
         # 重命名
@@ -101,10 +125,7 @@ class LanguageServer:
 
         return {
             "capabilities": capabilities,
-            "serverInfo": {
-                "name": self.SERVER_NAME,
-                "version": self.SERVER_VERSION
-            }
+            "serverInfo": {"name": self.SERVER_NAME, "version": self.SERVER_VERSION},
         }
 
     def _handle_initialized(self, params: Optional[Dict]) -> None:
@@ -174,10 +195,7 @@ class LanguageServer:
         # 发送诊断通知
         notification = {
             "method": "textDocument/publishDiagnostics",
-            "params": {
-                "uri": uri,
-                "diagnostics": [d.to_dict() for d in diagnostics]
-            }
+            "params": {"uri": uri, "diagnostics": [d.to_dict() for d in diagnostics]},
         }
 
         # 输出到 stdout（由主循环处理）
@@ -195,30 +213,43 @@ class LanguageServer:
         # 词法分析检查
         try:
             from zhc.parser.lexer import tokenize
+
             tokens, lexer_errors = tokenize(doc.text)
 
             # 转换词法错误为诊断
             for error in lexer_errors:
-                diagnostics.append(Diagnostic(
-                    range=Range(
-                        start=Position(line=error.line - 1 if hasattr(error, 'line') else 0,
-                                       character=error.column - 1 if hasattr(error, 'column') else 0),
-                        end=Position(line=error.line - 1 if hasattr(error, 'line') else 0,
-                                     character=error.column if hasattr(error, 'column') else 1)
-                    ),
-                    severity=DiagnosticSeverity.ERROR,
-                    message=f"词法错误: {str(error)}"
-                ))
+                diagnostics.append(
+                    Diagnostic(
+                        range=Range(
+                            start=Position(
+                                line=error.line - 1 if hasattr(error, "line") else 0,
+                                character=error.column - 1
+                                if hasattr(error, "column")
+                                else 0,
+                            ),
+                            end=Position(
+                                line=error.line - 1 if hasattr(error, "line") else 0,
+                                character=error.column
+                                if hasattr(error, "column")
+                                else 1,
+                            ),
+                        ),
+                        severity=DiagnosticSeverity.ERROR,
+                        message=f"词法错误: {str(error)}",
+                    )
+                )
 
         except Exception as e:
-            diagnostics.append(Diagnostic(
-                range=Range(
-                    start=Position(line=0, character=0),
-                    end=Position(line=0, character=1)
-                ),
-                severity=DiagnosticSeverity.ERROR,
-                message=f"词法分析错误: {str(e)}"
-            ))
+            diagnostics.append(
+                Diagnostic(
+                    range=Range(
+                        start=Position(line=0, character=0),
+                        end=Position(line=0, character=1),
+                    ),
+                    severity=DiagnosticSeverity.ERROR,
+                    message=f"词法分析错误: {str(e)}",
+                )
+            )
 
         # 括号匹配检查
         diagnostics.extend(self._check_bracket_matching(doc.text))
@@ -243,37 +274,43 @@ class LanguageServer:
                     stack.append((line_num, col, char))
                 elif char in ")}]":
                     if not stack:
-                        diagnostics.append(Diagnostic(
-                            range=Range(
-                                start=Position(line=line_num, character=col),
-                                end=Position(line=line_num, character=col + 1)
-                            ),
-                            severity=DiagnosticSeverity.ERROR,
-                            message=f"多余的 '{char}'"
-                        ))
+                        diagnostics.append(
+                            Diagnostic(
+                                range=Range(
+                                    start=Position(line=line_num, character=col),
+                                    end=Position(line=line_num, character=col + 1),
+                                ),
+                                severity=DiagnosticSeverity.ERROR,
+                                message=f"多余的 '{char}'",
+                            )
+                        )
                     else:
                         open_pos = stack.pop()
                         expected = {"(": ")", "{": "}", "[": "]"}
                         if expected.get(open_pos[2]) != char:
-                            diagnostics.append(Diagnostic(
-                                range=Range(
-                                    start=Position(line=line_num, character=col),
-                                    end=Position(line=line_num, character=col + 1)
-                                ),
-                                severity=DiagnosticSeverity.ERROR,
-                                message=f"不匹配的括号: 期望 '{expected[open_pos[2]]}'"
-                            ))
+                            diagnostics.append(
+                                Diagnostic(
+                                    range=Range(
+                                        start=Position(line=line_num, character=col),
+                                        end=Position(line=line_num, character=col + 1),
+                                    ),
+                                    severity=DiagnosticSeverity.ERROR,
+                                    message=f"不匹配的括号: 期望 '{expected[open_pos[2]]}'",
+                                )
+                            )
 
         # 检查未闭合的括号
         for line_num, col, char in stack:
-            diagnostics.append(Diagnostic(
-                range=Range(
-                    start=Position(line=line_num, character=col),
-                    end=Position(line=line_num, character=col + 1)
-                ),
-                severity=DiagnosticSeverity.ERROR,
-                message=f"未闭合的 '{char}'"
-            ))
+            diagnostics.append(
+                Diagnostic(
+                    range=Range(
+                        start=Position(line=line_num, character=col),
+                        end=Position(line=line_num, character=col + 1),
+                    ),
+                    severity=DiagnosticSeverity.ERROR,
+                    message=f"未闭合的 '{char}'",
+                )
+            )
 
         return diagnostics
 
@@ -286,53 +323,65 @@ class LanguageServer:
             stripped = line.strip()
 
             # 检查函数声明是否缺少返回类型
-            if stripped.startswith("函数 ") and "->" not in stripped and "{" not in stripped:
+            if (
+                stripped.startswith("函数 ")
+                and "->" not in stripped
+                and "{" not in stripped
+            ):
                 # 函数声明但没有返回类型和函数体
                 if "(" in stripped and ")" in stripped:
-                    diagnostics.append(Diagnostic(
-                        range=Range(
-                            start=Position(line=line_num, character=0),
-                            end=Position(line=line_num, character=len(line))
-                        ),
-                        severity=DiagnosticSeverity.WARNING,
-                        message="函数声明缺少返回类型，建议添加 '-> 返回类型'"
-                    ))
+                    diagnostics.append(
+                        Diagnostic(
+                            range=Range(
+                                start=Position(line=line_num, character=0),
+                                end=Position(line=line_num, character=len(line)),
+                            ),
+                            severity=DiagnosticSeverity.WARNING,
+                            message="函数声明缺少返回类型，建议添加 '-> 返回类型'",
+                        )
+                    )
 
             # 检查结构体/类是否缺少成员
             if stripped.startswith("结构体 ") or stripped.startswith("类 "):
                 if stripped.endswith("{") and line_num + 1 < len(lines):
                     next_line = lines[line_num + 1].strip()
                     if next_line == "}":
-                        diagnostics.append(Diagnostic(
-                            range=Range(
-                                start=Position(line=line_num, character=0),
-                                end=Position(line=line_num, character=len(line))
-                            ),
-                            severity=DiagnosticSeverity.WARNING,
-                            message="空的结构体/类定义"
-                        ))
+                        diagnostics.append(
+                            Diagnostic(
+                                range=Range(
+                                    start=Position(line=line_num, character=0),
+                                    end=Position(line=line_num, character=len(line)),
+                                ),
+                                severity=DiagnosticSeverity.WARNING,
+                                message="空的结构体/类定义",
+                            )
+                        )
 
             # 检查未完成的条件语句
             if stripped == "如果":
-                diagnostics.append(Diagnostic(
-                    range=Range(
-                        start=Position(line=line_num, character=0),
-                        end=Position(line=line_num, character=len(line))
-                    ),
-                    severity=DiagnosticSeverity.ERROR,
-                    message="未完成的条件语句: '如果' 后需要条件表达式"
-                ))
+                diagnostics.append(
+                    Diagnostic(
+                        range=Range(
+                            start=Position(line=line_num, character=0),
+                            end=Position(line=line_num, character=len(line)),
+                        ),
+                        severity=DiagnosticSeverity.ERROR,
+                        message="未完成的条件语句: '如果' 后需要条件表达式",
+                    )
+                )
 
             # 检查未完成的循环语句
             if stripped == "当":
-                diagnostics.append(Diagnostic(
-                    range=Range(
-                        start=Position(line=line_num, character=0),
-                        end=Position(line=line_num, character=len(line))
-                    ),
-                    severity=DiagnosticSeverity.ERROR,
-                    message="未完成的循环语句: '当' 后需要条件表达式"
-                ))
+                diagnostics.append(
+                    Diagnostic(
+                        range=Range(
+                            start=Position(line=line_num, character=0),
+                            end=Position(line=line_num, character=len(line)),
+                        ),
+                        severity=DiagnosticSeverity.ERROR,
+                        message="未完成的循环语句: '当' 后需要条件表达式",
+                    )
+                )
 
         return diagnostics
 
@@ -341,7 +390,7 @@ class LanguageServer:
         diagnostics = []
 
         # 获取文档中定义的所有符号
-        defined_symbols = set(doc.symbols.keys())
+        set(doc.symbols.keys())
 
         # 检查每个符号是否被使用
         for symbol_name, symbol_info in doc.symbols.items():
@@ -365,14 +414,21 @@ class LanguageServer:
                     break
 
             if not used and symbol_info.kind == SymbolKind.VARIABLE:
-                diagnostics.append(Diagnostic(
-                    range=Range(
-                        start=Position(line=symbol_info.line, character=0),
-                        end=Position(line=symbol_info.line, character=len(lines[symbol_info.line]) if symbol_info.line < len(lines) else 1)
-                    ),
-                    severity=DiagnosticSeverity.WARNING,
-                    message=f"变量 '{symbol_name}' 可能未被使用"
-                ))
+                diagnostics.append(
+                    Diagnostic(
+                        range=Range(
+                            start=Position(line=symbol_info.line, character=0),
+                            end=Position(
+                                line=symbol_info.line,
+                                character=len(lines[symbol_info.line])
+                                if symbol_info.line < len(lines)
+                                else 1,
+                            ),
+                        ),
+                        severity=DiagnosticSeverity.WARNING,
+                        message=f"变量 '{symbol_name}' 可能未被使用",
+                    )
+                )
 
         return diagnostics
 
@@ -391,7 +447,7 @@ class LanguageServer:
 
         return {
             "isIncomplete": False,
-            "items": [item.to_dict() for item in completions]
+            "items": [item.to_dict() for item in completions],
         }
 
     def _get_completions(self, uri: str, position: Dict) -> List[CompletionItem]:
@@ -436,7 +492,9 @@ class LanguageServer:
 
         return completions
 
-    def _analyze_completion_context(self, lines: List[str], line_num: int, char_num: int) -> str:
+    def _analyze_completion_context(
+        self, lines: List[str], line_num: int, char_num: int
+    ) -> str:
         """分析补全上下文"""
         if line_num >= len(lines):
             return "default"
@@ -445,7 +503,19 @@ class LanguageServer:
         prefix = line[:char_num] if char_num <= len(line) else line
 
         # 类型声明: 类型关键字后
-        type_keywords = ["整数型", "浮点型", "字符型", "字符串型", "布尔型", "空型", "字节型", "双精度浮点型", "长整数型", "短整数型", "逻辑型"]
+        type_keywords = [
+            "整数型",
+            "浮点型",
+            "字符型",
+            "字符串型",
+            "布尔型",
+            "空型",
+            "字节型",
+            "双精度浮点型",
+            "长整数型",
+            "短整数型",
+            "逻辑型",
+        ]
         for kw in type_keywords:
             if prefix.endswith(kw):
                 return "type_declaration"
@@ -479,15 +549,19 @@ class LanguageServer:
         completions = []
         for name, detail, _ in types:
             if name.startswith(current_word):
-                completions.append(CompletionItem(
-                    label=name,
-                    kind=CompletionItemKind.KEYWORD,
-                    detail=detail,
-                    insert_text=name
-                ))
+                completions.append(
+                    CompletionItem(
+                        label=name,
+                        kind=CompletionItemKind.KEYWORD,
+                        detail=detail,
+                        insert_text=name,
+                    )
+                )
         return completions
 
-    def _get_member_completions(self, prefix: str, doc: "Document") -> List[CompletionItem]:
+    def _get_member_completions(
+        self, prefix: str, doc: "Document"
+    ) -> List[CompletionItem]:
         """获取成员补全"""
         completions = []
         # 提取前缀中的对象名
@@ -505,13 +579,15 @@ class LanguageServer:
 
         for name, ret_type, doc_str in builtin_methods:
             if name.startswith(obj_name):
-                completions.append(CompletionItem(
-                    label=name,
-                    kind=CompletionItemKind.METHOD,
-                    detail=f"{ret_type} {name}()",
-                    documentation=doc_str,
-                    insert_text=name
-                ))
+                completions.append(
+                    CompletionItem(
+                        label=name,
+                        kind=CompletionItemKind.METHOD,
+                        detail=f"{ret_type} {name}()",
+                        documentation=doc_str,
+                        insert_text=name,
+                    )
+                )
 
         return completions
 
@@ -531,16 +607,20 @@ class LanguageServer:
         completions = []
         for name, signature, doc_str in methods:
             if name.startswith(current_word):
-                completions.append(CompletionItem(
-                    label=name,
-                    kind=CompletionItemKind.METHOD,
-                    detail=signature,
-                    documentation=doc_str,
-                    insert_text=name
-                ))
+                completions.append(
+                    CompletionItem(
+                        label=name,
+                        kind=CompletionItemKind.METHOD,
+                        detail=signature,
+                        documentation=doc_str,
+                        insert_text=name,
+                    )
+                )
         return completions
 
-    def _get_default_completions(self, current_word: str, doc: "Document") -> List[CompletionItem]:
+    def _get_default_completions(
+        self, current_word: str, doc: "Document"
+    ) -> List[CompletionItem]:
         """获取默认补全（关键字 + 符号表）"""
         completions = []
 
@@ -576,12 +656,11 @@ class LanguageServer:
 
         for keyword, detail, kind in keywords:
             if keyword.startswith(current_word):
-                completions.append(CompletionItem(
-                    label=keyword,
-                    kind=kind,
-                    detail=detail,
-                    insert_text=keyword
-                ))
+                completions.append(
+                    CompletionItem(
+                        label=keyword, kind=kind, detail=detail, insert_text=keyword
+                    )
+                )
 
         # 符号表补全
         for name, symbol_info in doc.symbols.items():
@@ -597,12 +676,14 @@ class LanguageServer:
                     SymbolKind.FIELD: CompletionItemKind.FIELD,
                 }
                 kind = kind_map.get(symbol_info.kind, CompletionItemKind.TEXT)
-                completions.append(CompletionItem(
-                    label=name,
-                    kind=kind,
-                    detail=symbol_info.detail,
-                    insert_text=name
-                ))
+                completions.append(
+                    CompletionItem(
+                        label=name,
+                        kind=kind,
+                        detail=symbol_info.detail,
+                        insert_text=name,
+                    )
+                )
 
         # 内置函数补全
         builtin_funcs = [
@@ -620,13 +701,15 @@ class LanguageServer:
 
         for func, signature, doc_str in builtin_funcs:
             if func.startswith(current_word):
-                completions.append(CompletionItem(
-                    label=func,
-                    kind=CompletionItemKind.FUNCTION,
-                    detail=signature,
-                    documentation=doc_str,
-                    insert_text=func
-                ))
+                completions.append(
+                    CompletionItem(
+                        label=func,
+                        kind=CompletionItemKind.FUNCTION,
+                        detail=signature,
+                        documentation=doc_str,
+                        insert_text=func,
+                    )
+                )
 
         return completions
 
@@ -697,7 +780,9 @@ class LanguageServer:
                     SymbolKind.PROPERTY: "属性",
                 }
                 kind_name = kind_names.get(symbol.kind, "符号")
-                return Hover(contents=f"**{kind_name}: {symbol.name}**\n\n类型: {symbol.detail}")
+                return Hover(
+                    contents=f"**{kind_name}: {symbol.name}**\n\n类型: {symbol.detail}"
+                )
 
             # 关键字文档
             keyword_docs = {
@@ -705,7 +790,7 @@ class LanguageServer:
                 "浮点型": "**浮点型** (Float)\n\n64 位双精度浮点数类型。\n\n示例: `浮点型 x = 3.14;`",
                 "双精度浮点型": "**双精度浮点型** (Double)\n\n64 位双精度浮点数类型。\n\n示例: `双精度浮点型 x = 3.1415926;`",
                 "字符型": "**字符型** (Char)\n\n单个字符类型。\n\n示例: `字符型 c = 'A';`",
-                "字符串型": "**字符串型** (String)\n\n不可变字符串类型。\n\n示例: `字符串型 s = \"Hello\";`",
+                "字符串型": '**字符串型** (String)\n\n不可变字符串类型。\n\n示例: `字符串型 s = "Hello";`',
                 "布尔型": "**布尔型** (Boolean)\n\n布尔值类型，值为 `真` 或 `假`。\n\n示例: `布尔型 flag = 真;`",
                 "字节型": "**字节型** (Byte)\n\n单字节无符号整数类型 (0-255)。\n\n示例: `字节型 b = 255;`",
                 "长整数型": "**长整数型** (Long)\n\n64 位有符号整数类型。\n\n示例: `长整数型 x = 9223372036854775807;`",
@@ -779,19 +864,13 @@ class LanguageServer:
         # 实际应该分析函数调用上下文
         signatures = [
             SignatureInformation(
-                label="打印(值)",
-                documentation="打印值到标准输出",
-                parameters=[]
+                label="打印(值)", documentation="打印值到标准输出", parameters=[]
             ),
             SignatureInformation(
-                label="读取()",
-                documentation="从标准输入读取一行",
-                parameters=[]
+                label="读取()", documentation="从标准输入读取一行", parameters=[]
             ),
             SignatureInformation(
-                label="长度(容器)",
-                documentation="获取容器长度",
-                parameters=[]
+                label="长度(容器)", documentation="获取容器长度", parameters=[]
             ),
         ]
 
@@ -834,13 +913,20 @@ class LanguageServer:
             # 在符号表中查找定义
             if word in doc.symbols:
                 symbol = doc.symbols[word]
-                locations.append(Location(
-                    uri=uri,
-                    range=Range(
-                        start=Position(line=symbol.line, character=0),
-                        end=Position(line=symbol.line, character=len(lines[symbol.line]) if symbol.line < len(lines) else 1)
+                locations.append(
+                    Location(
+                        uri=uri,
+                        range=Range(
+                            start=Position(line=symbol.line, character=0),
+                            end=Position(
+                                line=symbol.line,
+                                character=len(lines[symbol.line])
+                                if symbol.line < len(lines)
+                                else 1,
+                            ),
+                        ),
                     )
-                ))
+                )
 
         return locations
 
@@ -887,18 +973,28 @@ class LanguageServer:
                             break
 
                         # 检查是否是独立单词
-                        before_ok = pos == 0 or not (ref_line[pos - 1].isalnum() or ref_line[pos - 1] == '_')
-                        after_ok = (pos + len(word) >= len(ref_line) or
-                                   not (ref_line[pos + len(word)].isalnum() or ref_line[pos + len(word)] == '_'))
+                        before_ok = pos == 0 or not (
+                            ref_line[pos - 1].isalnum() or ref_line[pos - 1] == "_"
+                        )
+                        after_ok = pos + len(word) >= len(ref_line) or not (
+                            ref_line[pos + len(word)].isalnum()
+                            or ref_line[pos + len(word)] == "_"
+                        )
 
                         if before_ok and after_ok:
-                            locations.append(Location(
-                                uri=uri,
-                                range=Range(
-                                    start=Position(line=ref_line_num, character=pos),
-                                    end=Position(line=ref_line_num, character=pos + len(word))
+                            locations.append(
+                                Location(
+                                    uri=uri,
+                                    range=Range(
+                                        start=Position(
+                                            line=ref_line_num, character=pos
+                                        ),
+                                        end=Position(
+                                            line=ref_line_num, character=pos + len(word)
+                                        ),
+                                    ),
                                 )
-                            ))
+                            )
 
                         start = pos + 1
 
@@ -938,53 +1034,59 @@ class LanguageServer:
                     name = parts[0].strip()
                     return_type = parts[1].strip() if len(parts) > 1 else "空型"
 
-                    symbols.append(DocumentSymbol(
-                        name=name,
-                        kind=SymbolKind.FUNCTION,
-                        range=Range(
-                            start=Position(line=line_num, character=0),
-                            end=Position(line=line_num, character=len(line))
-                        ),
-                        selection_range=Range(
-                            start=Position(line=line_num, character=2),
-                            end=Position(line=line_num, character=2 + len(name))
-                        ),
-                        detail=return_type
-                    ))
+                    symbols.append(
+                        DocumentSymbol(
+                            name=name,
+                            kind=SymbolKind.FUNCTION,
+                            range=Range(
+                                start=Position(line=line_num, character=0),
+                                end=Position(line=line_num, character=len(line)),
+                            ),
+                            selection_range=Range(
+                                start=Position(line=line_num, character=2),
+                                end=Position(line=line_num, character=2 + len(name)),
+                            ),
+                            detail=return_type,
+                        )
+                    )
 
                 # 结构体定义
                 elif stripped.startswith("结构体 "):
                     name = stripped.replace("结构体 ", "").split("{")[0].strip()
 
-                    symbols.append(DocumentSymbol(
-                        name=name,
-                        kind=SymbolKind.CLASS,
-                        range=Range(
-                            start=Position(line=line_num, character=0),
-                            end=Position(line=line_num, character=len(line))
-                        ),
-                        selection_range=Range(
-                            start=Position(line=line_num, character=3),
-                            end=Position(line=line_num, character=3 + len(name))
+                    symbols.append(
+                        DocumentSymbol(
+                            name=name,
+                            kind=SymbolKind.CLASS,
+                            range=Range(
+                                start=Position(line=line_num, character=0),
+                                end=Position(line=line_num, character=len(line)),
+                            ),
+                            selection_range=Range(
+                                start=Position(line=line_num, character=3),
+                                end=Position(line=line_num, character=3 + len(name)),
+                            ),
                         )
-                    ))
+                    )
 
                 # 类定义
                 elif stripped.startswith("类 "):
                     name = stripped.replace("类 ", "").split("{")[0].strip()
 
-                    symbols.append(DocumentSymbol(
-                        name=name,
-                        kind=SymbolKind.CLASS,
-                        range=Range(
-                            start=Position(line=line_num, character=0),
-                            end=Position(line=line_num, character=len(line))
-                        ),
-                        selection_range=Range(
-                            start=Position(line=line_num, character=1),
-                            end=Position(line=line_num, character=1 + len(name))
+                    symbols.append(
+                        DocumentSymbol(
+                            name=name,
+                            kind=SymbolKind.CLASS,
+                            range=Range(
+                                start=Position(line=line_num, character=0),
+                                end=Position(line=line_num, character=len(line)),
+                            ),
+                            selection_range=Range(
+                                start=Position(line=line_num, character=1),
+                                end=Position(line=line_num, character=1 + len(name)),
+                            ),
                         )
-                    ))
+                    )
 
         return symbols
 
@@ -1003,14 +1105,13 @@ class LanguageServer:
                 doc_symbols = self._get_document_symbols(uri)
                 for sym in doc_symbols:
                     if query.lower() in sym.name.lower():
-                        symbols.append(SymbolInformation(
-                            name=sym.name,
-                            kind=sym.kind,
-                            location=Location(
-                                uri=uri,
-                                range=sym.range
-                            )
-                        ).to_dict())
+                        symbols.append(
+                            SymbolInformation(
+                                name=sym.name,
+                                kind=sym.kind,
+                                location=Location(uri=uri, range=sym.range),
+                            ).to_dict()
+                        )
 
         return symbols
 
@@ -1052,17 +1153,16 @@ class LanguageServer:
                 return {"changes": {}}
 
             line = lines[line_num]
-            old_name = self._get_word_at_position(line, char_num)
+            self._get_word_at_position(line, char_num)
 
             # 为每个引用位置创建 TextEdit
             for loc in references:
                 if loc.uri not in changes:
                     changes[loc.uri] = []
 
-                changes[loc.uri].append({
-                    "range": loc.range.to_dict(),
-                    "newText": new_name
-                })
+                changes[loc.uri].append(
+                    {"range": loc.range.to_dict(), "newText": new_name}
+                )
 
         return {"changes": changes}
 
@@ -1133,7 +1233,7 @@ class Document:
                 name=func_match,
                 kind=SymbolKind.FUNCTION,
                 detail=return_type,
-                line=line_num
+                line=line_num,
             )
 
     def _parse_struct(self, line: str, line_num: int) -> None:
@@ -1141,10 +1241,7 @@ class Document:
         name = line.replace("结构体 ", "").split("{")[0].strip()
         if name:
             self.symbols[name] = SymbolInfo(
-                name=name,
-                kind=SymbolKind.CLASS,
-                detail="结构体",
-                line=line_num
+                name=name, kind=SymbolKind.CLASS, detail="结构体", line=line_num
             )
 
     def _parse_class(self, line: str, line_num: int) -> None:
@@ -1152,10 +1249,7 @@ class Document:
         name = line.replace("类 ", "").split("{")[0].strip()
         if name:
             self.symbols[name] = SymbolInfo(
-                name=name,
-                kind=SymbolKind.CLASS,
-                detail="类",
-                line=line_num
+                name=name, kind=SymbolKind.CLASS, detail="类", line=line_num
             )
 
     def _parse_enum(self, line: str, line_num: int) -> None:
@@ -1163,25 +1257,32 @@ class Document:
         name = line.replace("枚举 ", "").split("{")[0].strip()
         if name:
             self.symbols[name] = SymbolInfo(
-                name=name,
-                kind=SymbolKind.ENUM,
-                detail="枚举",
-                line=line_num
+                name=name, kind=SymbolKind.ENUM, detail="枚举", line=line_num
             )
 
     def _parse_variables(self, line: str, line_num: int) -> None:
         """解析变量声明"""
         # 匹配: 类型名 变量名 = 或 类型名 变量名;
         import re
+
         # 变量声明模式
-        type_patterns = ["整数型", "浮点型", "字符型", "字符串型", "布尔型", "空型", "字节型", "双精度浮点型"]
+        type_patterns = [
+            "整数型",
+            "浮点型",
+            "字符型",
+            "字符串型",
+            "布尔型",
+            "空型",
+            "字节型",
+            "双精度浮点型",
+        ]
 
         for type_kw in type_patterns:
             if line.strip().startswith(type_kw):
                 # 提取变量名
-                rest = line.strip()[len(type_kw):].strip()
+                rest = line.strip()[len(type_kw) :].strip()
                 # 变量名是第一个标识符
-                match = re.match(r'^(\w+)\s*', rest)
+                match = re.match(r"^(\w+)\s*", rest)
                 if match:
                     var_name = match.group(1)
                     if var_name and var_name not in ("=", "{", "}", "(", ")"):
@@ -1189,7 +1290,7 @@ class Document:
                             name=var_name,
                             kind=SymbolKind.VARIABLE,
                             detail=type_kw,
-                            line=line_num
+                            line=line_num,
                         )
                 break
 
@@ -1197,6 +1298,7 @@ class Document:
 @dataclass
 class SymbolInfo:
     """符号信息"""
+
     name: str
     kind: SymbolKind
     detail: str = ""

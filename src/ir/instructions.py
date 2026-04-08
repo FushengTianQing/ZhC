@@ -8,7 +8,7 @@ ZHC IR - 指令和基本块定义
 日期：2026-04-03
 """
 
-from typing import List, Optional, Dict, Set
+from typing import List, Optional
 from .opcodes import Opcode
 from .values import IRValue
 
@@ -61,7 +61,7 @@ class IRBasicBlock:
         self.label = label
         self.instructions: List[IRInstruction] = []
         self.predecessors: List[str] = []  # 前驱基本块标签
-        self.successors: List[str] = []    # 后继基本块标签
+        self.successors: List[str] = []  # 后继基本块标签
 
     def add_instruction(self, instr: IRInstruction):
         """添加指令"""

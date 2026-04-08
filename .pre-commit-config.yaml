@@ -1,0 +1,66 @@
+# ZhC 代码质量门禁配置
+# 每次 git commit 前自动运行
+# 安装：pre-commit install
+# 手动运行：pre-commit run --all-files
+
+repos:
+  # ============================================================
+  # Ruff - 极速 Python 代码检查与格式化
+  # ============================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      # 代码规范检查（阻止新增 F401/F821/E722 等问题）
+      - id: ruff
+        args:
+          - --fix
+          - --select=F401,F821,F841,E722,E741,F811
+          - --ignore=F405,F403  # star-import 问题在 Phase 2 处理
+        name: "Ruff: 修复可自动修复的规范问题"
+
+      # 代码格式化（Black 兼容模式）
+      - id: ruff-format
+        name: "Ruff: 格式化代码"
+
+  # ============================================================
+  # 基础检查
+  # ============================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      # 防止提交大文件（>500KB）
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+
+      # 修复文件末尾换行
+      - id: end-of-file-fixer
+        types: [python]
+
+      # 移除行尾空格
+      - id: trailing-whitespace
+        types: [python]
+
+      # 检查 YAML 语法
+      - id: check-yaml
+
+      # 检查 TOML 语法
+      - id: check-toml
+
+      # 防止直接提交到 main 分支
+      - id: no-commit-to-branch
+        args: ['--branch', 'main']
+
+  # ============================================================
+  # 类型检查（仅检查，不阻断提交）
+  # ============================================================
+  # 注意：mypy 当前覆盖率低（~10%），暂时设为 warn-only
+  # 当覆盖率提升到 40%+ 后再启用严格模式
+  # - repo: local
+  #   hooks:
+  #     - id: mypy
+  #       name: "MyPy: 类型检查"
+  #       entry: python3 -m mypy
+  #       language: system
+  #       types: [python]
+  #       args: [--ignore-missing-imports, --warn-return-any]
+  #       pass_filenames: false

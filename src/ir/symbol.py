@@ -17,17 +17,19 @@ from typing import Optional, List, Dict
 
 class SymbolCategory(Enum):
     """符号类别（来自 analyzer/scope_checker.py）"""
-    VARIABLE = "variable"       # 变量
-    FUNCTION = "function"       # 函数
-    PARAMETER = "parameter"     # 参数
-    TYPEDEF = "typedef"        # 类型定义
-    STRUCT = "struct"          # 结构体
-    MODULE = "module"          # 模块
-    LABEL = "label"            # 标签
+
+    VARIABLE = "variable"  # 变量
+    FUNCTION = "function"  # 函数
+    PARAMETER = "parameter"  # 参数
+    TYPEDEF = "typedef"  # 类型定义
+    STRUCT = "struct"  # 结构体
+    MODULE = "module"  # 模块
+    LABEL = "label"  # 标签
 
 
 class ScopeType(Enum):
     """作用域类型（来自 semantic/semantic_analyzer.py）"""
+
     GLOBAL = "全局"
     MODULE = "模块"
     STRUCT = "结构体"
@@ -57,6 +59,7 @@ class Symbol:
     - return_type: 函数返回类型（仅函数符号）
     - members: 结构体成员列表（仅结构体符号）
     """
+
     name: str = ""
     symbol_type: str = ""  # "变量"/"函数"/"参数"等（中文）
     data_type: Optional[str] = None
@@ -68,12 +71,12 @@ class Symbol:
     references: List[str] = field(default_factory=list)
 
     # 函数特有
-    parameters: List['Symbol'] = field(default_factory=list)
+    parameters: List["Symbol"] = field(default_factory=list)
     return_type: Optional[str] = None
 
     # 结构体特有
-    members: List['Symbol'] = field(default_factory=list)
-    methods: List['Symbol'] = field(default_factory=list)
+    members: List["Symbol"] = field(default_factory=list)
+    methods: List["Symbol"] = field(default_factory=list)
     parent_struct: Optional[str] = None
 
     # 类别（来自 scope_checker.Symbol）
@@ -108,12 +111,13 @@ class Scope:
 
     合并自 semantic.Scope 和 scope_checker.Scope 的功能。
     """
+
     scope_type: ScopeType = ScopeType.GLOBAL
     scope_name: str = ""
-    parent: Optional['Scope'] = None
+    parent: Optional["Scope"] = None
     symbols: Dict[str, Symbol] = field(default_factory=dict)
     level: int = 0
-    children: List['Scope'] = field(default_factory=list)
+    children: List["Scope"] = field(default_factory=list)
 
     def add_symbol(self, symbol: Symbol) -> bool:
         """

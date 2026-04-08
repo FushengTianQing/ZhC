@@ -15,18 +15,18 @@ from .base import ZHCError, SourceLocation
 class ParserError(ZHCError):
     """
     语法分析错误
-    
+
     在语法分析阶段发生的错误，例如：
     - 语法错误
     - 缺少必要的token
     - 意外的token
     - 声明错误
-    
+
     Attributes:
         expected_tokens: 期望的token类型列表（可选）
         actual_token: 实际遇到的token类型（可选）
         recovery_point: 错误恢复点（可选）
-    
+
     Example:
         >>> error = ParserError(
         ...     "缺少分号",
@@ -37,7 +37,7 @@ class ParserError(ZHCError):
         ...     suggestion="请在语句末尾添加分号"
         ... )
     """
-    
+
     def __init__(
         self,
         message: str,
@@ -52,7 +52,7 @@ class ParserError(ZHCError):
     ):
         """
         初始化语法分析错误
-        
+
         Args:
             message: 错误消息
             location: 错误位置
@@ -68,30 +68,32 @@ class ParserError(ZHCError):
         self.actual_token = actual_token
         self.recovery_point = recovery_point
         super().__init__(message, location, error_code, severity, context, suggestion)
-    
+
     def _format_message(self) -> str:
         """格式化错误消息，添加期望token信息"""
         base_message = super()._format_message()
-        
+
         # 添加期望token信息
         if self.expected_tokens:
             expected_str = " 或 ".join(self.expected_tokens)
             base_message += f"\n期望: {expected_str}"
-        
+
         # 添加实际token信息
         if self.actual_token:
             base_message += f"\n实际: {self.actual_token}"
-        
+
         return base_message
-    
+
     def to_dict(self) -> dict:
         """转换为字典格式"""
         data = super().to_dict()
-        data.update({
-            "expected_tokens": self.expected_tokens,
-            "actual_token": self.actual_token,
-            "recovery_point": self.recovery_point,
-        })
+        data.update(
+            {
+                "expected_tokens": self.expected_tokens,
+                "actual_token": self.actual_token,
+                "recovery_point": self.recovery_point,
+            }
+        )
         return data
 
 
@@ -138,6 +140,7 @@ PARSER_CONTINUE_OUTSIDE_LOOP = "P053"  # continue在循环外
 # 便捷工厂函数
 # ============================================================================
 
+
 def missing_token(
     expected: str,
     location: Optional[SourceLocation] = None,
@@ -146,13 +149,13 @@ def missing_token(
 ) -> ParserError:
     """
     创建缺少token错误
-    
+
     Args:
         expected: 期望的token类型
         location: 错误位置
         actual: 实际遇到的token类型
         context: 错误上下文
-    
+
     Returns:
         ParserError 实例
     """
@@ -175,13 +178,13 @@ def unexpected_token(
 ) -> ParserError:
     """
     创建意外token错误
-    
+
     Args:
         token: 意外的token类型
         location: 错误位置
         expected: 期望的token类型列表
         context: 错误上下文
-    
+
     Returns:
         ParserError 实例
     """
@@ -203,12 +206,12 @@ def invalid_statement(
 ) -> ParserError:
     """
     创建无效语句错误
-    
+
     Args:
         statement_type: 语句类型
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         ParserError 实例
     """
@@ -227,11 +230,11 @@ def missing_semicolon(
 ) -> ParserError:
     """
     创建缺少分号错误
-    
+
     Args:
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         ParserError 实例
     """
@@ -251,11 +254,11 @@ def unbalanced_braces(
 ) -> ParserError:
     """
     创建大括号不匹配错误
-    
+
     Args:
         location: 错误位置
         context: 错误上下文
-    
+
     Returns:
         ParserError 实例
     """

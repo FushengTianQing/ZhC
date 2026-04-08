@@ -18,22 +18,55 @@ ZHC IR - AST → IR 生成器
 from typing import Optional, List, Any
 
 from zhc.parser.ast_nodes import (
-    ASTVisitor, ASTNode,
-    ProgramNode, ModuleDeclNode, ImportDeclNode,
-    FunctionDeclNode, StructDeclNode, VariableDeclNode, ParamDeclNode,
-    EnumDeclNode, UnionDeclNode, TypedefDeclNode,
-    BlockStmtNode, IfStmtNode, WhileStmtNode, ForStmtNode,
-    DoWhileStmtNode, BreakStmtNode, ContinueStmtNode, ReturnStmtNode,
-    SwitchStmtNode, CaseStmtNode, DefaultStmtNode, ExprStmtNode,
-    GotoStmtNode, LabelStmtNode,
-    BinaryExprNode, UnaryExprNode, AssignExprNode, CallExprNode,
-    MemberExprNode, ArrayExprNode, IdentifierExprNode,
-    IntLiteralNode, FloatLiteralNode, StringLiteralNode, CharLiteralNode,
-    BoolLiteralNode, NullLiteralNode,
-    TernaryExprNode, SizeofExprNode, CastExprNode,
-    ArrayInitNode, StructInitNode,
-    PrimitiveTypeNode, PointerTypeNode, ArrayTypeNode,
-    FunctionTypeNode, StructTypeNode,
+    ASTVisitor,
+    ASTNode,
+    ProgramNode,
+    ModuleDeclNode,
+    ImportDeclNode,
+    FunctionDeclNode,
+    StructDeclNode,
+    VariableDeclNode,
+    ParamDeclNode,
+    EnumDeclNode,
+    UnionDeclNode,
+    TypedefDeclNode,
+    BlockStmtNode,
+    IfStmtNode,
+    WhileStmtNode,
+    ForStmtNode,
+    DoWhileStmtNode,
+    BreakStmtNode,
+    ContinueStmtNode,
+    ReturnStmtNode,
+    SwitchStmtNode,
+    CaseStmtNode,
+    DefaultStmtNode,
+    ExprStmtNode,
+    GotoStmtNode,
+    LabelStmtNode,
+    BinaryExprNode,
+    UnaryExprNode,
+    AssignExprNode,
+    CallExprNode,
+    MemberExprNode,
+    ArrayExprNode,
+    IdentifierExprNode,
+    IntLiteralNode,
+    FloatLiteralNode,
+    StringLiteralNode,
+    CharLiteralNode,
+    BoolLiteralNode,
+    NullLiteralNode,
+    TernaryExprNode,
+    SizeofExprNode,
+    CastExprNode,
+    ArrayInitNode,
+    StructInitNode,
+    PrimitiveTypeNode,
+    PointerTypeNode,
+    ArrayTypeNode,
+    FunctionTypeNode,
+    StructTypeNode,
 )
 
 from zhc.ir.program import IRProgram, IRFunction, IRStructDef, IRGlobalVar
@@ -91,8 +124,12 @@ class IRGenerator(ASTVisitor):
         self._bb_counter += 1
         return label
 
-    def _emit(self, opcode: Opcode, operands: List[IRValue] = None,
-              result: List[IRValue] = None) -> Optional[IRValue]:
+    def _emit(
+        self,
+        opcode: Opcode,
+        operands: List[IRValue] = None,
+        result: List[IRValue] = None,
+    ) -> Optional[IRValue]:
         """发射 IR 指令"""
         if operands is None:
             operands = []
@@ -135,7 +172,7 @@ class IRGenerator(ASTVisitor):
         """从 AST 类型节点获取类型名"""
         if type_node is None:
             return "空型"
-        if hasattr(type_node, 'name'):
+        if hasattr(type_node, "name"):
             return type_node.name
         return str(type_node)
 
@@ -143,8 +180,8 @@ class IRGenerator(ASTVisitor):
         """解析中文函数名为 C 函数名"""
         # 中文函数名映射
         FUNCTION_MAP = {
-            '主函数': 'main',
-            '主程序': 'main',
+            "主函数": "main",
+            "主程序": "main",
         }
         return FUNCTION_MAP.get(name, name)
 
@@ -247,25 +284,25 @@ class IRGenerator(ASTVisitor):
 
     # 字面量类型到求值方法的映射
     LITERAL_EVALUATORS = {
-        'INT_LITERAL': ('_eval_int_literal', '整数型', int),
-        'FLOAT_LITERAL': ('_eval_float_literal', '双精度浮点型', float),
-        'STRING_LITERAL': ('_eval_string_literal', '字符串型', None),
-        'CHAR_LITERAL': ('_eval_char_literal', '字符型', None),
-        'BOOL_LITERAL': ('_eval_bool_literal', '布尔型', None),
-        'NULL_LITERAL': ('_eval_null_literal', '空型', None),
+        "INT_LITERAL": ("_eval_int_literal", "整数型", int),
+        "FLOAT_LITERAL": ("_eval_float_literal", "双精度浮点型", float),
+        "STRING_LITERAL": ("_eval_string_literal", "字符串型", None),
+        "CHAR_LITERAL": ("_eval_char_literal", "字符型", None),
+        "BOOL_LITERAL": ("_eval_bool_literal", "布尔型", None),
+        "NULL_LITERAL": ("_eval_null_literal", "空型", None),
     }
 
     # 表达式类型到求值方法的映射
     EXPR_EVALUATORS = {
-        'IDENTIFIER_EXPR': '_eval_identifier',
-        'BINARY_EXPR': '_eval_binary',
-        'UNARY_EXPR': '_eval_unary',
-        'ASSIGN_EXPR': '_eval_assignment',
-        'CALL_EXPR': '_eval_call',
-        'MEMBER_EXPR': '_eval_member',
-        'ARRAY_EXPR': '_eval_array',
-        'TERNARY_EXPR': '_eval_ternary',
-        'CAST_EXPR': '_eval_cast',
+        "IDENTIFIER_EXPR": "_eval_identifier",
+        "BINARY_EXPR": "_eval_binary",
+        "UNARY_EXPR": "_eval_unary",
+        "ASSIGN_EXPR": "_eval_assignment",
+        "CALL_EXPR": "_eval_call",
+        "MEMBER_EXPR": "_eval_member",
+        "ARRAY_EXPR": "_eval_array",
+        "TERNARY_EXPR": "_eval_ternary",
+        "CAST_EXPR": "_eval_cast",
     }
 
     def _eval_expr(self, node: ASTNode) -> Optional[IRValue]:
@@ -277,7 +314,7 @@ class IRGenerator(ASTVisitor):
         if node is None:
             return None
 
-        nt = node.node_type.name if hasattr(node, 'node_type') else str(type(node))
+        nt = node.node_type.name if hasattr(node, "node_type") else str(type(node))
 
         # 字面量求值
         if nt in self.LITERAL_EVALUATORS:
@@ -288,10 +325,15 @@ class IRGenerator(ASTVisitor):
                 return evaluator(node)
             # 备用方案：直接在方法中处理
             if converter:
-                value = converter(getattr(node, 'value', 0))
+                value = converter(getattr(node, "value", 0))
             else:
-                value = getattr(node, 'value', '')
-            return self._eval_literal(node, type_name, value, is_string=(nt in ('STRING_LITERAL', 'CHAR_LITERAL')))
+                value = getattr(node, "value", "")
+            return self._eval_literal(
+                node,
+                type_name,
+                value,
+                is_string=(nt in ("STRING_LITERAL", "CHAR_LITERAL")),
+            )
 
         # 表达式求值
         evaluator_name = self.EXPR_EVALUATORS.get(nt)
@@ -304,46 +346,50 @@ class IRGenerator(ASTVisitor):
 
     def _eval_int_literal(self, node: ASTNode) -> IRValue:
         """求值整数字面量"""
-        return self._eval_literal(node, '整数型', int(getattr(node, 'value', 0)))
+        return self._eval_literal(node, "整数型", int(getattr(node, "value", 0)))
 
     def _eval_float_literal(self, node: ASTNode) -> IRValue:
         """求值浮点字面量"""
-        return self._eval_literal(node, '双精度浮点型', float(getattr(node, 'value', 0.0)))
+        return self._eval_literal(
+            node, "双精度浮点型", float(getattr(node, "value", 0.0))
+        )
 
     def _eval_string_literal(self, node: ASTNode) -> IRValue:
         """求值字符串字面量"""
-        val = getattr(node, 'value', '')
-        return self._eval_literal(node, '字符串型', f'"{val}"', is_string=True)
+        val = getattr(node, "value", "")
+        return self._eval_literal(node, "字符串型", f'"{val}"', is_string=True)
 
     def _eval_char_literal(self, node: ASTNode) -> IRValue:
         """求值字符字面量"""
-        val = getattr(node, 'value', '0')
-        return self._eval_literal(node, '字符型', f"'{val}'", is_string=True)
+        val = getattr(node, "value", "0")
+        return self._eval_literal(node, "字符型", f"'{val}'", is_string=True)
 
     def _eval_bool_literal(self, node: ASTNode) -> IRValue:
         """求值布尔字面量"""
-        return self._eval_literal(node, '布尔型', getattr(node, 'value', False))
+        return self._eval_literal(node, "布尔型", getattr(node, "value", False))
 
     def _eval_null_literal(self, node: ASTNode) -> IRValue:
         """求值空字面量"""
         # NullLiteralNode 没有 value 属性，直接返回 "0"
-        return IRValue("0", '空型', ValueKind.CONST, const_value=0)
+        return IRValue("0", "空型", ValueKind.CONST, const_value=0)
 
-    def _eval_literal(self, node: ASTNode, type_name: str, value: Any, is_string: bool = False) -> IRValue:
+    def _eval_literal(
+        self, node: ASTNode, type_name: str, value: Any, is_string: bool = False
+    ) -> IRValue:
         """求值字面量：INT/FLOAT/STRING/CHAR/BOOL/NULL"""
         return IRValue(str(value), type_name, ValueKind.CONST, const_value=value)
 
     def _eval_identifier(self, node: ASTNode) -> IRValue:
         """求值标识符表达式"""
-        name = getattr(node, 'name', '')
-        ty = getattr(node, 'inferred_type', '整数型')
+        name = getattr(node, "name", "")
+        ty = getattr(node, "inferred_type", "整数型")
         return IRValue(name, ty, ValueKind.VAR)
 
     def _eval_binary(self, node: ASTNode) -> Optional[IRValue]:
         """求值二元表达式"""
-        left = self._eval_expr(getattr(node, 'left', None))
-        right = self._eval_expr(getattr(node, 'right', None))
-        op = getattr(node, 'operator', getattr(node, 'op', '+'))
+        left = self._eval_expr(getattr(node, "left", None))
+        right = self._eval_expr(getattr(node, "right", None))
+        op = getattr(node, "operator", getattr(node, "op", "+"))
         op = op.upper() if isinstance(op, str) else str(op)
         try:
             opcode = Opcode[op]
@@ -355,10 +401,10 @@ class IRGenerator(ASTVisitor):
 
     def _eval_unary(self, node: ASTNode) -> Optional[IRValue]:
         """求值一元表达式"""
-        operand = self._eval_expr(getattr(node, 'operand', None))
-        op = getattr(node, 'operator', getattr(node, 'op', '-'))
-        if op in ('-', '!'):
-            opcode = Opcode.NEG if op == '-' else Opcode.L_NOT
+        operand = self._eval_expr(getattr(node, "operand", None))
+        op = getattr(node, "operator", getattr(node, "op", "-"))
+        if op in ("-", "!"):
+            opcode = Opcode.NEG if op == "-" else Opcode.L_NOT
             result = self._new_temp()
             self._emit(opcode, [operand] if operand else [], [result])
             return result
@@ -366,18 +412,18 @@ class IRGenerator(ASTVisitor):
 
     def _eval_assignment(self, node: ASTNode) -> Optional[IRValue]:
         """求值赋值表达式"""
-        value = self._eval_expr(getattr(node, 'value', None))
-        target = self._eval_expr(getattr(node, 'target', None))
+        value = self._eval_expr(getattr(node, "value", None))
+        target = self._eval_expr(getattr(node, "target", None))
         if value:
             self._emit(Opcode.STORE, [value, target] if target else [value])
         return value
 
     def _eval_call(self, node: ASTNode) -> Optional[IRValue]:
         """求值函数调用表达式"""
-        callee = getattr(node, 'callee', None)
-        func_name = getattr(callee, 'name', 'unknown') if callee else 'unknown'
+        callee = getattr(node, "callee", None)
+        func_name = getattr(callee, "name", "unknown") if callee else "unknown"
         args = []
-        for arg in getattr(node, 'args', []):
+        for arg in getattr(node, "args", []):
             arg_val = self._eval_expr(arg)
             if arg_val:
                 args.append(arg_val)
@@ -388,24 +434,24 @@ class IRGenerator(ASTVisitor):
 
     def _eval_member(self, node: ASTNode) -> Optional[IRValue]:
         """求值成员访问表达式"""
-        obj = self._eval_expr(getattr(node, 'obj', None))
+        obj = self._eval_expr(getattr(node, "obj", None))
         result = self._new_temp()
         self._emit(Opcode.GETPTR, [obj] if obj else [], [result])
         return result
 
     def _eval_array(self, node: ASTNode) -> Optional[IRValue]:
         """求值数组访问表达式"""
-        base = self._eval_expr(getattr(node, 'object', None))
-        index = self._eval_expr(getattr(node, 'index', None))
+        base = self._eval_expr(getattr(node, "object", None))
+        index = self._eval_expr(getattr(node, "index", None))
         result = self._new_temp()
         self._emit(Opcode.GEP, [base, index] if index else [base], [result])
         return result
 
     def _eval_ternary(self, node: ASTNode) -> Optional[IRValue]:
         """求值三元表达式（条件 ? then : else）"""
-        cond = self._eval_expr(getattr(node, 'condition', None))
-        then_val = self._eval_expr(getattr(node, 'then_expr', None))
-        else_val = self._eval_expr(getattr(node, 'else_expr', None))
+        cond = self._eval_expr(getattr(node, "condition", None))
+        then_val = self._eval_expr(getattr(node, "then_expr", None))
+        else_val = self._eval_expr(getattr(node, "else_expr", None))
         result = self._new_temp()
         # 实现为条件跳转
         then_bb_label = self._new_bb_label("ternary_then")
@@ -432,8 +478,8 @@ class IRGenerator(ASTVisitor):
 
     def _eval_cast(self, node: ASTNode) -> Optional[IRValue]:
         """求值类型转换表达式"""
-        operand = self._eval_expr(getattr(node, 'operand', None))
-        target_type = self._get_type_name(getattr(node, 'target_type', None))
+        operand = self._eval_expr(getattr(node, "operand", None))
+        target_type = self._get_type_name(getattr(node, "target_type", None))
         result = self._new_temp(target_type)
         if operand:
             self._emit(Opcode.BITCAST, [operand], [result])
@@ -545,7 +591,6 @@ class IRGenerator(ASTVisitor):
         self.current_function.basic_blocks.append(end_bb)
 
         # 跳转到条件块
-        old_block = self.current_block
         self._emit(Opcode.JMP, [cond_bb.label])
 
         # 条件块
@@ -653,7 +698,6 @@ class IRGenerator(ASTVisitor):
         self.current_function.basic_blocks.append(cond_bb)
         self.current_function.basic_blocks.append(end_bb)
 
-        old_block = self.current_block
         self._emit(Opcode.JMP, [body_bb.label])
 
         # 循环体
@@ -702,13 +746,11 @@ class IRGenerator(ASTVisitor):
         old_switch = self._in_switch
         self._in_switch = True
 
-        expr = self._eval_expr(node.expr)
+        self._eval_expr(node.expr)
 
         end_bb = IRBasicBlock(self._new_bb_label("switch_end"))
         self.current_function.basic_blocks.append(end_bb)
         self._push_break_target(end_bb.label)
-
-        old_block = self.current_block
 
         # 处理 case
         if node.cases:
@@ -735,13 +777,13 @@ class IRGenerator(ASTVisitor):
     def visit_goto_stmt(self, node: GotoStmtNode):
         """goto 语句"""
         self._ensure_block()
-        label = getattr(node, 'label', '')
+        label = getattr(node, "label", "")
         if label:
             self._emit(Opcode.JMP, [label])
 
     def visit_label_stmt(self, node: LabelStmtNode):
         """标签语句"""
-        label = getattr(node, 'name', '')
+        label = getattr(node, "name", "")
         if label:
             bb = IRBasicBlock(label)
             self.current_function.basic_blocks.append(bb)
@@ -758,8 +800,8 @@ class IRGenerator(ASTVisitor):
         """结构体声明"""
         struct_def = IRStructDef(name=node.name)
         for m in node.members:
-            if hasattr(m, 'name'):
-                member_ty = self._get_type_name(getattr(m, 'var_type', None))
+            if hasattr(m, "name"):
+                member_ty = self._get_type_name(getattr(m, "var_type", None))
                 struct_def.add_member(m.name, member_ty)
         self.module.add_struct(struct_def)
 
@@ -772,8 +814,8 @@ class IRGenerator(ASTVisitor):
         """共用体声明"""
         struct_def = IRStructDef(name=node.name)
         for m in node.members:
-            if hasattr(m, 'name'):
-                member_ty = self._get_type_name(getattr(m, 'var_type', None))
+            if hasattr(m, "name"):
+                member_ty = self._get_type_name(getattr(m, "var_type", None))
                 struct_def.add_member(m.name, member_ty)
         self.module.add_struct(struct_def)
 

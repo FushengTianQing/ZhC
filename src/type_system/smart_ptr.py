@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 class PointerType(Enum):
     """指针类型"""
+
     UNIQUE = "独享指针"
     SHARED = "共享指针"
     WEAK = "弱指针"
@@ -24,6 +25,7 @@ class PointerType(Enum):
 @dataclass
 class SmartPointerInfo:
     """智能指针信息"""
+
     var_name: str
     type_name: str
     pointer_type: PointerType
@@ -50,15 +52,21 @@ class ReferenceCountManager:
         self.pointers: Dict[str, SmartPointerInfo] = {}
         self.ownership: Dict[str, Set[str]] = {}  # ptr -> set of refs to it
 
-    def register(self, var_name: str, type_name: str,
-                pointer_type: PointerType, target_type: str, line: int) -> SmartPointerInfo:
+    def register(
+        self,
+        var_name: str,
+        type_name: str,
+        pointer_type: PointerType,
+        target_type: str,
+        line: int,
+    ) -> SmartPointerInfo:
         """注册智能指针"""
         info = SmartPointerInfo(
             var_name=var_name,
             type_name=type_name,
             pointer_type=pointer_type,
             target_type=target_type,
-            line_created=line
+            line_created=line,
         )
         self.pointers[var_name] = info
         if var_name not in self.ownership:
@@ -134,13 +142,13 @@ class SmartPointerConverter:
     """智能指针转换器"""
 
     # 独享指针模式: 独享指针<类型> 变量名;
-    UNIQUE_PATTERN = r'独享指针<(\w+)>\s+(\w+)\s*;'
+    UNIQUE_PATTERN = r"独享指针<(\w+)>\s+(\w+)\s*;"
 
     # 共享指针模式: 共享指针<类型> 变量名;
-    SHARED_PATTERN = r'共享指针<(\w+)>\s+(\w+)\s*;'
+    SHARED_PATTERN = r"共享指针<(\w+)>\s+(\w+)\s*;"
 
     # 弱指针模式: 弱指针<类型> 变量名;
-    WEAK_PATTERN = r'弱指针<(\w+)>\s+(\w+)\s*;'
+    WEAK_PATTERN = r"弱指针<(\w+)>\s+(\w+)\s*;"
 
     def __init__(self):
         self.ref_manager = ReferenceCountManager()
@@ -174,22 +182,25 @@ class SmartPointerConverter:
 
     def _convert_unique(self, target_type: str, var_name: str, line_num: int) -> str:
         """转换独享指针"""
-        self.ref_manager.register(var_name, "独享指针", PointerType.UNIQUE,
-                                   target_type, line_num)
+        self.ref_manager.register(
+            var_name, "独享指针", PointerType.UNIQUE, target_type, line_num
+        )
         self.converted_code.append(f"/* 独享指针: {var_name} */")
         return f"std::unique_ptr<{target_type}> {var_name} = std::make_unique<{target_type}>();"
 
     def _convert_shared(self, target_type: str, var_name: str, line_num: int) -> str:
         """转换共享指针"""
-        self.ref_manager.register(var_name, "共享指针", PointerType.SHARED,
-                                   target_type, line_num)
+        self.ref_manager.register(
+            var_name, "共享指针", PointerType.SHARED, target_type, line_num
+        )
         self.converted_code.append(f"/* 共享指针: {var_name} (ref_count=1) */")
         return f"std::shared_ptr<{target_type}> {var_name} = std::make_shared<{target_type}>();"
 
     def _convert_weak(self, target_type: str, var_name: str, line_num: int) -> str:
         """转换弱指针"""
-        self.ref_manager.register(var_name, "弱指针", PointerType.WEAK,
-                                   target_type, line_num)
+        self.ref_manager.register(
+            var_name, "弱指针", PointerType.WEAK, target_type, line_num
+        )
         self.converted_code.append(f"/* 弱指针: {var_name} (不增加引用计数) */")
         return f"std::weak_ptr<{target_type}> {var_name};"
 
@@ -217,23 +228,32 @@ class SmartPointerConverter:
 
     def get_statistics(self) -> Dict:
         """获取统计信息"""
-        unique_count = sum(1 for p in self.ref_manager.pointers.values()
-                          if p.pointer_type == PointerType.UNIQUE)
-        shared_count = sum(1 for p in self.ref_manager.pointers.values()
-                          if p.pointer_type == PointerType.SHARED)
-        weak_count = sum(1 for p in self.ref_manager.pointers.values()
-                        if p.pointer_type == PointerType.WEAK)
+        unique_count = sum(
+            1
+            for p in self.ref_manager.pointers.values()
+            if p.pointer_type == PointerType.UNIQUE
+        )
+        shared_count = sum(
+            1
+            for p in self.ref_manager.pointers.values()
+            if p.pointer_type == PointerType.SHARED
+        )
+        weak_count = sum(
+            1
+            for p in self.ref_manager.pointers.values()
+            if p.pointer_type == PointerType.WEAK
+        )
 
         return {
-            'total': len(self.ref_manager.pointers),
-            'unique': unique_count,
-            'shared': shared_count,
-            'weak': weak_count,
+            "total": len(self.ref_manager.pointers),
+            "unique": unique_count,
+            "shared": shared_count,
+            "weak": weak_count,
         }
 
 
 # 测试
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("=== Day 22 智能指针测试 ===")
 
     converter = SmartPointerConverter()
@@ -241,25 +261,25 @@ if __name__ == '__main__':
     # 测试独享指针
     print("\n--- 独享指针 ---")
     code = converter.parse_and_convert("独享指针<整数型> ptr;", 1)
-    print(f"输入: 独享指针<整数型> ptr;")
+    print("输入: 独享指针<整数型> ptr;")
     print(f"输出: {code}")
 
     # 测试共享指针
     print("\n--- 共享指针 ---")
     code = converter.parse_and_convert("共享指针<整数型> shared;", 2)
-    print(f"输入: 共享指针<整数型> shared;")
+    print("输入: 共享指针<整数型> shared;")
     print(f"输出: {code}")
 
     # 测试弱指针
     print("\n--- 弱指针 ---")
     code = converter.parse_and_convert("弱指针<整数型> weak;", 3)
-    print(f"输入: 弱指针<整数型> weak;")
+    print("输入: 弱指针<整数型> weak;")
     print(f"输出: {code}")
 
     # 测试引用计数
     print("\n--- 引用计数 ---")
     converter.add_reference("ptr2", "shared")
-    print(f"添加引用: ptr2 -> shared")
+    print("添加引用: ptr2 -> shared")
     print(f"shared引用计数: {converter.ref_manager.get_ref_count('shared')}")
 
     # 测试释放

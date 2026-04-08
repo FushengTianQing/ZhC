@@ -7,12 +7,12 @@ from .completer import (
     ZHCCompleter,
     install_bash_completion,
     install_zsh_completion,
-    print_installation_guide
+    print_installation_guide,
 )
 
 __all__ = [
-    'ZHCCompleter',
-    'install_bash_completion',
-    'install_zsh_completion',
-    'print_installation_guide'
+    "ZHCCompleter",
+    "install_bash_completion",
+    "install_zsh_completion",
+    "print_installation_guide",
 ]

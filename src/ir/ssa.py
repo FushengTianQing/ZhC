@@ -75,16 +75,16 @@ SSA 构建的核心问题是：哪些位置需要插入 Phi 节点？
 from typing import Dict, List, Set, Optional, Tuple
 from collections import defaultdict
 
-from .instructions import IRBasicBlock, IRInstruction
+from .instructions import IRBasicBlock
 from .program import IRFunction
 from .values import IRValue, ValueKind
-from .opcodes import Opcode
-from .dominator import LengauerTarjanDominator, build_dominator_tree_iterative
+from .dominator import LengauerTarjanDominator
 
 
 # =============================================================================
 # SSA 数据结构
 # =============================================================================
+
 
 class VersionedValue:
     """
@@ -104,7 +104,7 @@ class VersionedValue:
             return f"%{self.base_name}"
         return f"%{self.base_name}.{self.version}"
 
-    def next_version(self) -> 'VersionedValue':
+    def next_version(self) -> "VersionedValue":
         """创建下一个版本"""
         return VersionedValue(self.base_name, self.version + 1)
 
@@ -139,7 +139,8 @@ class PhiNode:
 
     def __repr__(self) -> str:
         args = ", ".join(
-            f"[{bb} {val}]" for bb, val in zip(self.incoming_blocks, self.incoming_values)
+            f"[{bb} {val}]"
+            for bb, val in zip(self.incoming_blocks, self.incoming_values)
         )
         return f"{self.result} = phi {args}"
 
@@ -147,6 +148,7 @@ class PhiNode:
 # =============================================================================
 # 支配树
 # =============================================================================
+
 
 class DominatorTree:
     """
@@ -214,6 +216,7 @@ class DominanceFrontier:
 # =============================================================================
 # SSA 构建器
 # =============================================================================
+
 
 class SSABuilder:
     """
@@ -286,29 +289,29 @@ class SSABuilder:
 
     def _compute_dominator_tree(self):
         """计算支配树（使用 Lengauer-Tarjan 算法）
-        
+
         ## 支配关系定义
-        
+
         基本块 A **支配** 基本块 B，当且仅当从入口到 B 的每条路径都经过 A。
         记作 A dom B。
-        
+
         基本块 A **直接支配** 基本块 B，当且仅当：
         1. A 支配 B
         2. A 不是 B
         3. 不存在 C，使得 A 支配 C 且 C 支配 B
-        
+
         记作 A idom B。直接支配关系形成一棵树，称为支配树。
-        
+
         ## 算法选择
-        
+
         本实现使用 Lengauer-Tarjan 算法，时间复杂度 O(N α(N))，
         其中 N 是基本块数量，α 是反阿克曼函数（实际中接近常数）。
-        
+
         相比简单的迭代算法（O(N²)），Lengauer-Tarjan 在大型 CFG 上
         有显著的性能优势。
-        
+
         ## 实现细节
-        
+
         1. 构建控制流图（CFG）的邻接表表示
         2. 调用 LengauerTarjanDominator.build() 计算直接支配者
         3. 从直接支配者推导支配者集合
@@ -354,41 +357,41 @@ class SSABuilder:
 
     def _compute_dominance_frontier(self):
         """计算支配边界
-        
+
         ## 支配边界定义
-        
+
         基本块 B 的支配边界 DF(B) 包含所有满足以下条件的基本块 Y：
         1. B 支配 Y 的某个前驱 P（即 B 是 P 的支配者）
         2. B 不严格支配 Y（即 B 不是 Y 的唯一支配者）
-        
+
         ## 直观理解
-        
+
         支配边界可以理解为：变量在 B 中定义后，
         "流出"B 的所有位置就是 DF(B)。
-        
+
         例子：
-        
+
             A ──→ B ──→ C
             └──→ D ──→ C
                       ↑
                     汇合
-        
+
         如果 B 定义了变量 x：
         - C 是 x 的支配边界（因为 B 支配 C 的前驱 D，且 B 不支配 C）
         - D 不是支配边界（因为 x 没有在 B 到 D 的路径上被"传播"）
-        
+
         ## 算法（Cooper 等人）
-        
+
         对于每个基本块 X：
         1. 如果 X 有多个前驱，则每个前驱 P 都将 X 加入 DF(P)
         2. 对于 X 的每个后继 Y，如果 X 不是 Y 的直接支配者，
            则将 Y 加入 DF(X)
-        
+
         ## 为什么需要支配边界？
-        
+
         支配边界精确地告诉我们：为了使变量 V 在 SSA 形式下正确工作，
         必须在哪些基本块的入口插入 Phi 节点。
-        
+
         具体来说：
         - 如果块 B 定义了变量 V
         - 那么 V 的支配边界 DF(B) 上的每个基本块
@@ -412,7 +415,11 @@ class SSABuilder:
                 succ_block = self._get_block(succ_label)
                 if succ_block and len(succ_block.predecessors) >= 2:
                     # 当前块是后继块的前驱之一，加入后继的支配边界
-                    idom = self.dom_tree.get_immediate_dominator(succ_label) if self.dom_tree else None
+                    idom = (
+                        self.dom_tree.get_immediate_dominator(succ_label)
+                        if self.dom_tree
+                        else None
+                    )
                     if idom and idom != bb.label:
                         self.dom_frontier.add_to_frontier(bb.label, succ_label)
 
@@ -443,7 +450,7 @@ class SSABuilder:
         if value.kind == ValueKind.VAR or value.kind == ValueKind.TEMP:
             name = value.name
             # 去掉 % 前缀
-            if name.startswith('%'):
+            if name.startswith("%"):
                 name = name[1:]
             return name
         return None
@@ -455,18 +462,18 @@ class SSABuilder:
     def _insert_phi_nodes(self):
         """
         插入 Phi 节点
-        
+
         ## 算法思想
-        
+
         使用迭代算法，基于支配边界计算需要插入 Phi 节点的位置。
-        
+
         核心观察：
         - 如果块 B 定义了变量 V
         - 那么 V 的支配边界 DF(B) 上的每个基本块都需要一个 Phi 节点
         - Phi 节点本身也是一个定义，可能触发更多的 Phi 节点
-        
+
         ## 算法步骤
-        
+
         1. 收集所有全局变量（被多个基本块定义的变量）
         2. 对于每个全局变量 V：
            a. 找出所有定义 V 的基本块
@@ -474,14 +481,14 @@ class SSABuilder:
            c. 在 DF(B) 中的每个块 Y 插入 Phi 节点
            d. 将 Y 加入待处理队列（因为 Phi 也是定义）
            e. 重复直到队列为空
-        
+
         ## 工作列表算法
-        
+
         使用工作列表（worklist）避免重复处理：
-        
+
             worklist = {定义 V 的所有基本块}
             processed = {}
-            
+
             while worklist not empty:
                 B = worklist.pop()
                 for Y in DF(B):
@@ -489,36 +496,36 @@ class SSABuilder:
                         insert_phi(V, Y)
                         worklist.add(Y)
                         processed.add(Y)
-        
+
         ## Phi 节点结构
-        
+
         Phi 节点格式：
-        
+
             %result = phi [value1, block1], [value2, block2], ...
-        
+
         含义：如果控制流来自 block_i，则 result = value_i
-        
+
         ## 示例
-        
+
         原始代码：
-        
+
             if (cond) {
                 x = 1;
             } else {
                 x = 2;
             }
             y = x;  // 这里需要 Phi 节点
-        
+
         SSA 形式：
-        
+
             if.then:
                 %x.0 = 1
                 br if.end
-            
+
             if.else:
                 %x.1 = 2
                 br if.end
-            
+
             if.end:
                 %x.2 = phi [%x.0, if.then], [%x.1, if.else]
                 %y = %x.2
@@ -573,11 +580,7 @@ class SSABuilder:
 
                 # 插入 Phi 节点
                 phi_result = VersionedValue(var_name, version=0)  # 版本会在重命名时确定
-                phi = PhiNode(
-                    result=phi_result,
-                    incoming_blocks=[],
-                    incoming_values=[]
-                )
+                phi = PhiNode(result=phi_result, incoming_blocks=[], incoming_values=[])
 
                 # 获取这个基本块的所有前驱
                 block = self._get_block(y)
@@ -608,25 +611,25 @@ class SSABuilder:
     def _rename_variables(self):
         """
         重命名变量
-        
+
         ## 算法思想
-        
+
         使用 DFS 遍历支配树，维护每个变量的版本栈。
         在遍历过程中：
         - 遇到变量定义：创建新版本，压入栈
         - 遇到变量使用：使用栈顶版本
         - 离开基本块：弹出该块定义的版本
-        
+
         ## 版本栈
-        
+
         对于每个变量 V，维护一个版本栈：
-        
+
             stack[V] = [V.0, V.1, V.2, ...]
-        
+
         栈顶是当前可见的最新版本。
-        
+
         ## 算法步骤
-        
+
         1. 初始化所有变量的版本栈为空
         2. 从入口块开始 DFS 遍历支配树
         3. 对于每个基本块 B：
@@ -637,48 +640,48 @@ class SSABuilder:
            c. 更新后继基本块的 Phi 节点 incoming 值
            d. 递归处理支配树子节点
            e. 回溯：弹出该块定义的所有版本
-        
+
         ## 为什么沿支配树遍历？
-        
+
         支配树保证了：
         - 父节点定义的变量在子节点中可见
         - 子节点定义的变量不影响父节点
         - 版本栈的压入/弹出顺序正确
-        
+
         ## 示例
-        
+
         原始代码：
-        
+
             entry:
                 %x = 1
                 br loop
-            
+
             loop:
                 %x = add %x, 1
                 br exit
-            
+
             exit:
                 %y = %x
-        
+
         重命名过程：
-        
+
             entry:
                 stack[x] = []
                 %x.0 = 1
                 stack[x].push(x.0)  // stack[x] = [x.0]
                 br loop
-            
+
             loop:
                 %x.1 = add stack[x].top(), 1  // 使用 x.0
                 stack[x].push(x.1)  // stack[x] = [x.0, x.1]
                 br exit
-            
+
             exit:
                 %y = stack[x].top()  // 使用 x.1
-            
+
             回溯 loop:
                 stack[x].pop()  // stack[x] = [x.0]
-            
+
             回溯 entry:
                 stack[x].pop()  // stack[x] = []
         """
@@ -767,11 +770,16 @@ class SSABuilder:
                     if block_label in phi.incoming_blocks:
                         idx = phi.incoming_blocks.index(block_label)
                         # 使用栈顶版本
-                        if var_name in self.rename_stack and self.rename_stack[var_name]:
+                        if (
+                            var_name in self.rename_stack
+                            and self.rename_stack[var_name]
+                        ):
                             phi.incoming_values[idx] = self.rename_stack[var_name][-1]
 
         # 5. 递归遍历支配树子节点
-        children = self.dom_tree.get_dominated_children(block_label) if self.dom_tree else []
+        children = (
+            self.dom_tree.get_dominated_children(block_label) if self.dom_tree else []
+        )
         for child_label in children:
             self._rename_dfs(child_label, visited)
 
@@ -790,9 +798,7 @@ class SSABuilder:
             if stack:
                 # 返回一个新的 IRValue，使用栈顶的版本
                 new_value = IRValue(
-                    name=stack[-1].full_name,
-                    ty=value.ty,
-                    kind=value.kind
+                    name=stack[-1].full_name, ty=value.ty, kind=value.kind
                 )
                 return new_value
         return value
@@ -816,6 +822,7 @@ class SSABuilder:
 # =============================================================================
 # 辅助函数
 # =============================================================================
+
 
 def build_ssa(func: IRFunction) -> IRFunction:
     """

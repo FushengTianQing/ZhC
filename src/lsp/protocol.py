@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Union
 
 class DiagnosticSeverity(IntEnum):
     """诊断信息严重程度"""
+
     ERROR = 1
     WARNING = 2
     INFORMATION = 3
@@ -19,6 +20,7 @@ class DiagnosticSeverity(IntEnum):
 
 class CompletionItemKind(IntEnum):
     """补全项类型"""
+
     TEXT = 1
     METHOD = 2
     FUNCTION = 3
@@ -48,6 +50,7 @@ class CompletionItemKind(IntEnum):
 
 class SymbolKind(IntEnum):
     """符号类型"""
+
     FILE = 1
     MODULE = 2
     NAMESPACE = 3
@@ -77,6 +80,7 @@ class SymbolKind(IntEnum):
 @dataclass
 class Position:
     """位置（行/列）"""
+
     line: int  # 从 0 开始的行号
     character: int  # 从 0 开始的列号
 
@@ -91,52 +95,50 @@ class Position:
 @dataclass
 class Range:
     """范围（起始位置到结束位置）"""
+
     start: Position
     end: Position
 
     def to_dict(self) -> Dict[str, Dict[str, int]]:
-        return {
-            "start": self.start.to_dict(),
-            "end": self.end.to_dict()
-        }
+        return {"start": self.start.to_dict(), "end": self.end.to_dict()}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Range":
         return cls(
             start=Position.from_dict(data.get("start", {})),
-            end=Position.from_dict(data.get("end", {}))
+            end=Position.from_dict(data.get("end", {})),
         )
 
 
 @dataclass
 class Location:
     """位置信息（URI + 范围）"""
+
     uri: str
     range: Range
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
-            "uri": self.uri,
-            "range": self.range.to_dict()
-        }
+        return {"uri": self.uri, "range": self.range.to_dict()}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Location":
         return cls(
-            uri=data.get("uri", ""),
-            range=Range.from_dict(data.get("range", {}))
+            uri=data.get("uri", ""), range=Range.from_dict(data.get("range", {}))
         )
 
 
 @dataclass
 class Diagnostic:
     """诊断信息（错误、警告等）"""
+
     range: Range
     severity: Optional[DiagnosticSeverity] = None
     code: Optional[Union[int, str]] = None
     source: str = "zhc"
     message: str = ""
-    related_information: List["DiagnosticRelatedInformation"] = field(default_factory=list)
+    related_information: List["DiagnosticRelatedInformation"] = field(
+        default_factory=list
+    )
 
     def to_dict(self) -> Dict[str, Any]:
         result = {
@@ -154,19 +156,18 @@ class Diagnostic:
 @dataclass
 class DiagnosticRelatedInformation:
     """诊断相关信息"""
+
     location: Location
     message: str
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
-            "location": self.location.to_dict(),
-            "message": self.message
-        }
+        return {"location": self.location.to_dict(), "message": self.message}
 
 
 @dataclass
 class CompletionItem:
     """补全项"""
+
     label: str  # 显示文本
     kind: Optional[CompletionItemKind] = None
     detail: Optional[str] = None
@@ -205,33 +206,30 @@ class CompletionItem:
 @dataclass
 class TextEdit:
     """文本编辑"""
+
     range: Range
     new_text: str
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
-            "range": self.range.to_dict(),
-            "newText": self.new_text
-        }
+        return {"range": self.range.to_dict(), "newText": self.new_text}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "TextEdit":
         return cls(
             range=Range.from_dict(data.get("range", {})),
-            new_text=data.get("newText", "")
+            new_text=data.get("newText", ""),
         )
 
 
 @dataclass
 class Hover:
     """悬停信息"""
+
     contents: str  # Markdown 格式的文档
     range: Optional[Range] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        result = {
-            "contents": {"kind": "markdown", "value": self.contents}
-        }
+        result = {"contents": {"kind": "markdown", "value": self.contents}}
         if self.range is not None:
             result["range"] = self.range.to_dict()
         return result
@@ -240,6 +238,7 @@ class Hover:
 @dataclass
 class SignatureInformation:
     """函数签名信息"""
+
     label: str  # 函数签名
     documentation: Optional[str] = None
     parameters: List["ParameterInformation"] = field(default_factory=list)
@@ -256,6 +255,7 @@ class SignatureInformation:
 @dataclass
 class ParameterInformation:
     """参数信息"""
+
     label: str  # 参数名
     documentation: Optional[str] = None
 
@@ -269,6 +269,7 @@ class ParameterInformation:
 @dataclass
 class SignatureHelp:
     """签名帮助"""
+
     signatures: List[SignatureInformation]
     active_signature: int = 0
     active_parameter: int = 0
@@ -277,13 +278,14 @@ class SignatureHelp:
         return {
             "signatures": [s.to_dict() for s in self.signatures],
             "activeSignature": self.active_signature,
-            "activeParameter": self.active_parameter
+            "activeParameter": self.active_parameter,
         }
 
 
 @dataclass
 class DocumentSymbol:
     """文档符号"""
+
     name: str
     kind: SymbolKind
     range: Range
@@ -296,7 +298,7 @@ class DocumentSymbol:
             "name": self.name,
             "kind": self.kind,
             "range": self.range.to_dict(),
-            "selectionRange": self.selection_range.to_dict()
+            "selectionRange": self.selection_range.to_dict(),
         }
         if self.detail is not None:
             result["detail"] = self.detail
@@ -308,6 +310,7 @@ class DocumentSymbol:
 @dataclass
 class WorkspaceEdit:
     """工作区编辑"""
+
     changes: Dict[str, List[TextEdit]] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -322,6 +325,7 @@ class WorkspaceEdit:
 @dataclass
 class SymbolInformation:
     """符号信息"""
+
     name: str
     kind: SymbolKind
     location: Location
@@ -331,7 +335,7 @@ class SymbolInformation:
         result: Dict[str, Any] = {
             "name": self.name,
             "kind": self.kind,
-            "location": self.location.to_dict()
+            "location": self.location.to_dict(),
         }
         if self.container_name is not None:
             result["containerName"] = self.container_name
@@ -342,12 +346,14 @@ class SymbolInformation:
 @dataclass
 class Message:
     """JSON-RPC 消息基类"""
+
     jsonrpc: str = field(default="2.0", init=False)
 
 
 @dataclass
 class Request(Message):
     """JSON-RPC 请求"""
+
     id: Union[int, str] = 0
     method: str = ""
     params: Optional[Any] = None
@@ -356,7 +362,7 @@ class Request(Message):
         result: Dict[str, Any] = {
             "jsonrpc": "2.0",
             "id": self.id,
-            "method": self.method
+            "method": self.method,
         }
         if self.params is not None:
             result["params"] = self.params
@@ -367,13 +373,14 @@ class Request(Message):
         return cls(
             id=data.get("id", 0),
             method=data.get("method", ""),
-            params=data.get("params")
+            params=data.get("params"),
         )
 
 
 @dataclass
 class Response(Message):
     """JSON-RPC 响应"""
+
     id: Union[int, str, None] = None
     result: Any = None
     error: Optional["ResponseError"] = None
@@ -392,15 +399,13 @@ class Response(Message):
 @dataclass
 class ResponseError:
     """JSON-RPC 错误"""
+
     code: int = 0
     message: str = ""
     data: Optional[Any] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        result: Dict[str, Any] = {
-            "code": self.code,
-            "message": self.message
-        }
+        result: Dict[str, Any] = {"code": self.code, "message": self.message}
         if self.data is not None:
             result["data"] = self.data
         return result
@@ -409,14 +414,12 @@ class ResponseError:
 @dataclass
 class Notification(Message):
     """JSON-RPC 通知（无响应的消息）"""
+
     method: str = ""
     params: Optional[Any] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        result: Dict[str, Any] = {
-            "jsonrpc": "2.0",
-            "method": self.method
-        }
+        result: Dict[str, Any] = {"jsonrpc": "2.0", "method": self.method}
         if self.params is not None:
             result["params"] = self.params
         return result
@@ -426,6 +429,7 @@ class Notification(Message):
 @dataclass
 class ServerCapabilities:
     """服务器能力"""
+
     text_document_sync: int = 1  # 1=Full, 2=Incremental
     completion_provider: Optional[Dict[str, Any]] = None
     hover_provider: bool = False
@@ -444,9 +448,7 @@ class ServerCapabilities:
     workspace: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        result: Dict[str, Any] = {
-            "textDocumentSync": self.text_document_sync
-        }
+        result: Dict[str, Any] = {"textDocumentSync": self.text_document_sync}
         if self.completion_provider is not None:
             result["completionProvider"] = self.completion_provider
         if self.hover_provider:
@@ -470,7 +472,9 @@ class ServerCapabilities:
         if self.document_formatting_provider:
             result["documentFormattingProvider"] = self.document_formatting_provider
         if self.document_range_formatting_provider:
-            result["documentRangeFormattingProvider"] = self.document_range_formatting_provider
+            result["documentRangeFormattingProvider"] = (
+                self.document_range_formatting_provider
+            )
         if self.rename_provider:
             result["renameProvider"] = self.rename_provider
         if self.execute_command_provider is not None:

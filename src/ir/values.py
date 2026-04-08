@@ -14,12 +14,13 @@ from typing import Optional, Any
 
 class ValueKind(Enum):
     """IR 值的种类"""
-    CONST = "const"      # 常量（字面量）
-    TEMP = "temp"       # 临时变量（编译器生成）
-    VAR = "var"         # 用户变量
-    PARAM = "param"     # 函数参数
-    GLOBAL = "global"    # 全局变量
-    LABEL = "label"     # 基本块标签
+
+    CONST = "const"  # 常量（字面量）
+    TEMP = "temp"  # 临时变量（编译器生成）
+    VAR = "var"  # 用户变量
+    PARAM = "param"  # 函数参数
+    GLOBAL = "global"  # 全局变量
+    LABEL = "label"  # 基本块标签
     FUNCTION = "function"  # 函数地址
 
 

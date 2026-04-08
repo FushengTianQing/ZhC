@@ -9,7 +9,6 @@ Day 15: 继承转换器
 4. 继承链追踪
 """
 
-import re
 from typing import List, Dict, Optional, Set, Tuple
 
 
@@ -20,15 +19,19 @@ class InheritanceConverter:
         self.classes: Dict[str, Dict] = {}
         self.inheritance_chains: Dict[str, List[str]] = {}
 
-    def add_class(self, class_name: str, base_class: Optional[str] = None,
-                  attributes: Optional[List[str]] = None,
-                  methods: Optional[List[str]] = None):
+    def add_class(
+        self,
+        class_name: str,
+        base_class: Optional[str] = None,
+        attributes: Optional[List[str]] = None,
+        methods: Optional[List[str]] = None,
+    ):
         """添加类定义"""
         self.classes[class_name] = {
-            'name': class_name,
-            'base_class': base_class,
-            'attributes': attributes or [],
-            'methods': methods or []
+            "name": class_name,
+            "base_class": base_class,
+            "attributes": attributes or [],
+            "methods": methods or [],
         }
 
         # 计算继承链
@@ -47,7 +50,7 @@ class InheritanceConverter:
         while current and current not in visited:
             visited.add(current)
             chain.append(current)
-            base = self.classes[current]['base_class']
+            base = self.classes[current]["base_class"]
             current = base
 
         self.inheritance_chains[class_name] = chain
@@ -62,78 +65,82 @@ class InheritanceConverter:
             return "", ""
 
         class_info = self.classes[class_name]
-        base_class = class_info['base_class']
+        base_class = class_info["base_class"]
 
         # 生成struct定义
-        struct_def = self._generate_struct_definition(class_name, base_class, class_info['attributes'])
+        struct_def = self._generate_struct_definition(
+            class_name, base_class, class_info["attributes"]
+        )
 
         # 生成头文件
-        header = self._generate_header(class_name, base_class, class_info['methods'])
+        header = self._generate_header(class_name, base_class, class_info["methods"])
 
         return struct_def, header
 
-    def _generate_struct_definition(self, class_name: str, base_class: Optional[str],
-                                attributes: List[str]) -> str:
+    def _generate_struct_definition(
+        self, class_name: str, base_class: Optional[str], attributes: List[str]
+    ) -> str:
         """生成struct定义"""
-        lines = [f'/* {class_name} 类的struct定义 */']
+        lines = [f"/* {class_name} 类的struct定义 */"]
 
         # 如果有基类，先包含基类头文件
         if base_class:
             lines.append(f'#include "{base_class}.h"')
-            lines.append('')
+            lines.append("")
 
-        lines.append(f'typedef struct {class_name} {{')
+        lines.append(f"typedef struct {class_name} {{")
 
         # 添加基类成员
         if base_class:
-            lines.append(f'    /* 基类 {base_class} 的成员 */')
-            lines.append(f'    struct {base_class} base;')
+            lines.append(f"    /* 基类 {base_class} 的成员 */")
+            lines.append(f"    struct {base_class} base;")
 
         # 添加当前类的属性
-        lines.append('')
-        lines.append(f'    /* {class_name} 自己的成员 */')
+        lines.append("")
+        lines.append(f"    /* {class_name} 自己的成员 */")
         for attr in attributes:
-            lines.append(f'    {attr};')
+            lines.append(f"    {attr};")
 
-        lines.append(f'}} {class_name};')
+        lines.append(f"}} {class_name};")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
-    def _generate_header(self, class_name: str, base_class: Optional[str],
-                        methods: List[str]) -> str:
+    def _generate_header(
+        self, class_name: str, base_class: Optional[str], methods: List[str]
+    ) -> str:
         """生成头文件"""
         lines = []
 
         # 头文件保护宏
-        guard = f'__{class_name.upper()}_H_'
+        guard = f"__{class_name.upper()}_H_"
 
-        lines.append(f'#ifndef {guard}')
-        lines.append(f'#define {guard}')
-        lines.append('')
+        lines.append(f"#ifndef {guard}")
+        lines.append(f"#define {guard}")
+        lines.append("")
 
         if base_class:
             lines.append(f'#include "{base_class}.h"')
-            lines.append('')
+            lines.append("")
 
-        lines.append(f'/* {class_name} 类的公开接口 */')
+        lines.append(f"/* {class_name} 类的公开接口 */")
 
         # 构造函数声明
-        lines.append(f'/* 构造函数 */')
-        lines.append(f'struct {class_name} * {class_name}_constructor')
+        lines.append("/* 构造函数 */")
+        lines.append(f"struct {class_name} * {class_name}_constructor")
         if base_class:
-            lines[-1] += f'(struct {base_class} *base'
-            lines.append(')')
+            lines[-1] += f"(struct {base_class} *base"
+            lines.append(")")
 
         # 方法声明
-        lines.append('')
-        lines.append(f'/* 方法 */')
+        lines.append("")
+        lines.append("/* 方法 */")
         for method in methods:
-            lines.append(f'void {class_name}_{method}(struct {class_name} *self);')
+            lines.append(f"void {class_name}_{method}(struct {class_name} *self);")
 
-        lines.append('')
-        lines.append(f'#endif /* {guard} */')
+        lines.append("")
+        lines.append(f"#endif /* {guard} */")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
 
 class InheritanceChainAnalyzer:
@@ -159,10 +166,7 @@ class InheritanceChainAnalyzer:
             self.levels[class_name] = len(chain) - 1
 
         # 找出根类
-        self.roots = {
-            name for name, base in class_hierarchy.items()
-            if base is None
-        }
+        self.roots = {name for name, base in class_hierarchy.items() if base is None}
 
     def _compute_chain(self, class_name: str, hierarchy: Dict[str, Optional[str]]):
         """计算单个类的继承链"""
@@ -207,9 +211,11 @@ class InheritanceChainAnalyzer:
     def get_statistics(self) -> Dict:
         """获取统计信息"""
         return {
-            'total_classes': len(self.chains),
-            'root_classes': len(self.roots),
-            'max_depth': max(len(chain) for chain in self.chains.values()) if self.chains else 0
+            "total_classes": len(self.chains),
+            "root_classes": len(self.roots),
+            "max_depth": max(len(chain) for chain in self.chains.values())
+            if self.chains
+            else 0,
         }
 
 
@@ -230,12 +236,7 @@ if __name__ == "__main__":
     # 测试2: 继承链分析
     print("\n2. 测试继承链分析:")
     analyzer = InheritanceChainAnalyzer()
-    analyzer.analyze({
-        "人类": None,
-        "学生": "人类",
-        "大学生": "学生",
-        "研究生": "学生"
-    })
+    analyzer.analyze({"人类": None, "学生": "人类", "大学生": "学生", "研究生": "学生"})
 
     print(f"大学生的继承链: {analyzer.get_chain('大学生')}")
     print(f"研究生的层次: {analyzer.get_level('研究生')} (0=根类)")

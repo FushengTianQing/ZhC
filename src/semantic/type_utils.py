@@ -8,8 +8,8 @@ Phase 5 T2.1
 from typing import Optional
 
 from ..parser.ast_nodes import (
-    ASTNode, ASTNodeType,
-    PrimitiveTypeNode, PointerTypeNode, ArrayTypeNode, FunctionTypeNode,
+    ASTNode,
+    ASTNodeType,
 )
 from ..analyzer.type_checker import TypeChecker, TypeInfo
 
@@ -38,7 +38,7 @@ def ast_type_to_typeinfo(node: ASTNode) -> Optional[TypeInfo]:
 
     elif nt == ASTNodeType.POINTER_TYPE:
         # PointerTypeNode.base_type 是基础类型节点
-        if not hasattr(node, 'base_type') or node.base_type is None:
+        if not hasattr(node, "base_type") or node.base_type is None:
             return None
         base = ast_type_to_typeinfo(node.base_type)
         if base is None:
@@ -47,27 +47,27 @@ def ast_type_to_typeinfo(node: ASTNode) -> Optional[TypeInfo]:
 
     elif nt == ASTNodeType.ARRAY_TYPE:
         # ArrayTypeNode.element_type 是元素类型，size 是可选的 ASTNode
-        if not hasattr(node, 'element_type') or node.element_type is None:
+        if not hasattr(node, "element_type") or node.element_type is None:
             return None
         base = ast_type_to_typeinfo(node.element_type)
         if base is None:
             return None
         # size 可能是 ASTNode（表达式）或 None
         size_val = None
-        if hasattr(node, 'size') and node.size is not None:
+        if hasattr(node, "size") and node.size is not None:
             if isinstance(node.size, int):
                 size_val = node.size
-            elif hasattr(node.size, 'value'):
+            elif hasattr(node.size, "value"):
                 size_val = node.size.value
         return _tc.create_array_type(base, size_val)
 
     elif nt == ASTNodeType.FUNCTION_TYPE:
         # FunctionTypeNode: return_type + param_types
         ret = None
-        if hasattr(node, 'return_type') and node.return_type:
+        if hasattr(node, "return_type") and node.return_type:
             ret = ast_type_to_typeinfo(node.return_type)
         params = []
-        if hasattr(node, 'param_types') and node.param_types:
+        if hasattr(node, "param_types") and node.param_types:
             for p in node.param_types:
                 pt = ast_type_to_typeinfo(p)
                 if pt:

@@ -19,9 +19,21 @@ from .program import IRProgram, IRFunction, IRGlobalVar, IRStructDef
 from .ir_generator import IRGenerator
 from .c_backend import CBackend
 from .printer import IRPrinter
-from .optimizer import ConstantFolding, DeadCodeElimination, PassManager, OptimizationPass
+from .optimizer import (
+    ConstantFolding,
+    DeadCodeElimination,
+    PassManager,
+    OptimizationPass,
+)
 from .ir_verifier import IRVerifier, VerificationError
-from .ssa import SSABuilder, DominatorTree, DominanceFrontier, VersionedValue, PhiNode, build_ssa
+from .ssa import (
+    SSABuilder,
+    DominatorTree,
+    DominanceFrontier,
+    VersionedValue,
+    PhiNode,
+    build_ssa,
+)
 from .dataflow import (
     DataFlowResult,
     DataFlowAnalysis,

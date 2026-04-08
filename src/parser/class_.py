@@ -27,63 +27,68 @@ Day 11: 类系统核心实现
 """
 
 import re
-from typing import List, Dict, Optional, Set, Tuple, Any
+from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
 
 class Visibility(Enum):
     """可见性枚举"""
-    PUBLIC = "public"      # 公开：可被外部访问
-    PRIVATE = "private"     # 私有：仅类内部可访问
+
+    PUBLIC = "public"  # 公开：可被外部访问
+    PRIVATE = "private"  # 私有：仅类内部可访问
     PROTECTED = "protected"  # 保护：类及子类可访问
 
 
 class AttributeType(Enum):
     """属性类型枚举"""
-    INSTANCE = "instance"    # 实例属性
-    CLASS = "class"        # 类属性（静态）
+
+    INSTANCE = "instance"  # 实例属性
+    CLASS = "class"  # 类属性（静态）
     CONSTANT = "constant"  # 常量属性
 
 
 @dataclass
 class AttributeInfo:
     """属性信息"""
-    name: str                    # 属性名
-    type_name: str               # 类型名（如 整数型、字符串型）
-    visibility: Visibility       # 可见性
+
+    name: str  # 属性名
+    type_name: str  # 类型名（如 整数型、字符串型）
+    visibility: Visibility  # 可见性
     attribute_type: AttributeType  # 属性类型
-    line_number: int            # 定义行号
+    line_number: int  # 定义行号
     default_value: Optional[str] = None  # 默认值
-    is_static: bool = False      # 是否为静态属性
-    is_const: bool = False      # 是否为常量
+    is_static: bool = False  # 是否为静态属性
+    is_const: bool = False  # 是否为常量
 
 
 @dataclass
 class MethodInfo:
     """方法信息"""
-    name: str                    # 方法名
-    return_type: str            # 返回类型
+
+    name: str  # 方法名
+    return_type: str  # 返回类型
     parameters: List[Tuple[str, str]]  # 参数列表 [(参数名, 类型), ...]
-    visibility: Visibility       # 可见性
+    visibility: Visibility  # 可见性
     is_constructor: bool = False  # 是否为构造函数
-    is_destructor: bool = False   # 是否为析构函数
-    is_static: bool = False      # 是否为静态方法
-    is_virtual: bool = False     # 是否为虚函数
-    line_number: int = 0       # 定义行号
+    is_destructor: bool = False  # 是否为析构函数
+    is_static: bool = False  # 是否为静态方法
+    is_virtual: bool = False  # 是否为虚函数
+    line_number: int = 0  # 定义行号
 
 
 @dataclass
 class ClassInfo:
     """类信息"""
-    name: str                           # 类名
-    base_class: Optional[str] = None    # 基类名
+
+    name: str  # 类名
+    base_class: Optional[str] = None  # 基类名
     attributes: List[AttributeInfo] = field(default_factory=list)  # 属性列表
-    methods: List[MethodInfo] = field(default_factory=list)       # 方法列表
+    methods: List[MethodInfo] = field(default_factory=list)  # 方法列表
     visibility: Visibility = Visibility.PUBLIC  # 类本身可见性
-    line_number: int = 0              # 定义行号
-    is_abstract: bool = False          # 是否为抽象类
-    is_final: bool = False             # 是否为最终类
+    line_number: int = 0  # 定义行号
+    is_abstract: bool = False  # 是否为抽象类
+    is_final: bool = False  # 是否为最终类
 
     def add_attribute(self, attr: AttributeInfo):
         """添加属性"""
@@ -113,11 +118,11 @@ class ClassParser:
     """类解析器"""
 
     # 关键字模式
-    CLASS_PATTERN = r'类\s+(\w+)(?:\s*:\s*(\w+))?\s*\{'
-    ATTRIBUTE_PATTERN = r'(\w+型)\s+(\w+)(?:\s*=\s*([^;]+))?;'
-    METHOD_PATTERN = r'函数\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*(\w+型))?\s*\{'
-    CONSTRUCTOR_PATTERN = r'函数\s+构造函数\s*\(([^)]*)\)\s*->\s*空型\s*\{'
-    DESTRUCTOR_PATTERN = r'函数\s+析构函数\s*\(\s*\)\s*->\s*空型\s*\{'
+    CLASS_PATTERN = r"类\s+(\w+)(?:\s*:\s*(\w+))?\s*\{"
+    ATTRIBUTE_PATTERN = r"(\w+型)\s+(\w+)(?:\s*=\s*([^;]+))?;"
+    METHOD_PATTERN = r"函数\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*(\w+型))?\s*\{"
+    CONSTRUCTOR_PATTERN = r"函数\s+构造函数\s*\(([^)]*)\)\s*->\s*空型\s*\{"
+    DESTRUCTOR_PATTERN = r"函数\s+析构函数\s*\(\s*\)\s*->\s*空型\s*\{"
 
     def __init__(self):
         self.classes: Dict[str, ClassInfo] = {}
@@ -140,9 +145,7 @@ class ClassParser:
                 return None
 
             class_info = ClassInfo(
-                name=class_name,
-                base_class=base_class,
-                line_number=line_num
+                name=class_name, base_class=base_class, line_number=line_num
             )
             self.classes[class_name] = class_info
             self.current_class = class_info
@@ -196,7 +199,7 @@ class ClassParser:
                 visibility=visibility,
                 attribute_type=AttributeType.INSTANCE,
                 line_number=line_num,
-                default_value=default_value.strip() if default_value else None
+                default_value=default_value.strip() if default_value else None,
             )
 
             self.current_class.add_attribute(attr)
@@ -221,7 +224,7 @@ class ClassParser:
                 parameters=params,
                 visibility=Visibility.PUBLIC,
                 is_constructor=True,
-                line_number=line_num
+                line_number=line_num,
             )
 
             self.current_class.add_method(method)
@@ -236,7 +239,7 @@ class ClassParser:
                 parameters=[],
                 visibility=Visibility.PUBLIC,
                 is_destructor=True,
-                line_number=line_num
+                line_number=line_num,
             )
 
             self.current_class.add_method(method)
@@ -259,7 +262,7 @@ class ClassParser:
                 return_type=return_type,
                 parameters=params,
                 visibility=visibility,
-                line_number=line_num
+                line_number=line_num,
             )
 
             self.current_class.add_method(method)
@@ -274,7 +277,7 @@ class ClassParser:
             return params
 
         # 分割参数
-        param_matches = re.findall(r'(\w+型)\s+(\w+)', params_str)
+        param_matches = re.findall(r"(\w+型)\s+(\w+)", params_str)
         for type_name, param_name in param_matches:
             params.append((param_name, type_name))
 
@@ -313,7 +316,7 @@ class ClassParser:
     def parse_file(self, file_path: str) -> List[ClassInfo]:
         """解析文件中的所有类"""
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
 
             self.classes.clear()
@@ -409,7 +412,7 @@ if __name__ == "__main__":
 """
 
     print("1. 解析测试代码:")
-    lines = test_code.strip().split('\n')
+    lines = test_code.strip().split("\n")
     for i, line in enumerate(lines, 1):
         parser.parse_line(line.strip(), i)
 
@@ -428,7 +431,7 @@ if __name__ == "__main__":
 
     undergrad_class = parser.get_class("大学生")
     if undergrad_class:
-        print(f"\n   大学生类:")
+        print("\n   大学生类:")
         print(f"   - 基类: {undergrad_class.base_class}")
         print(f"   - 属性数: {len(undergrad_class.attributes)}")
         print(f"   - 方法数: {len(undergrad_class.methods)}")

@@ -26,13 +26,14 @@ Day 8: 模块高级特性扩展
 
 import re
 from typing import Dict, List, Optional, Set, Tuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 
 
 class ConditionType(Enum):
     """条件类型枚举"""
-    DEFINED = "defined"       # 定义了某个符号
+
+    DEFINED = "defined"  # 定义了某个符号
     NOT_DEFINED = "not_defined"  # 未定义某个符号
     VERSION_COMPARE = "version_compare"  # 版本比较
 
@@ -40,76 +41,99 @@ class ConditionType(Enum):
 @dataclass
 class ModuleAlias:
     """模块别名信息"""
-    original_name: str          # 原始模块名
-    alias: str                  # 别名
-    line_number: int           # 定义行号
+
+    original_name: str  # 原始模块名
+    alias: str  # 别名
+    line_number: int  # 定义行号
     file_path: Optional[str] = None  # 文件路径
 
 
 @dataclass
 class ConditionalBlock:
     """条件编译块"""
+
     condition_type: ConditionType
     condition_value: str
-    content: str                # 块内容
-    else_content: str = ""     # else块内容
+    content: str  # 块内容
+    else_content: str = ""  # else块内容
     line_number: int = 0
 
 
 @dataclass
 class VersionInfo:
     """版本信息"""
+
     major: int = 0
     minor: int = 0
     patch: int = 0
 
     @classmethod
-    def parse(cls, version_str: str) -> 'VersionInfo':
+    def parse(cls, version_str: str) -> "VersionInfo":
         """解析版本字符串"""
         # 清理版本字符串
-        version_str = version_str.strip().lstrip('vV')
+        version_str = version_str.strip().lstrip("vV")
 
         # 尝试解析 x.y.z 格式
-        match = re.match(r'(\d+)(?:\.(\d+))?(?:\.(\d+))?', version_str)
+        match = re.match(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?", version_str)
         if match:
             return cls(
                 major=int(match.group(1)),
                 minor=int(match.group(2)) if match.group(2) else 0,
-                patch=int(match.group(3)) if match.group(3) else 0
+                patch=int(match.group(3)) if match.group(3) else 0,
             )
         return cls()
 
     def __str__(self) -> str:
         return f"{self.major}.{self.minor}.{self.patch}"
 
-    def __lt__(self, other: 'VersionInfo') -> bool:
-        return (self.major, self.minor, self.patch) < (other.major, other.minor, other.patch)
+    def __lt__(self, other: "VersionInfo") -> bool:
+        return (self.major, self.minor, self.patch) < (
+            other.major,
+            other.minor,
+            other.patch,
+        )
 
-    def __le__(self, other: 'VersionInfo') -> bool:
-        return (self.major, self.minor, self.patch) <= (other.major, other.minor, other.patch)
+    def __le__(self, other: "VersionInfo") -> bool:
+        return (self.major, self.minor, self.patch) <= (
+            other.major,
+            other.minor,
+            other.patch,
+        )
 
-    def __gt__(self, other: 'VersionInfo') -> bool:
-        return (self.major, self.minor, self.patch) > (other.major, other.minor, other.patch)
+    def __gt__(self, other: "VersionInfo") -> bool:
+        return (self.major, self.minor, self.patch) > (
+            other.major,
+            other.minor,
+            other.patch,
+        )
 
-    def __ge__(self, other: 'VersionInfo') -> bool:
-        return (self.major, self.minor, self.patch) >= (other.major, other.minor, other.patch)
+    def __ge__(self, other: "VersionInfo") -> bool:
+        return (self.major, self.minor, self.patch) >= (
+            other.major,
+            other.minor,
+            other.patch,
+        )
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, VersionInfo):
             return False
-        return (self.major, self.minor, self.patch) == (other.major, other.minor, other.patch)
+        return (self.major, self.minor, self.patch) == (
+            other.major,
+            other.minor,
+            other.patch,
+        )
 
 
 class VersionComparator:
     """版本比较器"""
 
     OPERATORS = {
-        '>=': lambda a, b: a >= b,
-        '<=': lambda a, b: a <= b,
-        '>': lambda a, b: a > b,
-        '<': lambda a, b: a < b,
-        '==': lambda a, b: a == b,
-        '!=': lambda a, b: a != b,
+        ">=": lambda a, b: a >= b,
+        "<=": lambda a, b: a <= b,
+        ">": lambda a, b: a > b,
+        "<": lambda a, b: a < b,
+        "==": lambda a, b: a == b,
+        "!=": lambda a, b: a != b,
     }
 
     @classmethod
@@ -133,7 +157,13 @@ class ModuleAliasManager:
         self.aliases: Dict[str, ModuleAlias] = {}  # 别名 -> 别名信息
         self.module_to_aliases: Dict[str, List[str]] = {}  # 原始模块名 -> 别名列表
 
-    def add_alias(self, original_name: str, alias: str, line_number: int = 0, file_path: Optional[str] = None) -> bool:
+    def add_alias(
+        self,
+        original_name: str,
+        alias: str,
+        line_number: int = 0,
+        file_path: Optional[str] = None,
+    ) -> bool:
         """添加模块别名"""
         if alias in self.aliases:
             return False  # 别名已存在
@@ -142,7 +172,7 @@ class ModuleAliasManager:
             original_name=original_name,
             alias=alias,
             line_number=line_number,
-            file_path=file_path
+            file_path=file_path,
         )
 
         self.aliases[alias] = module_alias
@@ -189,10 +219,14 @@ class ModuleAliasManager:
     def get_statistics(self) -> Dict[str, object]:
         """获取统计信息"""
         return {
-            'total_aliases': len(self.aliases),
-            'modules_with_aliases': len(self.module_to_aliases),
-            'most_used_module': max(self.module_to_aliases.keys(),
-                                   key=lambda k: len(self.module_to_aliases[k])) if self.module_to_aliases else None
+            "total_aliases": len(self.aliases),
+            "modules_with_aliases": len(self.module_to_aliases),
+            "most_used_module": max(
+                self.module_to_aliases.keys(),
+                key=lambda k: len(self.module_to_aliases[k]),
+            )
+            if self.module_to_aliases
+            else None,
         }
 
 
@@ -223,17 +257,17 @@ class ConditionalCompiler:
             return not self.is_defined(value)
         elif condition_type == ConditionType.VERSION_COMPARE:
             # 版本比较格式: "version >= 1.0.0"
-            match = re.match(r'version\s*([><=!]+)\s*([\d.]+)', value)
+            match = re.match(r"version\s*([><=!]+)\s*([\d.]+)", value)
             if match:
-                operator = match.group(1)
-                version = match.group(2)
+                match.group(1)
+                match.group(2)
                 # 这里应该检查当前模块版本
                 return True  # 简化版本，实际应检查版本
         return False
 
     def process_conditional_block(self, content: str) -> str:
         """处理条件编译块"""
-        lines = content.split('\n')
+        lines = content.split("\n")
         result_lines = []
         i = 0
 
@@ -243,7 +277,9 @@ class ConditionalCompiler:
             # 检查条件编译指令
             if self._is_conditional_start(line):
                 condition = self._parse_condition(line)
-                block_content, else_content, consumed = self._extract_block(lines, i + 1)
+                block_content, else_content, consumed = self._extract_block(
+                    lines, i + 1
+                )
 
                 if condition and self.evaluate_condition(condition[0], condition[1]):
                     result_lines.extend(block_content)
@@ -255,44 +291,50 @@ class ConditionalCompiler:
                 result_lines.append(lines[i])
                 i += 1
 
-        return '\n'.join(result_lines)
+        return "\n".join(result_lines)
 
     def _is_conditional_start(self, line: str) -> bool:
         """检查是否是条件编译开始"""
-        return line.startswith('#如果') or line.startswith('#ifdef') or line.startswith('#if')
+        return (
+            line.startswith("#如果")
+            or line.startswith("#ifdef")
+            or line.startswith("#if")
+        )
 
     def _parse_condition(self, line: str) -> Optional[Tuple[ConditionType, str]]:
         """解析条件"""
         line = line.strip()
 
-        if line.startswith('#如果 定义('):
-            match = re.match(r'#如果\s+定义\(([^)]+)\)', line)
+        if line.startswith("#如果 定义("):
+            match = re.match(r"#如果\s+定义\(([^)]+)\)", line)
             if match:
                 return (ConditionType.DEFINED, match.group(1))
 
-        elif line.startswith('#如果 未定义('):
-            match = re.match(r'#如果\s+未定义\(([^)]+)\)', line)
+        elif line.startswith("#如果 未定义("):
+            match = re.match(r"#如果\s+未定义\(([^)]+)\)", line)
             if match:
                 return (ConditionType.NOT_DEFINED, match.group(1))
 
-        elif line.startswith('#如果 版本'):
-            match = re.match(r'#如果\s+版本\s+(.+)', line)
+        elif line.startswith("#如果 版本"):
+            match = re.match(r"#如果\s+版本\s+(.+)", line)
             if match:
                 return (ConditionType.VERSION_COMPARE, match.group(1))
 
-        elif line.startswith('#ifdef'):
-            match = re.match(r'#ifdef\s+(\w+)', line)
+        elif line.startswith("#ifdef"):
+            match = re.match(r"#ifdef\s+(\w+)", line)
             if match:
                 return (ConditionType.DEFINED, match.group(1))
 
-        elif line.startswith('#ifndef'):
-            match = re.match(r'#ifndef\s+(\w+)', line)
+        elif line.startswith("#ifndef"):
+            match = re.match(r"#ifndef\s+(\w+)", line)
             if match:
                 return (ConditionType.NOT_DEFINED, match.group(1))
 
         return None
 
-    def _extract_block(self, lines: List[str], start: int) -> Tuple[List[str], List[str], int]:
+    def _extract_block(
+        self, lines: List[str], start: int
+    ) -> Tuple[List[str], List[str], int]:
         """提取条件块内容"""
         block_content: List[str] = []
         else_content: List[str] = []
@@ -305,12 +347,16 @@ class ConditionalCompiler:
             line = lines[i].strip()
             consumed += 1
 
-            if line.startswith('#如果') or line.startswith('#ifdef') or line.startswith('#if'):
+            if (
+                line.startswith("#如果")
+                or line.startswith("#ifdef")
+                or line.startswith("#if")
+            ):
                 depth += 1
                 current.append(lines[i])
-            elif line == '#否则' and depth == 1:
+            elif line == "#否则" and depth == 1:
                 current = else_content
-            elif line == '#结束' or line == '#endif':
+            elif line == "#结束" or line == "#endif":
                 depth -= 1
                 if depth > 0:
                     current.append(lines[i])
@@ -347,7 +393,7 @@ class VersionManager:
             return False
 
         # 解析约束（如 ">= 1.0.0"）
-        match = re.match(r'([><=!]+)\s*([\d.]+)', constraint.strip())
+        match = re.match(r"([><=!]+)\s*([\d.]+)", constraint.strip())
         if not match:
             return True  # 无法解析，认为兼容
 
@@ -355,21 +401,23 @@ class VersionManager:
         expected_version = match.group(2)
 
         current = self.module_versions[module_name]
-        expected = VersionInfo.parse(expected_version)
+        VersionInfo.parse(expected_version)
 
         return VersionComparator.compare(str(current), operator, expected_version)
 
     def get_statistics(self) -> Dict[str, object]:
         """获取版本统计"""
         if not self.module_versions:
-            return {'total_modules': 0}
+            return {"total_modules": 0}
 
         versions = list(self.module_versions.values())
         return {
-            'total_modules': len(self.module_versions),
-            'modules': list(self.module_versions.keys()),
-            'latest_version': max(self.module_versions.items(), key=lambda x: x[1])[0] if versions else None,
-            'constraints': len(self.version_constraints)
+            "total_modules": len(self.module_versions),
+            "modules": list(self.module_versions.keys()),
+            "latest_version": max(self.module_versions.items(), key=lambda x: x[1])[0]
+            if versions
+            else None,
+            "constraints": len(self.version_constraints),
         }
 
 
@@ -424,8 +472,12 @@ if __name__ == "__main__":
     version_mgr.set_version_constraint("数学库", ">= 1.0.0")
 
     print(f"   数学库版本: {version_mgr.get_module_version('数学库')}")
-    print(f"   版本兼容性检查 (数学库 >= 1.0.0): {version_mgr.check_version_compatibility('数学库', '>= 1.0.0')}")
-    print(f"   版本兼容性检查 (数学库 >= 2.0.0): {version_mgr.check_version_compatibility('数学库', '>= 2.0.0')}")
+    print(
+        f"   版本兼容性检查 (数学库 >= 1.0.0): {version_mgr.check_version_compatibility('数学库', '>= 1.0.0')}"
+    )
+    print(
+        f"   版本兼容性检查 (数学库 >= 2.0.0): {version_mgr.check_version_compatibility('数学库', '>= 2.0.0')}"
+    )
     print(f"   版本统计: {version_mgr.get_statistics()}")
 
     # 测试4: 版本比较

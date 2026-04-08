@@ -21,41 +21,42 @@ from .base import ZHCError, SourceLocation, ErrorCollection
 # ============================================================================
 
 # P001-P010: 文件错误
-PIPELINE_FILE_NOT_FOUND = "P001"       # 文件不存在
-PIPELINE_FILE_READ_ERROR = "P002"      # 文件读取错误
-PIPELINE_FILE_WRITE_ERROR = "P003"     # 文件写入错误
+PIPELINE_FILE_NOT_FOUND = "P001"  # 文件不存在
+PIPELINE_FILE_READ_ERROR = "P002"  # 文件读取错误
+PIPELINE_FILE_WRITE_ERROR = "P003"  # 文件写入错误
 
 # P011-P020: 语法错误
-PIPELINE_SYNTAX_MISSING_BRACE = "P011"        # 缺少花括号
-PIPELINE_SYNTAX_UNEXPECTED_TOKEN = "P012"     # 意外的标记
-PIPELINE_SYNTAX_INVALID_MODULE_DECL = "P013"   # 无效的模块声明
+PIPELINE_SYNTAX_MISSING_BRACE = "P011"  # 缺少花括号
+PIPELINE_SYNTAX_UNEXPECTED_TOKEN = "P012"  # 意外的标记
+PIPELINE_SYNTAX_INVALID_MODULE_DECL = "P013"  # 无效的模块声明
 PIPELINE_SYNTAX_INVALID_IMPORT_STMT = "P014"  # 无效的导入语句
-PIPELINE_SYNTAX_INVALID_VISIBILITY = "P015"   # 无效的可见性修饰符
+PIPELINE_SYNTAX_INVALID_VISIBILITY = "P015"  # 无效的可见性修饰符
 
 # P021-P030: 语义错误
-PIPELINE_SEMANTIC_DUPLICATE_SYMBOL = "P021"   # 符号重复定义
-PIPELINE_SEMANTIC_UNDEFINED_SYMBOL = "P022"    # 未定义的符号
-PIPELINE_SEMANTIC_TYPE_MISMATCH = "P023"      # 类型不匹配
-PIPELINE_SEMANTIC_INVALID_RETURN = "P024"       # 无效的返回语句
+PIPELINE_SEMANTIC_DUPLICATE_SYMBOL = "P021"  # 符号重复定义
+PIPELINE_SEMANTIC_UNDEFINED_SYMBOL = "P022"  # 未定义的符号
+PIPELINE_SEMANTIC_TYPE_MISMATCH = "P023"  # 类型不匹配
+PIPELINE_SEMANTIC_INVALID_RETURN = "P024"  # 无效的返回语句
 
 # P031-P040: 作用域错误
-PIPELINE_SCOPE_VIOLATION = "P031"       # 作用域违规
-PIPELINE_SCOPE_OUT_OF_SCOPE = "P032"    # 超出作用域访问
-PIPELINE_SCOPE_INVALID_ACCESS = "P033"   # 无效的访问控制
+PIPELINE_SCOPE_VIOLATION = "P031"  # 作用域违规
+PIPELINE_SCOPE_OUT_OF_SCOPE = "P032"  # 超出作用域访问
+PIPELINE_SCOPE_INVALID_ACCESS = "P033"  # 无效的访问控制
 
 # P041-P050: 依赖错误
-PIPELINE_DEPENDENCY_CYCLE = "P041"           # 循环依赖
+PIPELINE_DEPENDENCY_CYCLE = "P041"  # 循环依赖
 PIPELINE_DEPENDENCY_MISSING_MODULE = "P042"  # 缺失的模块依赖
 PIPELINE_DEPENDENCY_VERSION_CONFLICT = "P043"  # 版本冲突
 
 # P051-P060: 编译错误
-PIPELINE_COMPILE_CONVERSION_FAILED = "P051"      # 转换失败
-PIPELINE_COMPILE_UNSUPPORTED_FEATURE = "P052"   # 不支持的功能
+PIPELINE_COMPILE_CONVERSION_FAILED = "P051"  # 转换失败
+PIPELINE_COMPILE_UNSUPPORTED_FEATURE = "P052"  # 不支持的功能
 
 
 # ============================================================================
 # ErrorType - 向后兼容枚举类
 # ============================================================================
+
 
 class ErrorType:
     """
@@ -95,6 +96,7 @@ class ErrorType:
 # ============================================================================
 # PipelineError 异常类
 # ============================================================================
+
 
 class PipelineError(ZHCError):
     """
@@ -153,16 +155,19 @@ class PipelineError(ZHCError):
     def to_dict(self) -> dict:
         """转换为字典格式"""
         data = super().to_dict()
-        data.update({
-            "module_name": self.module_name,
-            "cycle_info": self.cycle_info,
-        })
+        data.update(
+            {
+                "module_name": self.module_name,
+                "cycle_info": self.cycle_info,
+            }
+        )
         return data
 
 
 # ============================================================================
 # 便捷工厂函数
 # ============================================================================
+
 
 def file_not_found(
     file_path: str,
@@ -286,6 +291,7 @@ def unsupported_feature(
 # ============================================================================
 # ErrorHandler - 保持 report_error() 兼容性
 # ============================================================================
+
 
 class ErrorHandler:
     """
@@ -415,7 +421,11 @@ class ErrorHandler:
         error_code = self._ERROR_CODE_MAP.get(
             error_type_str, PIPELINE_COMPILE_UNSUPPORTED_FEATURE
         )
-        severity = ZHCError.SEVERITY_WARNING if severity_str == "警告" else ZHCError.SEVERITY_ERROR
+        severity = (
+            ZHCError.SEVERITY_WARNING
+            if severity_str == "警告"
+            else ZHCError.SEVERITY_ERROR
+        )
 
         location = None
         if line_no > 0:
@@ -473,6 +483,7 @@ class ErrorHandler:
 # SyntaxChecker 和 SemanticChecker
 # ============================================================================
 
+
 class SyntaxChecker:
     """语法检查器"""
 
@@ -482,7 +493,8 @@ class SyntaxChecker:
     def check_module_declaration(self, line: str, line_no: int) -> bool:
         """检查模块声明语法"""
         import re
-        pattern = r'^模块\s+(\w+)\s*\{$'
+
+        pattern = r"^模块\s+(\w+)\s*\{$"
         match = re.match(pattern, line.strip())
 
         if not match:
@@ -491,7 +503,7 @@ class SyntaxChecker:
                 f"无效的模块声明: {line}",
                 line_no=line_no,
                 context=line,
-                suggestion="正确格式: '模块 模块名 {'"
+                suggestion="正确格式: '模块 模块名 {'",
             )
             return False
         return True
@@ -499,7 +511,8 @@ class SyntaxChecker:
     def check_import_statement(self, line: str, line_no: int) -> bool:
         """检查导入语句语法"""
         import re
-        pattern = r'^导入\s+(\w+)\s*;?$'
+
+        pattern = r"^导入\s+(\w+)\s*;?$"
         match = re.match(pattern, line.strip())
 
         if not match:
@@ -508,14 +521,14 @@ class SyntaxChecker:
                 f"无效的导入语句: {line}",
                 line_no=line_no,
                 context=line,
-                suggestion="正确格式: '导入 模块名;'"
+                suggestion="正确格式: '导入 模块名;'",
             )
             return False
         return True
 
     def check_visibility_section(self, line: str, line_no: int) -> bool:
         """检查可见性区域语法"""
-        valid_sections = ['公开:', '私有:', '保护:']
+        valid_sections = ["公开:", "私有:", "保护:"]
 
         if line.strip() not in valid_sections:
             self.error_handler.add_error(
@@ -523,7 +536,7 @@ class SyntaxChecker:
                 f"无效的可见性修饰符: {line}",
                 line_no=line_no,
                 context=line,
-                suggestion=f"有效值: {', '.join(valid_sections)}"
+                suggestion=f"有效值: {', '.join(valid_sections)}",
             )
             return False
         return True
@@ -536,8 +549,9 @@ class SemanticChecker:
         self.error_handler = error_handler
         self.symbol_table: Dict[str, tuple] = {}  # 符号名 -> (模块名, 行号)
 
-    def check_duplicate_symbol(self, symbol: str, module_name: str,
-                              line_no: int) -> bool:
+    def check_duplicate_symbol(
+        self, symbol: str, module_name: str, line_no: int
+    ) -> bool:
         """检查重复定义的符号"""
         key = f"{module_name}.{symbol}"
 
@@ -548,15 +562,16 @@ class SemanticChecker:
                 f"符号 '{symbol}' 重复定义",
                 line_no=line_no,
                 context=f"之前定义在模块 '{prev_module}' 行 {prev_line}",
-                suggestion="使用不同的符号名"
+                suggestion="使用不同的符号名",
             )
             return True
 
         self.symbol_table[key] = (module_name, line_no)
         return False
 
-    def check_undefined_symbol(self, symbol: str, module_name: str,
-                              line_no: int) -> bool:
+    def check_undefined_symbol(
+        self, symbol: str, module_name: str, line_no: int
+    ) -> bool:
         """检查未定义的符号"""
         return False
 
@@ -572,10 +587,8 @@ class SemanticChecker:
 __all__ = [
     # 异常类
     "PipelineError",
-
     # 向后兼容枚举
     "ErrorType",
-
     # 错误代码
     "PIPELINE_FILE_NOT_FOUND",
     "PIPELINE_FILE_READ_ERROR",
@@ -597,7 +610,6 @@ __all__ = [
     "PIPELINE_DEPENDENCY_VERSION_CONFLICT",
     "PIPELINE_COMPILE_CONVERSION_FAILED",
     "PIPELINE_COMPILE_UNSUPPORTED_FEATURE",
-
     # 便捷函数
     "file_not_found",
     "file_read_error",
@@ -605,7 +617,6 @@ __all__ = [
     "missing_module",
     "duplicate_symbol",
     "unsupported_feature",
-
     # 错误处理器
     "ErrorHandler",
     "SyntaxChecker",

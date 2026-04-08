@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 class MemoryOperation(Enum):
     """内存操作类型"""
+
     NEW = "新建"
     DELETE = "删除"
     MALLOC = "分配"
@@ -26,6 +27,7 @@ class MemoryOperation(Enum):
 
 class MemorySafety(Enum):
     """内存安全级别"""
+
     SAFE = "安全"
     UNSAFE = "不安全"
     WARNING = "警告"
@@ -34,6 +36,7 @@ class MemorySafety(Enum):
 @dataclass
 class MemoryAllocation:
     """内存分配信息"""
+
     operation: MemoryOperation
     type_name: str
     variable_name: str
@@ -45,6 +48,7 @@ class MemoryAllocation:
 @dataclass
 class MemoryCheck:
     """内存安全检查结果"""
+
     is_safe: bool
     level: MemorySafety
     message: str
@@ -53,6 +57,7 @@ class MemoryCheck:
 
 class SmartPointerType(Enum):
     """智能指针类型"""
+
     UNIQUE = "独享指针"
     SHARED = "共享指针"
     WEAK = "弱指针"
@@ -62,16 +67,16 @@ class MemorySyntaxParser:
     """内存语法解析器"""
 
     # 新建语法模式
-    NEW_PATTERN = r'新建\s+(\w+)(?:\s*\[(\d+)\])?(?:\s*=\s*(.+))?'
+    NEW_PATTERN = r"新建\s+(\w+)(?:\s*\[(\d+)\])?(?:\s*=\s*(.+))?"
 
     # 删除语法模式
-    DELETE_PATTERN = r'删除(?:\s*数组)?\s+(.+?)(?:\s*;|$)'
+    DELETE_PATTERN = r"删除(?:\s*数组)?\s+(.+?)(?:\s*;|$)"
 
     # 分配语法模式
-    ALLOC_PATTERN = r'分配\s*\(([^)]+)\)(?:\s*->\s*(\w+))?'
+    ALLOC_PATTERN = r"分配\s*\(([^)]+)\)(?:\s*->\s*(\w+))?"
 
     # 释放语法模式
-    FREE_PATTERN = r'释放\s*\(([^)]+)\)'
+    FREE_PATTERN = r"释放\s*\(([^)]+)\)"
 
     def __init__(self):
         self.allocations: List[MemoryAllocation] = []
@@ -87,7 +92,7 @@ class MemorySyntaxParser:
 
         type_name = match.group(1)
         size_str = match.group(2)
-        initializer = match.group(3)
+        match.group(3)
 
         is_array = size_str is not None
         size = int(size_str) if size_str else None
@@ -96,11 +101,13 @@ class MemorySyntaxParser:
         var_name = f"_ptr_{line_num}"
 
         allocation = MemoryAllocation(
-            operation=MemoryOperation.NEW if not is_array else MemoryOperation.ARRAY_NEW,
+            operation=MemoryOperation.NEW
+            if not is_array
+            else MemoryOperation.ARRAY_NEW,
             type_name=type_name,
             variable_name=var_name,
             line_number=line_num,
-            size=size
+            size=size,
         )
 
         self.allocations.append(allocation)
@@ -116,10 +123,12 @@ class MemorySyntaxParser:
         target = match.group(1).strip()
 
         allocation = MemoryAllocation(
-            operation=MemoryOperation.DELETE if '数组' not in line else MemoryOperation.ARRAY_DELETE,
+            operation=MemoryOperation.DELETE
+            if "数组" not in line
+            else MemoryOperation.ARRAY_DELETE,
             type_name="",
             variable_name=target,
-            line_number=line_num
+            line_number=line_num,
         )
 
         return allocation
@@ -131,7 +140,7 @@ class MemorySyntaxParser:
         if not match:
             return None
 
-        size_expr = match.group(1)
+        match.group(1)
         var_name = match.group(2) or f"_alloc_{line_num}"
 
         allocation = MemoryAllocation(
@@ -139,7 +148,7 @@ class MemorySyntaxParser:
             type_name="空型*",
             variable_name=var_name,
             line_number=line_num,
-            size=None
+            size=None,
         )
 
         self.allocations.append(allocation)
@@ -164,10 +173,10 @@ class SmartPointerParser:
     """智能指针语法解析器"""
 
     # 独享指针语法
-    UNIQUE_PATTERN = r'独享指针\s+<(\w+)>\s+(\w+)(?:\s*=\s*(.+))?;'
+    UNIQUE_PATTERN = r"独享指针\s+<(\w+)>\s+(\w+)(?:\s*=\s*(.+))?;"
 
     # 共享指针语法
-    SHARED_PATTERN = r'共享指针\s+<(\w+)>\s+(\w+)(?:\s*=\s*(.+))?;'
+    SHARED_PATTERN = r"共享指针\s+<(\w+)>\s+(\w+)(?:\s*=\s*(.+))?;"
 
     def __init__(self):
         self.pointers: Dict[str, SmartPointerType] = {}
@@ -180,7 +189,7 @@ class SmartPointerParser:
 
         type_name = match.group(1)
         var_name = match.group(2)
-        initializer = match.group(3)
+        match.group(3)
 
         self.pointers[var_name] = SmartPointerType.UNIQUE
         return (type_name, var_name)
@@ -193,7 +202,7 @@ class SmartPointerParser:
 
         type_name = match.group(1)
         var_name = match.group(2)
-        initializer = match.group(3)
+        match.group(3)
 
         self.pointers[var_name] = SmartPointerType.SHARED
         return (type_name, var_name)
@@ -231,7 +240,9 @@ class MemorySafetyChecker:
         unfreed = []
         for var_name, alloc in self.allocations.items():
             if var_name not in self.deallocations:
-                unfreed.append(f"行{alloc.line_number}: 内存泄漏 '{var_name}' 类型={alloc.type_name}")
+                unfreed.append(
+                    f"行{alloc.line_number}: 内存泄漏 '{var_name}' 类型={alloc.type_name}"
+                )
         return unfreed
 
     def check_nullptr_dereference(self, var_name: str) -> bool:
@@ -245,7 +256,7 @@ class MemorySafetyChecker:
                 is_safe=False,
                 level=MemorySafety.UNSAFE,
                 message=f"'{var_name}' 已被释放",
-                suggestions=["检查是否使用已释放的指针"]
+                suggestions=["检查是否使用已释放的指针"],
             )
 
         if var_name not in self.allocations:
@@ -253,14 +264,14 @@ class MemorySafetyChecker:
                 is_safe=False,
                 level=MemorySafety.UNSAFE,
                 message=f"'{var_name}' 未分配内存",
-                suggestions=["在使用前分配内存"]
+                suggestions=["在使用前分配内存"],
             )
 
         return MemoryCheck(
             is_safe=True,
             level=MemorySafety.SAFE,
             message=f"'{var_name}' 内存状态安全",
-            suggestions=[]
+            suggestions=[],
         )
 
     def generate_safety_report(self) -> str:
@@ -277,18 +288,20 @@ class MemorySafetyChecker:
 
         # 检查双重释放
         for var_name in self.deallocations:
-            count = list(self.deallocations.values()).count(self.deallocations[var_name])
+            count = list(self.deallocations.values()).count(
+                self.deallocations[var_name]
+            )
             if count > 1:
                 lines.append(f"/* 双重释放: {var_name} */")
 
         if not unfreed and not self.issues:
             lines.append("/* 无内存安全警告 */")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
 
 # 测试
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("=== 内存语法解析测试 ===")
 
     # 测试新建语法
@@ -326,8 +339,12 @@ if __name__ == '__main__':
     # 内存安全检测测试
     print("\n=== 内存安全检测 ===")
     checker = MemorySafetyChecker()
-    checker.track_allocation("ptr1", MemoryAllocation(MemoryOperation.NEW, "int", "ptr1", 1))
-    checker.track_allocation("ptr2", MemoryAllocation(MemoryOperation.NEW, "int", "ptr2", 2))
+    checker.track_allocation(
+        "ptr1", MemoryAllocation(MemoryOperation.NEW, "int", "ptr1", 1)
+    )
+    checker.track_allocation(
+        "ptr2", MemoryAllocation(MemoryOperation.NEW, "int", "ptr2", 2)
+    )
     checker.track_deallocation("ptr1", 10)
 
     unfreed = checker.check_unfreed()

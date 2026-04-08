@@ -13,14 +13,14 @@ ZHC 编译器统一异常处理模块
 使用示例:
     >>> from zhc.errors import LexerError, ParserError, SemanticError
     >>> from zhc.errors import SourceLocation, ErrorCollection
-    >>> 
+    >>>
     >>> # 创建错误
     >>> error = LexerError(
     ...     "非法字符 '@'",
     ...     location=SourceLocation("test.zhc", 10, 5),
     ...     error_code="L001"
     ... )
-    >>> 
+    >>>
     >>> # 收集错误
     >>> errors = ErrorCollection()
     >>> errors.add(error)
@@ -189,7 +189,7 @@ from .pipeline_error import (
     dependency_cycle,
     missing_module,
     duplicate_symbol,
-    unsupported_feature,
+    unsupported_feature as pipeline_unsupported_feature,  # noqa: F401
 )
 
 
@@ -210,7 +210,6 @@ __all__ = [
     "SourceLocation",
     "ZHCError",
     "ErrorCollection",
-    
     # 词法分析异常
     "LexerError",
     "LEXER_ILLEGAL_CHARACTER",
@@ -233,7 +232,6 @@ __all__ = [
     "unterminated_char",
     "invalid_number_format",
     "invalid_identifier",
-    
     # 语法分析异常
     "ParserError",
     "PARSER_MISSING_TOKEN",
@@ -263,7 +261,6 @@ __all__ = [
     "invalid_statement",
     "missing_semicolon",
     "unbalanced_braces",
-    
     # 语义分析异常
     "SemanticError",
     "SEMANTIC_TYPE_MISMATCH",
@@ -299,7 +296,6 @@ __all__ = [
     "duplicate_definition",
     "invalid_member_access",
     "parameter_mismatch",
-    
     # 代码生成异常
     "CodeGenerationError",
     "CODEGEN_INVALID_IR",
@@ -324,7 +320,6 @@ __all__ = [
     "ir_conversion_failed",
     "unsupported_platform",
     "file_write_error",
-
     # Pipeline 异常
     "PipelineError",
     "ErrorType",  # 向后兼容枚举

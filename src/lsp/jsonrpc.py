@@ -16,6 +16,7 @@ from .protocol import Message, Request, Response, Notification, ResponseError
 # JSON-RPC 错误码
 class ErrorCode:
     """JSON-RPC 错误码"""
+
     PARSE_ERROR = -32700
     INVALID_REQUEST = -32600
     METHOD_NOT_FOUND = -32601
@@ -27,6 +28,7 @@ class ErrorCode:
 
 class Transport(Protocol):
     """传输层协议"""
+
     def send(self, data: bytes) -> None: ...
     def receive(self) -> bytes: ...
 
@@ -88,7 +90,7 @@ class JSONRPCClient:
             error = ResponseError(
                 code=response["error"].get("code", ErrorCode.INTERNAL_ERROR),
                 message=response["error"].get("message", "Unknown error"),
-                data=response["error"].get("data")
+                data=response["error"].get("data"),
             )
             raise JSONRPCError(error)
 
@@ -105,17 +107,18 @@ class JSONRPCClient:
         try:
             response = json.loads(response_data.decode("utf-8"))
         except json.JSONDecodeError as e:
-            raise JSONRPCError(ResponseError(
-                code=ErrorCode.PARSE_ERROR,
-                message=f"Invalid JSON: {str(e)}"
-            ))
+            raise JSONRPCError(
+                ResponseError(
+                    code=ErrorCode.PARSE_ERROR, message=f"Invalid JSON: {str(e)}"
+                )
+            )
 
         # 检查是否为错误响应
         if "error" in response:
             error = ResponseError(
                 code=response["error"].get("code", ErrorCode.INTERNAL_ERROR),
                 message=response["error"].get("message", "Unknown error"),
-                data=response["error"].get("data")
+                data=response["error"].get("data"),
             )
             self._error_results[response["id"]] = error
             return None
@@ -130,9 +133,8 @@ class JSONRPCClient:
             error_response = Response(
                 id=None,
                 error=ResponseError(
-                    code=ErrorCode.PARSE_ERROR,
-                    message=f"Invalid JSON: {str(e)}"
-                )
+                    code=ErrorCode.PARSE_ERROR, message=f"Invalid JSON: {str(e)}"
+                ),
             )
             return json.dumps(error_response.to_dict()).encode("utf-8")
 
@@ -184,9 +186,7 @@ class JSONRPCServer:
             message = json.loads(message_data.decode("utf-8"))
         except json.JSONDecodeError as e:
             return self._create_error_response(
-                None,
-                ErrorCode.PARSE_ERROR,
-                f"Invalid JSON: {str(e)}"
+                None, ErrorCode.PARSE_ERROR, f"Invalid JSON: {str(e)}"
             )
 
         # 检查消息格式
@@ -194,24 +194,20 @@ class JSONRPCServer:
             return self._create_error_response(
                 message.get("id"),
                 ErrorCode.INVALID_REQUEST,
-                "Message must be a JSON object"
+                "Message must be a JSON object",
             )
 
         # 检查 JSON-RPC 版本
         if message.get("jsonrpc") != "2.0":
             return self._create_error_response(
-                message.get("id"),
-                ErrorCode.INVALID_REQUEST,
-                "Invalid JSON-RPC version"
+                message.get("id"), ErrorCode.INVALID_REQUEST, "Invalid JSON-RPC version"
             )
 
         # 获取方法名
         method = message.get("method")
         if not method:
             return self._create_error_response(
-                message.get("id"),
-                ErrorCode.INVALID_REQUEST,
-                "Missing method name"
+                message.get("id"), ErrorCode.INVALID_REQUEST, "Missing method name"
             )
 
         # 获取 ID
@@ -232,9 +228,7 @@ class JSONRPCServer:
 
         if handler is None:
             return self._create_error_response(
-                msg_id,
-                ErrorCode.METHOD_NOT_FOUND,
-                f"Method not found: {method}"
+                msg_id, ErrorCode.METHOD_NOT_FOUND, f"Method not found: {method}"
             )
 
         try:
@@ -242,9 +236,7 @@ class JSONRPCServer:
             return self._create_success_response(msg_id, result)
         except Exception as e:
             return self._create_error_response(
-                msg_id,
-                ErrorCode.INTERNAL_ERROR,
-                f"Internal error: {str(e)}"
+                msg_id, ErrorCode.INTERNAL_ERROR, f"Internal error: {str(e)}"
             )
 
     def _handle_notification(self, method: str, params: Optional[Any]) -> None:
@@ -263,10 +255,7 @@ class JSONRPCServer:
 
     def _create_error_response(self, msg_id: Any, code: int, message: str) -> bytes:
         """创建错误响应"""
-        response = Response(
-            id=msg_id,
-            error=ResponseError(code=code, message=message)
-        )
+        response = Response(id=msg_id, error=ResponseError(code=code, message=message))
         return json.dumps(response.to_dict()).encode("utf-8")
 
     def run(self) -> None:
@@ -283,9 +272,7 @@ class JSONRPCServer:
 
             except Exception as e:
                 error_response = self._create_error_response(
-                    None,
-                    ErrorCode.INTERNAL_ERROR,
-                    f"Server error: {str(e)}"
+                    None, ErrorCode.INTERNAL_ERROR, f"Server error: {str(e)}"
                 )
                 self.transport.send(error_response)
 

@@ -10,10 +10,10 @@ from .voice_command_parser import VoiceCommandParser, CommandIntent
 from .voice_feedback import VoiceFeedback, TTSEngine
 
 __all__ = [
-    'SpeechRecognizer',
-    'SpeechEngine',
-    'VoiceCommandParser',
-    'CommandIntent',
-    'VoiceFeedback',
-    'TTSEngine'
+    "SpeechRecognizer",
+    "SpeechEngine",
+    "VoiceCommandParser",
+    "CommandIntent",
+    "VoiceFeedback",
+    "TTSEngine",
 ]

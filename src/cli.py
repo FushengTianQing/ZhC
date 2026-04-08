@@ -10,7 +10,6 @@ ZHC 命令行入口
 """
 
 import sys
-import argparse
 import time
 from pathlib import Path
 from typing import Any, Optional, List
@@ -107,7 +106,7 @@ class ZHCCompiler:
         start_time = time.time()
         errors: List[str] = []
         warnings: List[str] = []
-        
+
         if self.config.verbose:
             print(f"📄 [AST] 编译: {input_file}")
 
@@ -122,7 +121,7 @@ class ZHCCompiler:
                 return CompilationResult.failure_result(
                     input_file=input_file,
                     errors=errors,
-                    elapsed_time=time.time() - start_time
+                    elapsed_time=time.time() - start_time,
                 )
 
             # 阶段1.5：增量AST diff（与上次编译结果对比）
@@ -137,17 +136,15 @@ class ZHCCompiler:
                     input_file=input_file,
                     errors=errors,
                     warnings=warnings,
-                    elapsed_time=time.time() - start_time
+                    elapsed_time=time.time() - start_time,
                 )
             warnings.extend(semantic_result.get("warnings", []))
 
             # 阶段2.5：安全分析（默认启用，ERROR 级别阻止编译）
             from zhc.analysis import create_security_scheduler, Severity
+
             security_scheduler = create_security_scheduler()
-            context = {
-                "source_file": str(input_file),
-                "file_name": input_file.name
-            }
+            context = {"source_file": str(input_file), "file_name": input_file.name}
             security_scheduler.run_all(ast, context)
 
             if security_scheduler.has_errors():
@@ -158,11 +155,13 @@ class ZHCCompiler:
                     input_file=input_file,
                     errors=errors,
                     warnings=warnings,
-                    elapsed_time=time.time() - start_time
+                    elapsed_time=time.time() - start_time,
                 )
 
             if security_scheduler.has_warnings() and self.config.verbose:
-                warning_results = security_scheduler.filter_by_severity(Severity.WARNING)
+                warning_results = security_scheduler.filter_by_severity(
+                    Severity.WARNING
+                )
                 print(f"  [安全分析] 发现 {len(warning_results)} 个警告")
 
             # 阶段3：代码生成 (AST→C 或 AST→IR→C)
@@ -173,7 +172,7 @@ class ZHCCompiler:
                     input_file=input_file,
                     errors=errors,
                     warnings=warnings,
-                    elapsed_time=time.time() - start_time
+                    elapsed_time=time.time() - start_time,
                 )
 
             # 阶段4：写入输出
@@ -187,12 +186,12 @@ class ZHCCompiler:
                 print(f"  [AST] 转换完成: {input_file} -> {output_file}")
 
             self._update_stats(len(content.splitlines()))
-            
+
             return CompilationResult.success_result(
                 input_file=input_file,
                 output_files=[output_file],
                 elapsed_time=time.time() - start_time,
-                stats={"lines_processed": len(content.splitlines())}
+                stats={"lines_processed": len(content.splitlines())},
             )
 
         except Exception as e:
@@ -201,7 +200,7 @@ class ZHCCompiler:
             return CompilationResult.failure_result(
                 input_file=input_file,
                 errors=errors,
-                elapsed_time=time.time() - start_time
+                elapsed_time=time.time() - start_time,
             )
 
     def compile_module_project(
@@ -219,7 +218,7 @@ class ZHCCompiler:
             CompilationResult 包含编译结果、错误、警告等信息
         """
         start_time = time.time()
-        
+
         if self.config.verbose:
             print(f"📁 [AST 模块项目] 编译: {input_file}")
 
@@ -229,34 +228,35 @@ class ZHCCompiler:
             success = pipeline.compile_project([str(input_file)])
             if self.config.verbose:
                 print(f"  [AST 模块项目] {'成功' if success else '失败'}")
-            
+
             if success:
                 output_files = []
                 if output_dir:
                     output_files = [output_dir / input_file.name.replace(".zhc", ".c")]
                 else:
                     output_files = [input_file.with_suffix(".c")]
-                    
+
                 return CompilationResult.success_result(
                     input_file=input_file,
                     output_files=output_files,
-                    elapsed_time=time.time() - start_time
+                    elapsed_time=time.time() - start_time,
                 )
             else:
                 return CompilationResult.failure_result(
                     input_file=input_file,
                     errors=["模块项目编译失败"],
-                    elapsed_time=time.time() - start_time
+                    elapsed_time=time.time() - start_time,
                 )
         except Exception as e:
             if self.config.verbose:
                 import traceback
+
                 traceback.print_exc()
             print(f"  [AST 模块项目] 编译失败: {e}")
             return CompilationResult.failure_result(
                 input_file=input_file,
                 errors=[str(e)],
-                elapsed_time=time.time() - start_time
+                elapsed_time=time.time() - start_time,
             )
 
     def clean_cache(self) -> None:
@@ -274,47 +274,51 @@ class ZHCCompiler:
         print(f"  文件数: {self.stats['files_processed']}")
         print(f"  总行数: {self.stats['total_lines']}")
         print(f"  耗时: {elapsed:.2f}秒")
-    
+
     def run_static_analysis(self, ast: Any, input_file: Path) -> bool:
         """
         运行静态分析
-        
+
         Args:
             ast: AST 树
             input_file: 输入文件路径
-            
+
         Returns:
             是否成功（无错误）
         """
         if not self.config.analyze_enabled:
             return True
-        
+
         if self.config.verbose:
             print("  🔍 [静态分析] 运行中...")
-        
+
         try:
             # 导入静态分析模块
-            from zhc.analysis import AnalysisScheduler, ReportGenerator, create_default_scheduler
-            
+            from zhc.analysis import (
+                AnalysisScheduler,  # noqa: F401
+                ReportGenerator,
+                create_default_scheduler,
+            )
+
             # 创建调度器
             scheduler = create_default_scheduler()
-            
+
             # 创建上下文
             context = {
                 "source_file": str(input_file),
                 "file_name": input_file.name,
             }
-            
+
             # 运行分析
             scheduler.run_all(ast, context)
-            
+
             # 生成报告
             all_results = scheduler.get_all_results()
-            
+
             if all_results:
                 if self.config.verbose or scheduler.has_errors():
                     generator = ReportGenerator(scheduler.results, scheduler.stats)
-                    
+
                     # 根据格式生成报告
                     format = self.config.analyze_format
                     if format == "text":
@@ -327,7 +331,7 @@ class ZHCCompiler:
                         report = generator.generate_html()
                     else:
                         report = generator.generate_text()
-                    
+
                     # 输出到文件或控制台
                     output_file = self.config.analyze_output
                     if output_file:
@@ -339,7 +343,7 @@ class ZHCCompiler:
             else:
                 if self.config.verbose:
                     print("  ✅ [静态分析] 未发现问题")
-            
+
             if self.config.verbose:
                 stats = scheduler.stats
                 print(
@@ -347,13 +351,13 @@ class ZHCCompiler:
                     f"{stats.errors} 错误, {stats.warnings} 警告, "
                     f"{stats.infos} 提示"
                 )
-            
+
             # 如果有错误且 warning_level == "error"，返回 False
             if scheduler.has_errors() and self.config.warning_level == "error":
                 return False
-            
+
             return not scheduler.has_errors()
-            
+
         except ImportError as e:
             if self.config.verbose:
                 print(f"  ⚠️ 静态分析模块未安装: {e}")
@@ -362,7 +366,7 @@ class ZHCCompiler:
             if self.config.verbose:
                 print(f"  ⚠️ 静态分析执行失败: {e}")
             return True
-    
+
     # ------------------------------------------------------------------
     # 私有方法：各编译阶段
     # ------------------------------------------------------------------
@@ -447,12 +451,12 @@ class ZHCCompiler:
 
     def _run_semantic_check_with_result(self, ast, input_file: Path) -> dict:
         """阶段2：语义验证，返回包含错误和警告的结果字典
-        
+
         Returns:
             dict: {"success": bool, "errors": List[str], "warnings": List[str]}
         """
         result = {"success": True, "errors": [], "warnings": []}
-        
+
         if self.config.skip_semantic:
             return result
 
@@ -499,19 +503,23 @@ class ZHCCompiler:
         """配置语义分析器 - 使用 dispatch table 模式"""
         # 配置映射表：配置项 -> validator 属性
         config_map = {
-            'no_unreachable': ('cfg_enabled', False),
-            'no_uninit': ('uninit_enabled', False),
-            'no_dataflow': ('dataflow_enabled', False),
-            'no_interprocedural': ('interprocedural_enabled', False),
-            'no_alias': ('alias_enabled', False),
-            'no_pointer': ('pointer_enabled', False),
-            'optimize_symbol_lookup': ('symbol_lookup_enabled', True),
+            "no_unreachable": ("cfg_enabled", False),
+            "no_uninit": ("uninit_enabled", False),
+            "no_dataflow": ("dataflow_enabled", False),
+            "no_interprocedural": ("interprocedural_enabled", False),
+            "no_alias": ("alias_enabled", False),
+            "no_pointer": ("pointer_enabled", False),
+            "optimize_symbol_lookup": ("symbol_lookup_enabled", True),
         }
-        
+
         for config_key, (attr_name, enabled_when_true) in config_map.items():
             config_value = getattr(self.config, config_key)
             # enabled_when_true 表示当 config_value 为 True 时启用该功能
-            setattr(validator, attr_name, enabled_when_true if config_value else not enabled_when_true)
+            setattr(
+                validator,
+                attr_name,
+                enabled_when_true if config_value else not enabled_when_true,
+            )
 
     def _generate_code(self, ast):
         """阶段3：代码生成，返回C代码字符串或None（IR验证失败时）"""
@@ -544,12 +552,12 @@ class ZHCCompiler:
 
     def _generate_via_ir(self, ast, perf_analyzer=None, target: str = "c"):
         """通过IR中间表示生成代码
-        
+
         Args:
             ast: 抽象语法树
             perf_analyzer: 性能分析器
             target: 目标后端 ("c", "llvm", "wasm")
-            
+
         Returns:
             生成的代码字符串
         """
@@ -588,18 +596,22 @@ class ZHCCompiler:
                 # LLVM 后端
                 try:
                     from zhc.backend.llvm_backend import LLVMBackend
+
                     backend = LLVMBackend()
                     return backend.generate(ir)
                 except ImportError:
-                    print("❌ LLVM 后端不可用，请安装 llvmlite: pip install llvmlite>=0.39.0")
+                    print(
+                        "❌ LLVM 后端不可用，请安装 llvmlite: pip install llvmlite>=0.39.0"
+                    )
                     # 回退到 C 后端
                     backend = CBackend()
                     return backend.generate(ir)
-                    
+
             elif target == "wasm":
                 # WASM 后端
                 try:
                     from zhc.backend.wasm_backend import WebAssemblyBackend
+
                     backend = WebAssemblyBackend()
                     return backend.generate(ir)
                 except ImportError:
@@ -607,7 +619,7 @@ class ZHCCompiler:
                     # 回退到 C 后端
                     backend = CBackend()
                     return backend.generate(ir)
-                    
+
             else:
                 # 默认 C 后端
                 backend = CBackend()
@@ -689,11 +701,11 @@ def main() -> int:
         try:
             content = input_file.read_text(encoding="utf-8")
             ast, parse_errors = compiler._parse_source(content, input_file)
-            
+
             if parse_errors:
                 print(f"解析错误: {parse_errors[:10]}")
                 return 1
-            
+
             success = compiler.run_static_analysis(ast, input_file)
             return 0 if success else 1
         except Exception as e:

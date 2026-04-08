@@ -16,20 +16,20 @@ Phase 4 - Stage 2 - Task 11.1
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Tuple, Any, TYPE_CHECKING
+from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING
 from enum import Enum
 
 # 类型检查时导入，避免循环依赖
 if TYPE_CHECKING:
     from ..parser.ast_nodes import ASTNode
-    from .type_checker import TypeInfo
 
 
 class Variance(Enum):
     """类型参数的变性"""
-    COVARIANT = "+"      # 协变：T 可以用 T 的子类型替代
+
+    COVARIANT = "+"  # 协变：T 可以用 T 的子类型替代
     CONTRAVARIANT = "-"  # 逆变：T 可以用 T 的父类型替代
-    INVARIANT = ""       # 不变：必须完全匹配
+    INVARIANT = ""  # 不变：必须完全匹配
 
 
 @dataclass
@@ -40,6 +40,7 @@ class TypeConstraint:
     定义对类型参数的限制条件。
     例如：可比较约束要求类型实现 < 和 > 运算符。
     """
+
     name: str
     required_methods: List[MethodSignature] = field(default_factory=list)
     required_operators: List[OperatorSignature] = field(default_factory=list)
@@ -61,6 +62,7 @@ class TypeConstraint:
 @dataclass
 class MethodSignature:
     """方法签名"""
+
     name: str
     param_types: List[str] = field(default_factory=list)  # 类型名列表
     return_type: str = ""
@@ -73,6 +75,7 @@ class MethodSignature:
 @dataclass
 class OperatorSignature:
     """运算符签名"""
+
     operator: str  # 如 "+", "-", "<", ">"
     operand_type: str = "自身"  # 自身 表示类型参数本身
     return_type: str = "逻辑型"
@@ -89,6 +92,7 @@ class TypeParameter:
     泛型定义中的占位符类型，如 T、K、V 等。
     可以附带约束条件限制可用类型。
     """
+
     name: str
     constraints: List[TypeConstraint] = field(default_factory=list)
     default: Optional[str] = None  # 默认类型名
@@ -116,15 +120,18 @@ class GenericType:
 
     支持参数化的类型定义，如 列表<T>、映射<K, V>。
     """
+
     name: str
     type_params: List[TypeParameter] = field(default_factory=list)
-    instantiations: Dict[Tuple[str, ...], 'GenericTypeInstance'] = field(default_factory=dict)
-    definition: Optional['ASTNode'] = None  # 类型定义AST节点
+    instantiations: Dict[Tuple[str, ...], "GenericTypeInstance"] = field(
+        default_factory=dict
+    )
+    definition: Optional["ASTNode"] = None  # 类型定义AST节点
 
     # 类型成员
-    members: List['MemberInfo'] = field(default_factory=list)
+    members: List["MemberInfo"] = field(default_factory=list)
 
-    def instantiate(self, type_args: List[str]) -> 'GenericTypeInstance':
+    def instantiate(self, type_args: List[str]) -> "GenericTypeInstance":
         """
         实例化泛型类型
 
@@ -160,13 +167,15 @@ class GenericType:
             instance = GenericTypeInstance(
                 generic_type=self,
                 type_args=type_args,
-                members=self._create_members(type_args)
+                members=self._create_members(type_args),
             )
             self.instantiations[cache_key] = instance
 
         return self.instantiations[cache_key]
 
-    def _check_constraint_satisfied(self, type_name: str, constraint: TypeConstraint) -> bool:
+    def _check_constraint_satisfied(
+        self, type_name: str, constraint: TypeConstraint
+    ) -> bool:
         """检查类型是否满足约束"""
         # 简化实现：检查标准类型的约束满足情况
         # 实际实现需要查询类型系统获取类型的运算符/方法信息
@@ -202,13 +211,13 @@ class GenericType:
         # 简化实现
         return False
 
-    def _create_members(self, type_args: List[str]) -> List['MemberInfo']:
+    def _create_members(self, type_args: List[str]) -> List["MemberInfo"]:
         """创建实例化后的成员列表"""
         return [
             MemberInfo(
                 name=m.name,
                 type_name=self._substitute_type(m.type_name, type_args),
-                is_static=m.is_static
+                is_static=m.is_static,
             )
             for m in self.members
         ]
@@ -242,9 +251,10 @@ class GenericTypeInstance:
     泛型类型经实例化后的具体类型。
     例如：列表<整数型> 是 列表<T> 的实例。
     """
+
     generic_type: GenericType
     type_args: List[str]
-    members: List['MemberInfo'] = field(default_factory=list)
+    members: List["MemberInfo"] = field(default_factory=list)
 
     @property
     def name(self) -> str:
@@ -252,7 +262,7 @@ class GenericTypeInstance:
         args_str = ", ".join(self.type_args)
         return f"{self.generic_type.name}<{args_str}>"
 
-    def get_member(self, name: str) -> Optional['MemberInfo']:
+    def get_member(self, name: str) -> Optional["MemberInfo"]:
         """获取成员信息"""
         for member in self.members:
             if member.name == name:
@@ -266,6 +276,7 @@ class GenericTypeInstance:
 @dataclass
 class MemberInfo:
     """成员信息"""
+
     name: str
     type_name: str
     is_static: bool = False
@@ -280,15 +291,18 @@ class GenericFunction:
     支持类型参数的函数定义。
     例如：<T> T 最大值(T a, T b)
     """
+
     name: str
     type_params: List[TypeParameter] = field(default_factory=list)
-    params: List['ParamInfo'] = field(default_factory=list)
+    params: List["ParamInfo"] = field(default_factory=list)
     return_type: str = "空型"
-    body: Optional['ASTNode'] = None  # 函数体AST节点
-    instantiations: Dict[Tuple[str, ...], 'FunctionInstance'] = field(default_factory=dict)
+    body: Optional["ASTNode"] = None  # 函数体AST节点
+    instantiations: Dict[Tuple[str, ...], "FunctionInstance"] = field(
+        default_factory=dict
+    )
     constraints: List[TypeConstraint] = field(default_factory=list)
 
-    def instantiate(self, type_args: List[str]) -> 'FunctionInstance':
+    def instantiate(self, type_args: List[str]) -> "FunctionInstance":
         """
         实例化泛型函数
 
@@ -321,14 +335,18 @@ class GenericFunction:
                 generic_function=self,
                 type_args=type_args,
                 specialized_params=self._create_params(type_args),
-                specialized_return_type=self._substitute_type(self.return_type, type_args),
-                specialized_body=self._clone_body(type_args)
+                specialized_return_type=self._substitute_type(
+                    self.return_type, type_args
+                ),
+                specialized_body=self._clone_body(type_args),
             )
             self.instantiations[cache_key] = instance
 
         return self.instantiations[cache_key]
 
-    def _check_constraint_satisfied(self, type_name: str, constraint: TypeConstraint) -> bool:
+    def _check_constraint_satisfied(
+        self, type_name: str, constraint: TypeConstraint
+    ) -> bool:
         """检查类型是否满足约束"""
         for op_sig in constraint.required_operators:
             if not self._has_operator(type_name, op_sig.operator):
@@ -356,14 +374,14 @@ class GenericFunction:
         """检查类型是否有指定方法"""
         return False
 
-    def _create_params(self, type_args: List[str]) -> List['ParamInfo']:
+    def _create_params(self, type_args: List[str]) -> List["ParamInfo"]:
         """创建实例化后的参数列表"""
         return [
             ParamInfo(
                 name=p.name,
                 type_name=self._substitute_type(p.type_name, type_args),
                 is_reference=p.is_reference,
-                is_const=p.is_const
+                is_const=p.is_const,
             )
             for p in self.params
         ]
@@ -375,7 +393,7 @@ class GenericFunction:
             result = result.replace(param.name, arg)
         return result
 
-    def _clone_body(self, type_args: List[str]) -> Optional['ASTNode']:
+    def _clone_body(self, type_args: List[str]) -> Optional["ASTNode"]:
         """克隆并替换函数体中的类型"""
         # 简化实现：返回原函数体
         # 实际实现需要深拷贝AST并进行类型替换
@@ -397,6 +415,7 @@ class GenericFunction:
 @dataclass
 class ParamInfo:
     """参数信息"""
+
     name: str
     type_name: str
     is_reference: bool = False
@@ -411,11 +430,12 @@ class FunctionInstance:
 
     泛型函数经实例化后的具体函数。
     """
+
     generic_function: GenericFunction
     type_args: List[str]
     specialized_params: List[ParamInfo]
     specialized_return_type: str
-    specialized_body: Optional['ASTNode']
+    specialized_body: Optional["ASTNode"]
 
     @property
     def name(self) -> str:
@@ -428,6 +448,7 @@ class FunctionInstance:
 
 
 # ===== 约束预定义 =====
+
 
 class PredefinedConstraints:
     """预定义类型约束"""
@@ -442,7 +463,7 @@ class PredefinedConstraints:
                 OperatorSignature(operator=">", return_type="逻辑型"),
                 OperatorSignature(operator="==", return_type="逻辑型"),
             ],
-            description="要求类型支持比较运算符"
+            description="要求类型支持比较运算符",
         )
 
     @staticmethod
@@ -454,7 +475,7 @@ class PredefinedConstraints:
                 OperatorSignature(operator="==", return_type="逻辑型"),
                 OperatorSignature(operator="!=", return_type="逻辑型"),
             ],
-            description="要求类型支持相等性比较"
+            description="要求类型支持相等性比较",
         )
 
     @staticmethod
@@ -465,7 +486,7 @@ class PredefinedConstraints:
             required_operators=[
                 OperatorSignature(operator="+", return_type="自身"),
             ],
-            description="要求类型支持加法运算符"
+            description="要求类型支持加法运算符",
         )
 
     @staticmethod
@@ -476,7 +497,7 @@ class PredefinedConstraints:
             required_methods=[
                 MethodSignature(name="转字符串", return_type="字符串型"),
             ],
-            description="要求类型可转换为字符串"
+            description="要求类型可转换为字符串",
         )
 
     @staticmethod
@@ -490,38 +511,45 @@ class PredefinedConstraints:
                 OperatorSignature(operator="*", return_type="自身"),
                 OperatorSignature(operator="/", return_type="自身"),
             ],
-            description="要求类型支持基本算术运算"
+            description="要求类型支持基本算术运算",
         )
 
 
 # ===== 异常定义 =====
 
+
 class GenericError(Exception):
     """泛型相关错误基类"""
+
     pass
 
 
 class TypeParameterCountError(GenericError):
     """类型参数数量错误"""
+
     pass
 
 
 class ConstraintViolationError(GenericError):
     """类型约束违反错误"""
+
     pass
 
 
 class TypeInferenceError(GenericError):
     """类型推导失败错误"""
+
     pass
 
 
 class VarianceError(GenericError):
     """类型变性错误"""
+
     pass
 
 
 # ===== 泛型管理器 =====
+
 
 class GenericManager:
     """
@@ -623,7 +651,8 @@ class GenericManager:
                 len(t.instantiations) for t in self._generic_types.values()
             ),
             "function_instances": sum(
-                len(f.instantiations) for funcs in self._generic_functions.values()
+                len(f.instantiations)
+                for funcs in self._generic_functions.values()
                 for f in funcs
             ),
         }
@@ -650,10 +679,9 @@ def reset_generic_manager() -> None:
 
 # ===== 便捷函数 =====
 
+
 def create_generic_type(
-    name: str,
-    type_params: List[TypeParameter],
-    members: List[MemberInfo] = None
+    name: str, type_params: List[TypeParameter], members: List[MemberInfo] = None
 ) -> GenericType:
     """
     创建泛型类型
@@ -667,9 +695,7 @@ def create_generic_type(
         泛型类型对象
     """
     generic_type = GenericType(
-        name=name,
-        type_params=type_params,
-        members=members or []
+        name=name, type_params=type_params, members=members or []
     )
     get_generic_manager().register_generic_type(generic_type)
     return generic_type
@@ -680,7 +706,7 @@ def create_generic_function(
     type_params: List[TypeParameter],
     params: List[ParamInfo],
     return_type: str,
-    body: 'ASTNode' = None
+    body: "ASTNode" = None,
 ) -> GenericFunction:
     """
     创建泛型函数
@@ -700,16 +726,14 @@ def create_generic_function(
         type_params=type_params,
         params=params,
         return_type=return_type,
-        body=body
+        body=body,
     )
     get_generic_manager().register_generic_function(generic_func)
     return generic_func
 
 
 def create_constraint(
-    name: str,
-    operators: List[str] = None,
-    methods: List[str] = None
+    name: str, operators: List[str] = None, methods: List[str] = None
 ) -> TypeConstraint:
     """
     创建类型约束
@@ -723,18 +747,12 @@ def create_constraint(
         类型约束对象
     """
     op_sigs = [
-        OperatorSignature(operator=op, return_type="逻辑型")
-        for op in (operators or [])
+        OperatorSignature(operator=op, return_type="逻辑型") for op in (operators or [])
     ]
-    method_sigs = [
-        MethodSignature(name=method)
-        for method in (methods or [])
-    ]
+    method_sigs = [MethodSignature(name=method) for method in (methods or [])]
 
     constraint = TypeConstraint(
-        name=name,
-        required_operators=op_sigs,
-        required_methods=method_sigs
+        name=name, required_operators=op_sigs, required_methods=method_sigs
     )
     get_generic_manager().register_constraint(constraint)
     return constraint

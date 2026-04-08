@@ -20,7 +20,9 @@
 - 使用递归下降解析器处理运算符优先级
 """
 
-from typing import List, Dict, Tuple, Optional, Set, Any
+from dataclasses import dataclass
+from typing import Any
+
 from .ast_nodes import (
     PrimitiveTypeNode as TypeNode,
     BinaryExprNode as BinaryOpNode,
@@ -28,14 +30,22 @@ from .ast_nodes import (
     CallExprNode,
     ArrayExprNode as IndexExprNode,
     MemberExprNode,
-    IntLiteralNode as LiteralNode,
     IdentifierExprNode as IdentifierNode,
     ASTNode,
-    ASTNodeType,
-    IntLiteralNode, FloatLiteralNode, StringLiteralNode,
-    CharLiteralNode, BoolLiteralNode, NullLiteralNode,
-    PointerTypeNode, ArrayTypeNode,
 )
+
+
+@dataclass
+class LiteralNode(ASTNode):
+    """通用字面量节点（expressions.py 内部使用）"""
+
+    type: str = ""
+    value: Any = None
+
+    def accept(self, visitor: Any) -> Any:
+        return (
+            visitor.visit_literal(self) if hasattr(visitor, "visit_literal") else None
+        )
 
 
 class ExpressionParserMixin:
@@ -56,31 +66,28 @@ class ExpressionParserMixin:
 
         # 内置类型
         type_map = {
-            '整数型': 'int',
-            '浮点型': 'float',
-            '双精度型': 'double',
-            '字符型': 'char',
-            '逻辑型': 'bool',
-            '短整型': 'short',
-            '长整型': 'long',
-            '无类型': 'void'
+            "整数型": "int",
+            "浮点型": "float",
+            "双精度型": "double",
+            "字符型": "char",
+            "逻辑型": "bool",
+            "短整型": "short",
+            "长整型": "long",
+            "无类型": "void",
         }
 
-        type_str = token.value if token else 'int'
+        type_str = token.value if token else "int"
         c_type = type_map.get(type_str, type_str)
 
         self.advance()
 
         # 检查指针
         pointer_count = 0
-        while self.check('*'):
+        while self.check("*"):
             pointer_count += 1
             self.advance()
 
-        return TypeNode(
-            name=c_type,
-            pointer_depth=pointer_count
-        )
+        return TypeNode(name=c_type, pointer_depth=pointer_count)
 
     def parse_expression(self) -> ASTNode:
         """
@@ -110,14 +117,10 @@ class ExpressionParserMixin:
         """
         left = self.parse_and()
 
-        while self.check('或者'):
+        while self.check("或者"):
             operator = self.advance().value
             right = self.parse_and()
-            left = BinaryOpNode(
-                operator=operator,
-                left=left,
-                right=right
-            )
+            left = BinaryOpNode(operator=operator, left=left, right=right)
 
         return left
 
@@ -130,14 +133,10 @@ class ExpressionParserMixin:
         """
         left = self.parse_equality()
 
-        while self.check('并且'):
+        while self.check("并且"):
             operator = self.advance().value
             right = self.parse_equality()
-            left = BinaryOpNode(
-                operator=operator,
-                left=left,
-                right=right
-            )
+            left = BinaryOpNode(operator=operator, left=left, right=right)
 
         return left
 
@@ -150,14 +149,10 @@ class ExpressionParserMixin:
         """
         left = self.parse_comparison()
 
-        while self.check('==', '!=', '等于', '不等于'):
+        while self.check("==", "!=", "等于", "不等于"):
             operator = self.advance().value
             right = self.parse_comparison()
-            left = BinaryOpNode(
-                operator=operator,
-                left=left,
-                right=right
-            )
+            left = BinaryOpNode(operator=operator, left=left, right=right)
 
         return left
 
@@ -170,14 +165,10 @@ class ExpressionParserMixin:
         """
         left = self.parse_addition()
 
-        while self.check('<', '>', '<=', '>=', '小于', '大于', '小于等于', '大于等于'):
+        while self.check("<", ">", "<=", ">=", "小于", "大于", "小于等于", "大于等于"):
             operator = self.advance().value
             right = self.parse_addition()
-            left = BinaryOpNode(
-                operator=operator,
-                left=left,
-                right=right
-            )
+            left = BinaryOpNode(operator=operator, left=left, right=right)
 
         return left
 
@@ -190,14 +181,10 @@ class ExpressionParserMixin:
         """
         left = self.parse_multiplication()
 
-        while self.check('+', '-', '加', '减'):
+        while self.check("+", "-", "加", "减"):
             operator = self.advance().value
             right = self.parse_multiplication()
-            left = BinaryOpNode(
-                operator=operator,
-                left=left,
-                right=right
-            )
+            left = BinaryOpNode(operator=operator, left=left, right=right)
 
         return left
 
@@ -210,14 +197,10 @@ class ExpressionParserMixin:
         """
         left = self.parse_unary()
 
-        while self.check('*', '/', '%', '乘', '除', '取模'):
+        while self.check("*", "/", "%", "乘", "除", "取模"):
             operator = self.advance().value
             right = self.parse_unary()
-            left = BinaryOpNode(
-                operator=operator,
-                left=left,
-                right=right
-            )
+            left = BinaryOpNode(operator=operator, left=left, right=right)
 
         return left
 
@@ -228,17 +211,17 @@ class ExpressionParserMixin:
         Returns:
             一元节点
         """
-        if self.check('-', '负'):
+        if self.check("-", "负"):
             operator = self.advance().value
             operand = self.parse_unary()
             return UnaryOpNode(operator=operator, operand=operand)
 
-        if self.check('!', '非'):
+        if self.check("!", "非"):
             operator = self.advance().value
             operand = self.parse_unary()
             return UnaryOpNode(operator=operator, operand=operand)
 
-        if self.check('+', '正'):
+        if self.check("+", "正"):
             operator = self.advance().value
             operand = self.parse_unary()
             return UnaryOpNode(operator=operator, operand=operand)
@@ -255,26 +238,28 @@ class ExpressionParserMixin:
         expr = self.parse_primary()
 
         while True:
-            if self.check('['):
+            if self.check("["):
                 # 数组下标访问
                 self.advance()
                 index = self.parse_expression()
-                self.expect(']', "数组访问的结束")
+                self.expect("]", "数组访问的结束")
                 expr = IndexExprNode(array=expr, index=index)
-            elif self.check('.'):
+            elif self.check("."):
                 # 结构体成员访问
                 self.advance()
-                member = self.expect('标识符', "成员名")
-                expr = MemberExprNode(object=expr, member=member.value if member else 'unknown')
-            elif self.check('('):
+                member = self.expect("标识符", "成员名")
+                expr = MemberExprNode(
+                    object=expr, member=member.value if member else "unknown"
+                )
+            elif self.check("("):
                 # 函数调用
                 self.advance()
                 args = []
-                while not self.check(')') and not self.is_at_end():
+                while not self.check(")") and not self.is_at_end():
                     args.append(self.parse_expression())
-                    if self.check(','):
+                    if self.check(","):
                         self.advance()
-                self.expect(')', "函数调用的结束")
+                self.expect(")", "函数调用的结束")
                 expr = CallExprNode(callee=expr, args=args)
             else:
                 break
@@ -288,52 +273,52 @@ class ExpressionParserMixin:
         Returns:
             基本表达式节点
         """
-        token = self.current_token()
+        self.current_token()
 
         # 数字字面量
-        if self.check('数字', '整数', '浮点数'):
+        if self.check("数字", "整数", "浮点数"):
             value = self.advance().value
-            return LiteralNode(type='number', value=value)
+            return LiteralNode(type="number", value=value)
 
         # 字符串字面量
-        if self.check('字符串'):
+        if self.check("字符串"):
             value = self.advance().value
-            return LiteralNode(type='string', value=value)
+            return LiteralNode(type="string", value=value)
 
         # 字符字面量
-        if self.check('字符'):
+        if self.check("字符"):
             value = self.advance().value
-            return LiteralNode(type='char', value=value)
+            return LiteralNode(type="char", value=value)
 
         # 标识符
-        if self.check('标识符'):
+        if self.check("标识符"):
             name = self.advance().value
             return IdentifierNode(name=name)
 
         # 括号表达式
-        if self.check('('):
+        if self.check("("):
             self.advance()
             expr = self.parse_expression()
-            self.expect(')', "括号表达式的结束")
+            self.expect(")", "括号表达式的结束")
             return expr
 
         # 真假值
-        if self.check('真', 'true', 'True'):
+        if self.check("真", "true", "True"):
             self.advance()
-            return LiteralNode(type='bool', value=True)
+            return LiteralNode(type="bool", value=True)
 
-        if self.check('假', 'false', 'False'):
+        if self.check("假", "false", "False"):
             self.advance()
-            return LiteralNode(type='bool', value=False)
+            return LiteralNode(type="bool", value=False)
 
         # 空值
-        if self.check('空', 'null', 'NULL'):
+        if self.check("空", "null", "NULL"):
             self.advance()
-            return LiteralNode(type='null', value=None)
+            return LiteralNode(type="null", value=None)
 
         # 跳过无效token
         self.advance()
-        return LiteralNode(type='unknown', value=None)
+        return LiteralNode(type="unknown", value=None)
 
     # ==================== 辅助方法 ====================
 

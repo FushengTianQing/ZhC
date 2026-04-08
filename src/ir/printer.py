@@ -8,7 +8,7 @@ ZHC IR - 文本打印器
 日期：2026-04-03
 """
 
-from .program import IRProgram, IRFunction, IRGlobalVar, IRStructDef
+from .program import IRProgram, IRFunction
 from .instructions import IRBasicBlock
 
 

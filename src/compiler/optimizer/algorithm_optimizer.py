@@ -12,7 +12,9 @@ class AlgorithmOptimizer:
     """算法优化器"""
 
     @staticmethod
-    def optimize_dependency_resolution(dependency_graph: Dict[str, List[str]]) -> Tuple[Dict[str, List[str]], Dict[str, int]]:
+    def optimize_dependency_resolution(
+        dependency_graph: Dict[str, List[str]],
+    ) -> Tuple[Dict[str, List[str]], Dict[str, int]]:
         """
         优化依赖解析算法
 
@@ -23,21 +25,29 @@ class AlgorithmOptimizer:
             (优化后的依赖图, 节点层级信息)
         """
         # 1. 压缩传递依赖
-        compressed_graph = AlgorithmOptimizer._compress_transitive_dependencies(dependency_graph)
+        compressed_graph = AlgorithmOptimizer._compress_transitive_dependencies(
+            dependency_graph
+        )
 
         # 2. 计算节点层级（拓扑深度）
         node_levels = AlgorithmOptimizer._calculate_node_levels(compressed_graph)
 
         # 3. 按层级排序依赖
-        sorted_graph = AlgorithmOptimizer._sort_dependencies_by_level(compressed_graph, node_levels)
+        sorted_graph = AlgorithmOptimizer._sort_dependencies_by_level(
+            compressed_graph, node_levels
+        )
 
         # 4. 移除冗余依赖
-        optimized_graph = AlgorithmOptimizer._remove_redundant_dependencies(sorted_graph)
+        optimized_graph = AlgorithmOptimizer._remove_redundant_dependencies(
+            sorted_graph
+        )
 
         return optimized_graph, node_levels
 
     @staticmethod
-    def _compress_transitive_dependencies(graph: Dict[str, List[str]]) -> Dict[str, List[str]]:
+    def _compress_transitive_dependencies(
+        graph: Dict[str, List[str]],
+    ) -> Dict[str, List[str]]:
         """压缩传递依赖"""
         compressed = {}
 
@@ -98,7 +108,9 @@ class AlgorithmOptimizer:
         return levels
 
     @staticmethod
-    def _sort_dependencies_by_level(graph: Dict[str, List[str]], levels: Dict[str, int]) -> Dict[str, List[str]]:
+    def _sort_dependencies_by_level(
+        graph: Dict[str, List[str]], levels: Dict[str, int]
+    ) -> Dict[str, List[str]]:
         """按层级排序依赖"""
         sorted_graph = {}
 
@@ -110,7 +122,9 @@ class AlgorithmOptimizer:
         return sorted_graph
 
     @staticmethod
-    def _remove_redundant_dependencies(graph: Dict[str, List[str]]) -> Dict[str, List[str]]:
+    def _remove_redundant_dependencies(
+        graph: Dict[str, List[str]],
+    ) -> Dict[str, List[str]]:
         """移除冗余依赖"""
         optimized = {}
 
@@ -121,7 +135,7 @@ class AlgorithmOptimizer:
 
             # 构建除当前依赖外的可达集合
             for i, dep in enumerate(deps):
-                other_deps = deps[:i] + deps[i+1:]
+                other_deps = deps[:i] + deps[i + 1 :]
 
                 # 计算通过其他依赖能到达的节点
                 temp_reachable = set(other_deps)
@@ -156,11 +170,15 @@ class AlgorithmOptimizer:
             优化后的数据结构
         """
         if isinstance(data_structure, dict):
-            return {k: AlgorithmOptimizer.optimize_memory_usage(v)
-                   for k, v in data_structure.items()}
+            return {
+                k: AlgorithmOptimizer.optimize_memory_usage(v)
+                for k, v in data_structure.items()
+            }
 
         elif isinstance(data_structure, list):
-            if len(data_structure) > 0 and all(isinstance(x, type(data_structure[0])) for x in data_structure):
+            if len(data_structure) > 0 and all(
+                isinstance(x, type(data_structure[0])) for x in data_structure
+            ):
                 if isinstance(data_structure[0], (int, float)):
                     return list(data_structure)
             return [AlgorithmOptimizer.optimize_memory_usage(x) for x in data_structure]
