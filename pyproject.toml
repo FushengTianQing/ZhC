@@ -331,12 +331,10 @@ output = "coverage.xml"
 
 
 # =============================================================================
-# 项目自定义脚本（通过 'python -m zhc.scripts.xxx' 调用）
+# 项目自定义脚本
 # =============================================================================
 [project.scripts]
-zhc = "src.cli:main"
-zhc-quality = "scripts.quality_check:main"
-zhc-test = "scripts.run_tests:main"
+zhc = "zhc.cli.main:main"
 
 
 # =============================================================================
@@ -349,6 +347,7 @@ build-backend = "setuptools.build_meta"
 # Setuptools特定配置 - 自动发现包
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["zhc*"]
 
 
 # =============================================================================
