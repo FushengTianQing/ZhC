@@ -545,13 +545,13 @@ class CBackendHintAdapter:
         parts: List[str] = []
         attributes: List[str] = []
 
-        # inline 关键字
-        if hints.has_hint(OptimizationHint.INLINE):
-            parts.append("inline")
-
+        # inline 关键字（ALWAYS_INLINE 包含 inline 语义，避免重复）
+        # 使用 static inline 以确保单文件编译时函数可用
         if hints.has_hint(OptimizationHint.ALWAYS_INLINE):
-            parts.append("inline")
+            parts.append("static inline")
             attributes.append("always_inline")
+        elif hints.has_hint(OptimizationHint.INLINE):
+            parts.append("static inline")
 
         # 其他属性
         if hints.has_hint(OptimizationHint.HOT):

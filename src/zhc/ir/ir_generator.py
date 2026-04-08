@@ -191,13 +191,48 @@ class IRGenerator(ASTVisitor):
         """从 AST 类型节点获取类型名"""
         if type_node is None:
             return "空型"
+
+        # 处理数组类型
+        if hasattr(type_node, "node_type") and type_node.node_type.name == "ARRAY_TYPE":
+            base_type = (
+                self._get_type_name(type_node.element_type)
+                if hasattr(type_node, "element_type")
+                else "整数型"
+            )
+            size = ""
+            if hasattr(type_node, "size") and type_node.size:
+                if hasattr(type_node.size, "value"):
+                    size = str(type_node.size.value)
+                else:
+                    size = "_"  # 动态大小
+            return f"{base_type}[{size}]"
+
+        # 处理指针类型
+        if (
+            hasattr(type_node, "node_type")
+            and type_node.node_type.name == "POINTER_TYPE"
+        ):
+            base_type = (
+                self._get_type_name(type_node.base_type)
+                if hasattr(type_node, "base_type")
+                else "整数型"
+            )
+            return f"{base_type}*"
+
         if hasattr(type_node, "name"):
             return type_node.name
         return str(type_node)
 
     def _resolve_function_name(self, name: str) -> str:
         """解析中文函数名为 C 函数名"""
-        # 中文函数名映射
+        # 先使用 mappings.py 的标准库函数映射
+        from .mappings import resolve_function_name as resolve_stdlib
+
+        resolved = resolve_stdlib(name)
+        if resolved != name:
+            return resolved
+
+        # 中文函数名映射（用户自定义函数）
         FUNCTION_MAP = {
             "主函数": "main",
             "主程序": "main",
@@ -263,20 +298,40 @@ class IRGenerator(ASTVisitor):
 
         # 初始化
         if node.init:
-            init_result = self._eval_expr(node.init)
-            if init_result:
-                self._emit(Opcode.STORE, [init_result, alloc_result])
+            init_node_type = (
+                node.init.node_type.name if hasattr(node.init, "node_type") else None
+            )
+
+            # 处理数组初始化
+            if init_node_type == "ARRAY_INIT":
+                self._handle_array_init(node.init, alloc_result, var_value)
+            else:
+                init_result = self._eval_expr(node.init)
+                if init_result:
+                    self._emit(Opcode.STORE, [init_result, alloc_result])
+
+    def _handle_array_init(
+        self, array_init: "ArrayInitNode", alloc_result: IRValue, var_value: IRValue
+    ):
+        """处理数组初始化：为每个元素生成 STORE 指令"""
+        elements = array_init.elements
+        for i, elem in enumerate(elements):
+            # 计算元素地址
+            idx_val = IRValue(str(i), "整数型", ValueKind.CONST, const_value=i)
+            elem_ptr = self._new_temp()
+            self._emit(Opcode.GEP, [var_value, idx_val], [elem_ptr])
+
+            # 求值元素值
+            elem_val = self._eval_expr(elem)
+            if elem_val:
+                self._emit(Opcode.STORE, [elem_val, elem_ptr])
 
     def visit_param_decl(self, node: ParamDeclNode):
-        """参数声明 → PARAM"""
+        """参数声明 → PARAM（只添加到函数参数列表，不生成 ALLOC）"""
         ty = self._get_type_name(node.param_type)
         pv = IRValue(name=node.name, ty=ty, kind=ValueKind.PARAM)
         self.current_function.params.append(pv)
-
-        # 也在基本块中声明
-        alloc_result = self._new_temp(ty)
-        self._emit(Opcode.ALLOC, [pv], [alloc_result])
-        self._emit(Opcode.STORE, [pv], [alloc_result])
+        # 参数已在函数签名中声明，不需要额外的 ALLOC
 
     def visit_block_stmt(self, node: BlockStmtNode):
         """代码块 → 递归处理"""
@@ -376,7 +431,11 @@ class IRGenerator(ASTVisitor):
     def _eval_string_literal(self, node: ASTNode) -> IRValue:
         """求值字符串字面量"""
         val = getattr(node, "value", "")
-        return self._eval_literal(node, "字符串型", f'"{val}"', is_string=True)
+        # 将 Python 字符串转换为 C 字符串字面量
+        # repr() 会将转义字符转换为字符串形式，例如 '\n' -> '\\n'
+        # 然后去掉首尾的引号
+        c_val = repr(val)[1:-1]  # 去掉 repr() 添加的引号
+        return self._eval_literal(node, "字符串型", f'"{c_val}"', is_string=True)
 
     def _eval_char_literal(self, node: ASTNode) -> IRValue:
         """求值字符字面量"""
@@ -478,6 +537,8 @@ class IRGenerator(ASTVisitor):
         """求值函数调用表达式"""
         callee = getattr(node, "callee", None)
         func_name = getattr(callee, "name", "unknown") if callee else "unknown"
+        # 解析中文函数名为 C 函数名
+        func_name = self._resolve_function_name(func_name)
         args = []
         for arg in getattr(node, "args", []):
             arg_val = self._eval_expr(arg)
@@ -496,11 +557,29 @@ class IRGenerator(ASTVisitor):
         return result
 
     def _eval_array(self, node: ASTNode) -> Optional[IRValue]:
-        """求值数组访问表达式"""
-        base = self._eval_expr(getattr(node, "object", None))
+        """求值数组访问表达式
+
+        数组访问需要两步：
+        1. GEP: 获取元素地址 (base + index)
+        2. LOAD: 读取元素值 *(base + index)
+        """
+        # ArrayExprNode 使用 array 属性，不是 object
+        base = self._eval_expr(
+            getattr(node, "array", None) or getattr(node, "object", None)
+        )
         index = self._eval_expr(getattr(node, "index", None))
+
+        if not base or not index:
+            return None
+
+        # 第一步：获取元素地址
+        addr = self._new_temp()
+        self._emit(Opcode.GEP, [base, index], [addr])
+
+        # 第二步：读取元素值
         result = self._new_temp()
-        self._emit(Opcode.GEP, [base, index] if index else [base], [result])
+        self._emit(Opcode.LOAD, [addr], [result])
+
         return result
 
     def _eval_ternary(self, node: ASTNode) -> Optional[IRValue]:

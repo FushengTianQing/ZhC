@@ -119,6 +119,8 @@ class BuildCommand(CommandHandler):
             config = json.load(f)
 
         entry_module = config.get("入口模块", "src/主程序.zhc")
+        project_name = config.get("项目名称", "程序")
+        output_dir = Path(config.get("编译选项", {}).get("输出目录", "./构建"))
 
         # 直接调用编译器
         from zhc import ZHCCompiler
@@ -130,13 +132,34 @@ class BuildCommand(CommandHandler):
         )
         compiler = ZHCCompiler(compiler_config)
 
+        # 编译 ZHC → C
         result = compiler.compile_single_file(Path(entry_module))
-        if result.success:
-            print("✅ 编译成功")
-            return 0
-        else:
+        if not result.success:
             print("❌ 编译失败")
             return 1
+
+        # 编译 C → 可执行文件
+        c_file = Path(entry_module).with_suffix(".c")
+        if not c_file.exists():
+            print(f"❌ 错误: 找不到生成的 C 文件: {c_file}")
+            return 1
+
+        output_dir.mkdir(exist_ok=True)
+        executable = output_dir / project_name
+
+        print(f"🔧 编译可执行文件: {executable}")
+        compile_result = subprocess.run(
+            ["gcc", str(c_file), "-o", str(executable)], capture_output=True, text=True
+        )
+
+        if compile_result.returncode != 0:
+            print("❌ GCC 编译失败:")
+            print(compile_result.stderr)
+            return 1
+
+        print("✅ 编译成功")
+        print(f"📦 可执行文件: {executable}")
+        return 0
 
 
 class RunCommand(CommandHandler):

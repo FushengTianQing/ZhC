@@ -704,6 +704,14 @@ class SemanticAnalyzer:
 
     def _analyze_identifier_expr(self, node: IdentifierExprNode) -> None:
         """分析标识符表达式"""
+        # 如果父节点是 CallExprNode（作为 callee），则不检查定义
+        # 因为函数调用会在 _analyze_call_expr 中处理，未定义的函数视为外部函数
+        if node.parent and node.parent.node_type == ASTNodeType.CALL_EXPR:
+            # 检查是否是 callee
+            if hasattr(node.parent, "callee") and node.parent.callee is node:
+                # 作为函数 callee，不报未定义错误
+                return
+
         symbol = self.symbol_table.lookup(node.name)
 
         if not symbol:
@@ -1717,6 +1725,10 @@ class SemanticAnalyzer:
 
         for symbol in unused:
             if symbol.symbol_type in ["参数", "成员变量"]:
+                continue
+
+            # 跳过程序入口点（主函数/main）
+            if symbol.symbol_type == "函数" and symbol.name in ["主函数", "main"]:
                 continue
 
             self._add_warning(

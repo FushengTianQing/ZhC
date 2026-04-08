@@ -92,6 +92,7 @@ class CBackend:
         """
         self.output_lines: List[str] = []
         self.temp_names: dict = {}  # IR temp name -> C temp name
+        self.pointer_temps: set = set()  # 记录哪些临时变量是指针（由 GEP 生成）
 
         # 优化提示配置
         self.enable_optimization_hints = (
@@ -211,7 +212,7 @@ class CBackend:
         ret_type = resolve_type(func.return_type or "空型")
         func_name = resolve_function_name(func.name)
         params = ", ".join(
-            f"{resolve_type(p.ty or 'int')} {p.name}" for p in func.params
+            f"{self._resolve_param_type(p.ty or 'int')} {p.name}" for p in func.params
         )
 
         # TASK-P3-003：获取优化提示前缀
@@ -221,6 +222,7 @@ class CBackend:
 
         # 重置每个函数的临时变量名表
         self.temp_names = {}
+        self.pointer_temps = set()  # 重置指针临时变量集合
         # 临时变量计数器（用于生成 t0, t1, t2... 等C变量名）
         temp_counter = 0
 
@@ -243,6 +245,9 @@ class CBackend:
                             c_name = f"t{temp_counter}"
                             self.temp_names[res.name] = c_name
                             temp_counter += 1
+                            # 记录 GEP 指令的结果是指针
+                            if instr.opcode == Opcode.GEP:
+                                self.pointer_temps.add(c_name)
 
         # 声明所有变量（用户变量 + 生成的临时变量）
         # 需要收集类型信息，暂时统一用 int
@@ -253,12 +258,15 @@ class CBackend:
                     var = instr.operands[0]
                     if var.name not in declared:
                         ty = getattr(var, "ty", None) or "int"
-                        self._emit(f"  {resolve_type(ty)} {var.name};")
+                        self._emit(f"  {self._resolve_var_type(ty, var.name)};")
                         declared.add(var.name)
-        # 声明生成的临时变量（统一用 int 类型）
+        # 声明生成的临时变量（检查是否是指针类型）
         for ir_name, c_name in self.temp_names.items():
             if c_name.startswith("t") and c_name not in declared:
-                self._emit(f"  int {c_name};")
+                if c_name in self.pointer_temps:
+                    self._emit(f"  int* {c_name};")  # 指针类型
+                else:
+                    self._emit(f"  int {c_name};")  # 普通类型
                 declared.add(c_name)
 
         # 输出各基本块（除 entry 外都添加 goto 标签）
@@ -271,6 +279,62 @@ class CBackend:
 
         self._emit("}")
         self._emit("")
+
+    def _resolve_param_type(self, param_type: str) -> str:
+        """解析参数类型，将数组类型转换为指针类型
+
+        在 C 中，数组参数自动 decay 为指针。
+        """
+        import re
+
+        # 处理带大小的数组类型（如 "int[10]"）
+        match = re.match(r"(.+)\[(\d+|\w+|_)\]$", param_type)
+        if match:
+            base_type = match.group(1)
+            return f"{resolve_type(base_type)}*"
+
+        # 处理无大小的数组类型（如 "int[]"）
+        match = re.match(r"(.+)\[\]$", param_type)
+        if match:
+            base_type = match.group(1)
+            return f"{resolve_type(base_type)}*"
+
+        # 处理指针类型（如 "int*"）
+        if param_type.endswith("*"):
+            return resolve_type(param_type)
+
+        # 基本类型
+        return resolve_type(param_type)
+
+    def _resolve_var_type(self, var_type: str, var_name: str) -> str:
+        """解析变量类型，生成正确的 C 声明
+
+        例如：
+        - "int", "x" → "int x"
+        - "int[10]", "arr" → "int arr[10]"
+        - "int*", "p" → "int* p"
+        """
+        import re
+
+        # 处理带大小的数组类型（如 "int[10]"）
+        match = re.match(r"(.+)\[(\d+|\w+|_)\]$", var_type)
+        if match:
+            base_type = match.group(1)
+            size = match.group(2)
+            return f"{resolve_type(base_type)} {var_name}[{size}]"
+
+        # 处理无大小的数组类型（如 "int[]"）
+        match = re.match(r"(.+)\[\]$", var_type)
+        if match:
+            base_type = match.group(1)
+            return f"{resolve_type(base_type)}* {var_name}"
+
+        # 处理指针类型（如 "int*"）
+        if var_type.endswith("*"):
+            return f"{resolve_type(var_type)} {var_name}"
+
+        # 基本类型
+        return f"{resolve_type(var_type)} {var_name}"
 
     def _get_function_hint_prefix(self, func_name: str) -> str:
         """获取函数的优化提示前缀
@@ -368,18 +432,48 @@ class CBackend:
         """处理 STORE 指令 — 赋值语句
 
         示例: store 10 → %0   生成: x = 10;
+        对于指针算术结果，生成 *ptr = val;
         """
         if len(instr.operands) >= 2:
             val = self._resolve_val(instr.operands[0])
             ptr = self._resolve_val(instr.operands[1])
-            self._emit(f"{ptr} = {val};")
+
+            # 检查是否是指针临时变量（由 GEP 生成）
+            is_pointer = False
+            if hasattr(instr.operands[1], "name"):
+                if instr.operands[1].name in self.pointer_temps:
+                    is_pointer = True
+
+            if is_pointer:
+                self._emit(f"*{ptr} = {val};")
+            else:
+                self._emit(f"{ptr} = {val};")
 
     def _handle_load(self, instr: IRInstruction) -> None:
-        """处理 LOAD 指令 — 取值"""
+        """处理 LOAD 指令 — 取值
+
+        对于指针，生成 res = *ptr;
+        """
         if len(instr.operands) >= 1 and instr.result:
             ptr = self._resolve_val(instr.operands[0])
             res = self._resolve_val(instr.result[0])
-            self._emit(f"{res} = {ptr};")
+
+            # 检查是否是指针临时变量
+            is_pointer = False
+            if hasattr(instr.operands[0], "name"):
+                # 检查 IR 名称是否在 pointer_temps 中
+                ir_name = instr.operands[0].name
+                if ir_name in self.pointer_temps:
+                    is_pointer = True
+                # 也检查 C 名称
+                c_name = self.temp_names.get(ir_name, "")
+                if c_name in self.pointer_temps:
+                    is_pointer = True
+
+            if is_pointer:
+                self._emit(f"{res} = *{ptr};")
+            else:
+                self._emit(f"{res} = {ptr};")
 
     def _handle_const(self, instr: IRInstruction) -> None:
         """处理 CONST 指令 — 常量赋值
@@ -411,7 +505,30 @@ class CBackend:
             return
         func_val = self._resolve_val(instr.operands[0])
         args = ", ".join(self._resolve_val(a) for a in instr.operands[1:])
-        if instr.result:
+
+        # 检查是否是 void 函数（已知的标准库 void 函数）
+        void_functions = {
+            "printf",
+            "scanf",
+            "puts",
+            "putchar",
+            "getchar",
+            "malloc",
+            "free",
+            "calloc",
+            "realloc",
+            "memcpy",
+            "memset",
+            "memmove",
+            "exit",
+            "abort",
+            # 中文 void 函数
+            "打印数组",
+            "数组排序",
+            "字符串复制",
+        }
+
+        if instr.result and func_val not in void_functions:
             res = self._resolve_val(instr.result[0])
             self._emit(f"{res} = {func_val}({args});")
         else:
@@ -430,12 +547,30 @@ class CBackend:
             self._emit(f"{res} = &{base};")
 
     def _handle_gep(self, instr: IRInstruction) -> None:
-        """处理 GEP 指针算术"""
+        """处理 GEP 指针算术 — 生成数组元素地址
+
+        对于数组访问，需要生成指针算术表达式。
+        由于数组参数是 int* 类型，使用 (base + index) 来获取元素地址。
+        """
         if len(instr.operands) >= 2 and instr.result:
             base = self._resolve_val(instr.operands[0])
             index = self._resolve_val(instr.operands[1])
             res = self._resolve_val(instr.result[0])
-            self._emit(f"{res} = {base} + {index};")
+
+            # 记录这个临时变量是指针
+            if hasattr(instr.result[0], "name"):
+                self.pointer_temps.add(instr.result[0].name)
+
+            # 如果 base 是 None，说明数组变量没有被正确解析
+            if base == "None":
+                if hasattr(instr.operands[0], "name"):
+                    actual_base = self.temp_names.get(instr.operands[0].name, "array")
+                    self._emit(f"{res} = {actual_base} + {index};")
+                else:
+                    self._emit(f"{res} = array + {index};")
+            else:
+                # 对于指针类型，使用 (base + index)
+                self._emit(f"{res} = {base} + {index};")
 
     def _handle_jmp(self, instr: IRInstruction) -> None:
         """处理 JMP 指令 — 转换为 C goto 语句

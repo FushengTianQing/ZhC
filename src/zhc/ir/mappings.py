@@ -85,6 +85,21 @@ STDLIB_FUNC_MAP = {
 
 def resolve_type(zhc_type: str) -> str:
     """解析中文类型为 C 类型"""
+    # 处理指针类型（如 "整数型*"）
+    if zhc_type.endswith("*"):
+        base_type = zhc_type[:-1].strip()
+        return resolve_type(base_type) + "*"
+
+    # 处理数组类型（如 "整数型[10]"）
+    if zhc_type.endswith("]"):
+        import re
+
+        match = re.match(r"(.+)\[(\d+)\]$", zhc_type)
+        if match:
+            base_type = match.group(1)
+            size = match.group(2)
+            return f"{resolve_type(base_type)}[{size}]"
+
     return TYPE_MAP.get(zhc_type, zhc_type)
 
 

@@ -614,9 +614,10 @@ class UninitAnalyzer:
                 self._scan_expr(node.operand, initialized, func_name, symbol_table)
 
         elif nt == ASTNodeType.CALL_EXPR:
-            # 函数调用：递归分析参数
-            for child in node.get_children():
-                self._scan_expr(child, initialized, func_name, symbol_table)
+            # 函数调用：只分析参数，不检查函数名（callee不是变量）
+            if hasattr(node, "args") and node.args:
+                for arg in node.args:
+                    self._scan_expr(arg, initialized, func_name, symbol_table)
 
         elif nt == ASTNodeType.ARRAY_EXPR:
             for child in node.get_children():

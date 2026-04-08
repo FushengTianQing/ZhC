@@ -164,7 +164,12 @@ class TypeMapper:
         Returns:
             str: C 类型名
         """
-        # 处理指针类型
+        # 处理 ARRAY_TYPE 占位符（数组参数）
+        if zhc_type.startswith("ARRAY_TYPE"):
+            # 数组参数在 C 中作为指针传递
+            return "int*"  # 默认为 int*
+
+        # 处理指针类型（如 "整数型*"）
         if zhc_type.endswith("*"):
             base_type = zhc_type[:-1].strip()
             return self.to_c(base_type) + "*"
