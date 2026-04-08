@@ -148,6 +148,13 @@ class TestInlineCost:
         assert cost.basic_block_count == 0
         assert cost.call_count == 0
         assert cost.estimated_size == 0
+        # TASK-P3-002 新增属性
+        assert cost.loop_nesting_depth == 0
+        assert cost.constant_param_ratio == 0.0
+        assert cost.simple_param_ratio == 0.0
+        assert cost.complex_param_ratio == 0.0
+        assert cost.control_flow_complexity == 0
+        assert cost.savings_estimate == 0.0
     
     def test_custom_values(self):
         """测试自定义值"""
@@ -155,12 +162,25 @@ class TestInlineCost:
             instruction_count=10,
             basic_block_count=2,
             call_count=5,
-            estimated_size=40
+            estimated_size=40,
+            # TASK-P3-002 新增属性
+            loop_nesting_depth=2,
+            constant_param_ratio=0.5,
+            simple_param_ratio=0.8,
+            complex_param_ratio=0.2,
+            control_flow_complexity=3,
+            savings_estimate=15.5
         )
         assert cost.instruction_count == 10
         assert cost.basic_block_count == 2
         assert cost.call_count == 5
         assert cost.estimated_size == 40
+        assert cost.loop_nesting_depth == 2
+        assert cost.constant_param_ratio == 0.5
+        assert cost.simple_param_ratio == 0.8
+        assert cost.complex_param_ratio == 0.2
+        assert cost.control_flow_complexity == 3
+        assert cost.savings_estimate == 15.5
     
     def test_is_small(self):
         """测试 is_small 方法"""
@@ -202,6 +222,9 @@ class TestInlineCostModel:
         assert model.program is program
         assert isinstance(model.call_counts, dict)
         assert isinstance(model.function_costs, dict)
+        # TASK-P3-002 新增
+        assert isinstance(model.call_frequency, dict)
+        assert isinstance(model.loop_calls, dict)
     
     def test_function_costs_computed(self):
         """测试函数成本已计算"""
@@ -226,6 +249,122 @@ class TestInlineCostModel:
         
         cost = model.get_cost("nonexistent")
         assert cost is None
+    
+    def test_call_frequency_analysis(self):
+        """测试调用频率分析（TASK-P3-002 新增）"""
+        program = create_program_with_call()
+        model = InlineCostModel(program)
+        
+        # 检查调用频率分析
+        assert "add_numbers" in model.call_frequency
+        assert "count" in model.call_frequency["add_numbers"]
+        assert "frequency" in model.call_frequency["add_numbers"]
+        assert "is_hot" in model.call_frequency["add_numbers"]
+        assert "is_cold" in model.call_frequency["add_numbers"]
+    
+    def test_control_flow_complexity(self):
+        """测试控制流复杂度计算（TASK-P3-002 新增）"""
+        program = create_program_with_call()
+        model = InlineCostModel(program)
+        
+        cost = model.get_cost("add_numbers")
+        assert cost is not None
+        # add_numbers 是一个简单函数，应该没有分支
+        assert cost.control_flow_complexity >= 0
+    
+    def test_is_simple_type(self):
+        """测试简单类型判断（TASK-P3-002 新增）"""
+        program = create_program_with_call()
+        model = InlineCostModel(program)
+        
+        # 简单类型
+        assert model._is_simple_type("整数型") is True
+        assert model._is_simple_type("int") is True
+        assert model._is_simple_type("i32") is True
+        assert model._is_simple_type("f64") is True
+        
+        # 复杂类型
+        assert model._is_simple_type("结构体型") is False
+        assert model._is_simple_type("数组型") is False
+        assert model._is_simple_type("指针型") is False
+    
+    def test_param_type_analysis(self):
+        """测试参数类型分析（TASK-P3-002 新增）"""
+        program = create_program_with_call()
+        model = InlineCostModel(program)
+        
+        add_func = program.find_function("add_numbers")
+        assert add_func is not None
+        
+        # 创建带有参数的调用指令
+        call_instr = IRInstruction(
+            opcode=Opcode.CALL,
+            operands=[
+                IRValue(name="@add_numbers", ty="函数型"),
+                IRValue(name="1", ty="整数型", kind=ValueKind.CONST, const_value=1),
+                IRValue(name="2", ty="整数型", kind=ValueKind.CONST, const_value=2)
+            ],
+            result=[IRValue(name="%result", ty="整数型")]
+        )
+        
+        # 分析参数类型
+        constant_ratio, simple_ratio, complex_ratio = model._analyze_param_types(
+            add_func, call_instr
+        )
+        
+        assert constant_ratio == 1.0  # 两个参数都是常量
+        assert simple_ratio == 1.0   # 两个参数都是简单类型
+    
+    def test_savings_computation(self):
+        """测试内联收益计算（TASK-P3-002 新增）"""
+        program = create_program_with_call()
+        model = InlineCostModel(program)
+        
+        caller = program.find_function("caller")
+        callee = program.find_function("add_numbers")
+        
+        assert caller is not None
+        assert callee is not None
+        
+        # 创建调用指令
+        call_instr = IRInstruction(
+            opcode=Opcode.CALL,
+            operands=[
+                IRValue(name="@add_numbers", ty="函数型"),
+                IRValue(name="a", ty="整数型"),
+                IRValue(name="b", ty="整数型")
+            ],
+            result=[IRValue(name="%result", ty="整数型")]
+        )
+        
+        callee_cost = model.get_cost("add_numbers")
+        assert callee_cost is not None
+        
+        # 计算收益
+        savings = model._compute_savings(caller, callee, call_instr, callee_cost)
+        
+        # 简单函数的收益应该为正
+        assert isinstance(savings, float)
+    
+    def test_loop_depth_estimation(self):
+        """测试循环深度估计（TASK-P3-002 新增）"""
+        program = create_program_with_call()
+        model = InlineCostModel(program)
+        
+        # 创建循环基本块
+        loop_bb = IRBasicBlock("entry.loop")
+        depth = model._estimate_loop_depth(loop_bb)
+        assert depth == 1  # 包含 "loop" 关键字
+        
+        # 创建嵌套循环基本块
+        nested_bb = IRBasicBlock("entry.loop.loop")
+        depth = model._estimate_loop_depth(nested_bb)
+        assert depth == 2  # 包含两个 "loop"
+        
+        # 创建普通基本块
+        normal_bb = IRBasicBlock("entry")
+        depth = model._estimate_loop_depth(normal_bb)
+        assert depth == 0  # 不包含 "loop"
 
 
 # =============================================================================

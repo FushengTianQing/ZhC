@@ -103,7 +103,7 @@ ZHC IR - 函数内联优化
 日期：2026-04-08
 """
 
-from typing import Dict, List, Set, Optional, Tuple
+from typing import Dict, List, Set, Optional, Tuple, Any
 from dataclasses import dataclass
 
 from .instructions import IRBasicBlock, IRInstruction
@@ -127,6 +127,8 @@ class InlineCost:
     属性说明
     ================================================================================
     
+    基础属性（原有）：
+    
     instruction_count: 指令数量
         - 函数中的指令总数
         - 衡量函数大小的主要指标
@@ -146,11 +148,84 @@ class InlineCost:
         - 估计的代码大小（字节）
         - 简化估计：每条指令约 4 字节
         - 用于代码膨胀分析
+    
+    ================================================================================
+    新增属性（TASK-P3-002）
+    ================================================================================
+    
+    loop_nesting_depth: 循环嵌套深度
+        - 调用点所在的循环嵌套深度
+        - 循环内的调用频率更高（假设循环执行 N 次）
+        - 深度越大，内联收益越高
+        - 示例：在双重循环内的调用，depth = 2
+        
+    constant_param_ratio: 常量参数比例
+        - 常量参数数量 / 总参数数量
+        - 常量参数可以进行常量传播优化
+        - 比例越高，内联收益越大
+        - 示例：add(1, 2) 的 ratio = 1.0
+        
+    simple_param_ratio: 简单类型参数比例
+        - 简单类型参数数量 / 总参数数量
+        - 简单类型：整数、浮点、布尔等
+        - 简单类型传递成本低，内联收益高
+        
+    complex_param_ratio: 复杂类型参数比例
+        - 复杂类型参数数量 / 总参数数量
+        - 复杂类型：结构体、数组、字符串等
+        - 复杂类型传递成本高，内联可能增加寄存器压力
+        
+    control_flow_complexity: 控制流复杂度
+        - 分支指令数量（IF、SWITCH 等）
+        - 分支越多，控制流越复杂
+        - 复杂控制流可能降低内联收益
+        
+    savings_estimate: 内联收益估计
+        - 综合考虑所有因素后的收益估计
+        - 正值表示收益，负值表示成本
+        - 用于最终决策
+    
+    ================================================================================
+    成本计算公式（TASK-P3-002）
+    ================================================================================
+    
+    总成本 = 基础成本 - 收益因子
+    
+    基础成本 = instruction_count * SIZE_WEIGHT
+               + basic_block_count * BB_WEIGHT
+               + control_flow_complexity * CF_WEIGHT
+    
+    收益因子 = loop_nesting_depth * LOOP_WEIGHT
+               + constant_param_ratio * CONST_WEIGHT
+               + simple_param_ratio * SIMPLE_WEIGHT
+               - complex_param_ratio * COMPLEX_WEIGHT
+    
+    权重设置：
+    - SIZE_WEIGHT = 1.0（每条指令成本）
+    - BB_WEIGHT = 2.0（每个基本块成本）
+    - CF_WEIGHT = 1.5（每个分支成本）
+    - LOOP_WEIGHT = 5.0（循环嵌套收益）
+    - CONST_WEIGHT = 3.0（常量传播收益）
+    - SIMPLE_WEIGHT = 1.0（简单类型收益）
+    - COMPLEX_WEIGHT = 2.0（复杂类型成本）
+    
+    决策规则：
+    - savings_estimate > 0 → 内联
+    - savings_estimate <= 0 → 不内联
     """
+    # 基础属性（原有）
     instruction_count: int = 0
     basic_block_count: int = 0
     call_count: int = 0
     estimated_size: int = 0
+    
+    # 新增属性（TASK-P3-002）
+    loop_nesting_depth: int = 0
+    constant_param_ratio: float = 0.0
+    simple_param_ratio: float = 0.0
+    complex_param_ratio: float = 0.0
+    control_flow_complexity: int = 0
+    savings_estimate: float = 0.0
 
     def is_small(self, threshold: int = 10) -> bool:
         """判断是否是小函数
@@ -205,6 +280,29 @@ class InlineCostModel:
     - 调用链不能太长（防止代码膨胀）
     
     ================================================================================
+    TASK-P3-002 新增功能
+    ================================================================================
+    
+    1. 调用频率分析
+       - 分析每个调用点的频率（热点/冷点）
+       - 识别循环内的调用（频率更高）
+       - 计算循环嵌套深度
+    
+    2. 参数类型分析
+       - 识别常量参数（常量传播收益）
+       - 区分简单类型和复杂类型
+       - 计算参数类型比例
+    
+    3. 控制流复杂度分析
+       - 统计分支指令数量
+       - 评估控制流复杂度
+    
+    4. 综合成本计算
+       - 使用加权成本公式
+       - 计算内联收益估计
+       - 基于收益进行决策
+    
+    ================================================================================
     启发式规则
     ================================================================================
     
@@ -228,6 +326,42 @@ class InlineCostModel:
       - 深度 ≤ 3
       - 理由：防止内联链过长
     
+    规则 6: 收益驱动内联（新增）
+      - savings_estimate > 0
+      - 理由：综合考虑所有因素
+    
+    ================================================================================
+    成本权重（TASK-P3-002）
+    ================================================================================
+    
+    SIZE_WEIGHT = 1.0
+        - 每条指令的成本权重
+        - 指令越多，成本越高
+    
+    BB_WEIGHT = 2.0
+        - 每个基本块的成本权重
+        - 基本块影响控制流复杂度
+    
+    CF_WEIGHT = 1.5
+        - 每个分支的成本权重
+        - 分支增加控制流复杂度
+    
+    LOOP_WEIGHT = 5.0
+        - 循环嵌套的收益权重
+        - 循环内调用频率更高
+    
+    CONST_WEIGHT = 3.0
+        - 常量参数的收益权重
+        - 常量传播可以优化代码
+    
+    SIMPLE_WEIGHT = 1.0
+        - 简单类型参数的收益权重
+        - 简单类型传递成本低
+    
+    COMPLEX_WEIGHT = 2.0
+        - 复杂类型参数的成本权重
+        - 复杂类型增加寄存器压力
+    
     ================================================================================
     实现细节
     ================================================================================
@@ -235,6 +369,8 @@ class InlineCostModel:
     初始化阶段：
     1. 统计每个函数的调用次数（全局）
     2. 计算每个函数的成本指标
+    3. 分析调用频率（新增）
+    4. 分析参数类型（新增）
     
     评估阶段：
     1. 获取被调用函数的成本
@@ -269,6 +405,15 @@ class InlineCostModel:
     - 考虑缓存效应的模型
     """
 
+    # 成本权重常量（TASK-P3-002）
+    SIZE_WEIGHT = 1.0      # 每条指令的成本
+    BB_WEIGHT = 2.0        # 每个基本块的成本
+    CF_WEIGHT = 1.5        # 每个分支的成本
+    LOOP_WEIGHT = 5.0      # 循环嵌套的收益
+    CONST_WEIGHT = 3.0     # 常量参数的收益
+    SIMPLE_WEIGHT = 1.0    # 简单类型的收益
+    COMPLEX_WEIGHT = 2.0   # 复杂类型的成本
+
     def __init__(self, program: IRProgram):
         """初始化内联成本模型
         
@@ -284,6 +429,14 @@ class InlineCostModel:
         # 函数成本
         self.function_costs: Dict[str, InlineCost] = {}
         self._compute_costs()
+        
+        # 调用频率分析（新增）
+        self.call_frequency: Dict[str, Dict[str, float]] = {}
+        self._analyze_call_frequency()
+        
+        # 循环调用分析（新增）
+        self.loop_calls: Dict[str, List[Tuple[str, int]]] = {}
+        self._analyze_loop_calls()
 
     def _count_calls(self):
         """统计每个函数的调用次数
@@ -303,19 +456,106 @@ class InlineCostModel:
         """计算每个函数的内联成本
         
         对每个函数计算以下指标：
+        
+        基础指标（原有）：
         - 指令数量
         - 基本块数量
         - 调用次数
         - 估计大小
+        
+        新增指标（TASK-P3-002）：
+        - 循环嵌套深度（平均）
+        - 常量参数比例
+        - 简单类型参数比例
+        - 复杂类型参数比例
+        - 控制流复杂度
         """
         for func in self.program.functions:
+            # 计算基础指标
+            instruction_count = self._count_instructions(func)
+            basic_block_count = len(func.basic_blocks)
+            call_count = self.call_counts.get(func.name, 0)
+            estimated_size = self._estimate_size(func)
+            
+            # 计算新增指标（TASK-P3-002）
+            # 1. 控制流复杂度
+            control_flow_complexity = self._compute_control_flow_complexity(func)
+            
+            # 2. 循环嵌套深度（平均）
+            avg_loop_depth = self._compute_avg_loop_depth(func)
+            
+            # 3. 参数类型比例（从函数定义中获取）
+            param_ratios = self._compute_param_ratios_from_func(func)
+            
             cost = InlineCost(
-                instruction_count=self._count_instructions(func),
-                basic_block_count=len(func.basic_blocks),
-                call_count=self.call_counts.get(func.name, 0),
-                estimated_size=self._estimate_size(func)
+                instruction_count=instruction_count,
+                basic_block_count=basic_block_count,
+                call_count=call_count,
+                estimated_size=estimated_size,
+                loop_nesting_depth=avg_loop_depth,
+                constant_param_ratio=param_ratios[0],
+                simple_param_ratio=param_ratios[1],
+                complex_param_ratio=param_ratios[2],
+                control_flow_complexity=control_flow_complexity,
             )
             self.function_costs[func.name] = cost
+
+    def _compute_avg_loop_depth(self, func: IRFunction) -> int:
+        """计算函数的平均循环嵌套深度
+        
+        Args:
+            func: IR 函数
+            
+        Returns:
+            平均循环嵌套深度
+        """
+        total_depth = 0
+        loop_count = 0
+        
+        for bb in func.basic_blocks:
+            depth = self._estimate_loop_depth(bb)
+            if depth > 0:
+                total_depth += depth
+                loop_count += 1
+        
+        if loop_count > 0:
+            return total_depth // loop_count
+        return 0
+
+    def _compute_param_ratios_from_func(
+        self,
+        func: IRFunction
+    ) -> Tuple[float, float, float]:
+        """从函数定义计算参数类型比例
+        
+        注意：这里只能基于参数类型进行静态分析，
+        实际调用时的常量参数需要在 should_inline 中分析。
+        
+        Args:
+            func: IR 函数
+            
+        Returns:
+            (constant_ratio, simple_ratio, complex_ratio)
+        """
+        if not func.params:
+            return (0.0, 0.0, 0.0)
+        
+        total_params = len(func.params)
+        simple_count = 0
+        complex_count = 0
+        
+        for param in func.params:
+            if self._is_simple_type(param.ty):
+                simple_count += 1
+            else:
+                complex_count += 1
+        
+        # 函数定义中没有常量参数信息
+        constant_ratio = 0.0
+        simple_ratio = simple_count / total_params
+        complex_ratio = complex_count / total_params
+        
+        return (constant_ratio, simple_ratio, complex_ratio)
 
     def _count_instructions(self, func: IRFunction) -> int:
         """计算函数的指令数量
@@ -346,6 +586,299 @@ class InlineCostModel:
         # 简化估计：每条指令约 4 字节
         return self._count_instructions(func) * 4
 
+    def _analyze_call_frequency(self):
+        """分析调用频率（TASK-P3-002 新增）
+        
+        分析每个调用点的频率，识别热点和冷点。
+        
+        热点定义：
+        - 调用次数 ≥ 5 的函数
+        
+        冷点定义：
+        - 调用次数 ≤ 1 的函数
+        
+        频率计算：
+        - frequency = call_count / total_calls
+        - 用于识别热点函数
+        """
+        total_calls = sum(self.call_counts.values())
+        
+        for func_name, count in self.call_counts.items():
+            if total_calls > 0:
+                frequency = count / total_calls
+            else:
+                frequency = 0.0
+            
+            # 存储频率信息
+            self.call_frequency[func_name] = {
+                "count": count,
+                "frequency": frequency,
+                "is_hot": count >= 5,
+                "is_cold": count <= 1,
+            }
+
+    def _analyze_loop_calls(self):
+        """分析循环内的调用（TASK-P3-002 新增）
+        
+        识别循环内的函数调用，计算循环嵌套深度。
+        
+        循环内的调用频率更高：
+        - 单层循环：假设执行 N 次
+        - 双层循环：假设执行 N^2 次
+        - 循环嵌套深度越大，频率越高
+        
+        实现方法：
+        - 遍历所有函数的基本块
+        - 检测循环结构（回边）
+        - 记录调用点所在的循环深度
+        """
+        for func in self.program.functions:
+            loop_calls_list: List[Tuple[str, int]] = []
+            
+            # 遍历所有基本块
+            for bb in func.basic_blocks:
+                # 检测循环（简化实现）
+                # 实际实现需要使用支配树和回边检测
+                loop_depth = self._estimate_loop_depth(bb)
+                
+                # 检查基本块中的调用
+                for instr in bb.instructions:
+                    if instr.opcode == Opcode.CALL:
+                        callee_name = self._get_callee_name(instr)
+                        if callee_name:
+                            loop_calls_list.append((callee_name, loop_depth))
+            
+            self.loop_calls[func.name] = loop_calls_list
+
+    def _estimate_loop_depth(self, bb: IRBasicBlock) -> int:
+        """估计基本块的循环嵌套深度（简化实现）
+        
+        简化方法：
+        - 检查基本块名称中是否包含 "loop" 关键字
+        - 实际实现需要使用支配树和回边检测
+        
+        Args:
+            bb: 基本块
+            
+        Returns:
+            估计的循环嵌套深度
+        """
+        # 简化实现：检查基本块名称
+        if "loop" in bb.label.lower():
+            # 嵌套循环检测（简化）
+            depth = bb.label.count("loop")
+            return min(depth, 3)  # 限制最大深度
+        return 0
+
+    def _get_callee_name(self, call_instr: IRInstruction) -> Optional[str]:
+        """从 CALL 指令获取被调用函数名
+        
+        Args:
+            call_instr: CALL 指令
+            
+        Returns:
+            被调用函数名，如果找不到则返回 None
+        """
+        if not call_instr.operands:
+            return None
+        
+        func_value = call_instr.operands[0]
+        if isinstance(func_value, IRValue):
+            return func_value.name.lstrip('@')
+        return None
+
+    def _analyze_param_types(
+        self,
+        callee: IRFunction,
+        call_instr: IRInstruction
+    ) -> Tuple[float, float, float]:
+        """分析参数类型（TASK-P3-002 新增）
+        
+        分析函数调用的参数类型，计算：
+        - 常量参数比例
+        - 简单类型参数比例
+        - 复杂类型参数比例
+        
+        Args:
+            callee: 被调用函数
+            call_instr: 调用指令
+            
+        Returns:
+            (constant_ratio, simple_ratio, complex_ratio)
+        """
+        if len(call_instr.operands) <= 1:
+            return (0.0, 0.0, 0.0)
+        
+        # 实际参数（跳过第一个操作数，它是函数名）
+        args = call_instr.operands[1:]
+        total_params = len(args)
+        
+        if total_params == 0:
+            return (0.0, 0.0, 0.0)
+        
+        constant_count = 0
+        simple_count = 0
+        complex_count = 0
+        
+        for arg in args:
+            if isinstance(arg, IRValue):
+                # 检查是否是常量
+                if arg.kind == ValueKind.CONST or arg.const_value is not None:
+                    constant_count += 1
+                
+                # 检查类型复杂度
+                if self._is_simple_type(arg.ty):
+                    simple_count += 1
+                else:
+                    complex_count += 1
+        
+        constant_ratio = constant_count / total_params
+        simple_ratio = simple_count / total_params
+        complex_ratio = complex_count / total_params
+        
+        return (constant_ratio, simple_ratio, complex_ratio)
+
+    def _is_simple_type(self, type_str: str) -> bool:
+        """判断类型是否是简单类型
+        
+        简单类型定义：
+        - 整数型、浮点型、布尔型
+        - 字符型
+        
+        复杂类型定义：
+        - 结构体、数组、字符串
+        - 指针、引用
+        
+        Args:
+            type_str: 类型字符串
+            
+        Returns:
+            如果是简单类型则返回 True
+        """
+        simple_types = [
+            "整数型", "浮点型", "布尔型", "字符型",
+            "int", "float", "bool", "char",
+            "i32", "i64", "f32", "f64",
+        ]
+        
+        # 检查是否是简单类型
+        for simple in simple_types:
+            if simple in type_str.lower():
+                return True
+        
+        return False
+
+    def _compute_control_flow_complexity(self, func: IRFunction) -> int:
+        """计算控制流复杂度（TASK-P3-002 新增）
+        
+        统计分支指令数量，评估控制流复杂度。
+        
+        分支指令：
+        - IF、SWITCH、JUMP
+        - 条件跳转、无条件跳转
+        
+        Args:
+            func: IR 函数
+            
+        Returns:
+            控制流复杂度（分支指令数量）
+        """
+        complexity = 0
+        
+        for bb in func.basic_blocks:
+            for instr in bb.instructions:
+                # 检查是否是分支指令
+                if instr.opcode in [
+                    Opcode.JUMP, Opcode.BR, Opcode.SWITCH,
+                    Opcode.IF, Opcode.ELSE, Opcode.ENDIF,
+                ]:
+                    complexity += 1
+        
+        return complexity
+
+    def _compute_savings(
+        self,
+        caller: IRFunction,
+        callee: IRFunction,
+        call_instr: IRInstruction,
+        base_cost: InlineCost
+    ) -> float:
+        """计算内联收益（TASK-P3-002 新增）
+        
+        使用加权成本公式计算内联收益。
+        
+        公式：
+        savings = -base_cost + benefits
+        
+        base_cost = instruction_count * SIZE_WEIGHT
+                    + basic_block_count * BB_WEIGHT
+                    + control_flow_complexity * CF_WEIGHT
+        
+        benefits = loop_nesting_depth * LOOP_WEIGHT
+                   + constant_param_ratio * CONST_WEIGHT
+                   + simple_param_ratio * SIMPLE_WEIGHT
+                   - complex_param_ratio * COMPLEX_WEIGHT
+        
+        Args:
+            caller: 调用者函数
+            callee: 被调用函数
+            call_instr: 调用指令
+            base_cost: 基础成本
+            
+        Returns:
+            内联收益估计（正值表示收益）
+        """
+        # 计算基础成本
+        base_cost_value = (
+            base_cost.instruction_count * self.SIZE_WEIGHT
+            + base_cost.basic_block_count * self.BB_WEIGHT
+            + base_cost.control_flow_complexity * self.CF_WEIGHT
+        )
+        
+        # 计算收益因子
+        # 1. 循环嵌套深度
+        loop_depth = self._get_loop_depth_for_call(caller, call_instr)
+        
+        # 2. 参数类型分析
+        constant_ratio, simple_ratio, complex_ratio = self._analyze_param_types(
+            callee, call_instr
+        )
+        
+        # 计算收益
+        benefits = (
+            loop_depth * self.LOOP_WEIGHT
+            + constant_ratio * self.CONST_WEIGHT
+            + simple_ratio * self.SIMPLE_WEIGHT
+            - complex_ratio * self.COMPLEX_WEIGHT
+        )
+        
+        # 总收益 = -基础成本 + 收益因子
+        savings = -base_cost_value + benefits
+        
+        return savings
+
+    def _get_loop_depth_for_call(
+        self,
+        caller: IRFunction,
+        call_instr: IRInstruction
+    ) -> int:
+        """获取调用点的循环嵌套深度
+        
+        Args:
+            caller: 调用者函数
+            call_instr: 调用指令
+            
+        Returns:
+            循环嵌套深度
+        """
+        # 查找调用指令所在的基本块
+        for bb in caller.basic_blocks:
+            for instr in bb.instructions:
+                if instr == call_instr:
+                    return self._estimate_loop_depth(bb)
+        
+        return 0
+
     def should_inline(
         self,
         caller: IRFunction,
@@ -358,7 +891,7 @@ class InlineCostModel:
         按顺序检查每条启发式规则，返回第一个匹配的结果。
         
         ================================================================================
-        决策流程
+        决策流程（TASK-P3-002 更新）
         ================================================================================
         
         1. 获取被调用函数的成本
@@ -378,6 +911,10 @@ class InlineCostModel:
            
         6. 检查调用深度规则
            - 深度 > 3 → 不内联
+        
+        7. 检查收益驱动规则（新增）
+           - 计算内联收益 savings_estimate
+           - savings > 0 → 内联
         
         Args:
             caller: 调用者函数
@@ -413,6 +950,17 @@ class InlineCostModel:
         # 规则 5: 调用深度限制
         if self._get_call_depth(callee) > 3:
             return False
+
+        # 规则 6: 收益驱动内联（TASK-P3-002 新增）
+        # 计算内联收益
+        savings = self._compute_savings(caller, callee, call_site, callee_cost)
+        
+        # 更新成本对象
+        callee_cost.savings_estimate = savings
+        
+        # 如果收益 > 0，内联
+        if savings > 0:
+            return True
 
         return False
 
