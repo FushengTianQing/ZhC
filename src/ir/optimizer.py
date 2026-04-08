@@ -116,8 +116,10 @@ class ConstantFolding(OptimizationPass):
             return False
         if not instr.operands or not instr.result:
             return False
-        # 所有操作数必须是常量
-        return all(v.kind == ValueKind.CONST for v in instr.operands)
+        # 所有操作数必须是 IRValue 类型且为常量
+        return all(
+            isinstance(v, IRValue) and v.kind == ValueKind.CONST for v in instr.operands
+        )
 
     def _try_fold(self, instr: IRInstruction):
         """尝试折叠，返回常量值或 None"""
@@ -197,8 +199,12 @@ class DeadCodeElimination(OptimizationPass):
         # 使用 liveness 分析：追踪哪些值被使用
         used = set()
 
-        def mark_use(v: IRValue):
-            if v and v.kind in (ValueKind.VAR, ValueKind.TEMP):
+        def mark_use(v) -> None:
+            # 防御性检查：JMP/JZ 等跳转指令的 operands 可能是字符串（块标签），
+            # 不是 IRValue 对象，需要跳过。
+            if not isinstance(v, IRValue):
+                return
+            if v.kind in (ValueKind.VAR, ValueKind.TEMP):
                 used.add(v.name)
 
         for bb in func.basic_blocks:

@@ -1,27 +1,19 @@
 # -*- coding: utf-8 -*-
-"""ZhC LLVM 后端 - 使用 llvmlite 生成真正的 LLVM IR
+"""
+ZhC LLVM 后端 - 重构版本
 
-将 ZhC IR 转换为 LLVM bitcode，支持 JIT 执行。
+使用策略模式和统一工具类。
 
-优化提示支持（TASK-P3-003）：
-- 小函数添加 LLVM inline 属性
-- 热点函数添加 LLVM hot 属性
-- 冷点函数添加 LLVM cold 属性
-- 强制内联添加 LLVM alwaysinline 属性
-- 不返回函数添加 LLVM noreturn 属性
-
-架构重构（2026-04-08）：
-- 继承 BackendBase 统一接口
-- 支持 CompileOptions 和 CompileResult
+架构：
+    IRProgram → LLVMBackend → LLVM Module
 
 作者：远
-日期：2026-04-08
-重构：2026-04-08（TASK-P3-003：添加优化提示支持）
-重构：2026-04-08（统一后端架构）
+日期：2026-04-09
 """
 
-from typing import Optional, Dict
+from typing import Optional
 from pathlib import Path
+import logging
 
 try:
     import llvmlite
@@ -36,10 +28,7 @@ except ImportError:
 
 from zhc.ir.program import IRProgram, IRFunction, IRGlobalVar
 from zhc.ir.instructions import IRBasicBlock, IRInstruction
-from zhc.ir.opcodes import Opcode
-from zhc.ir.values import ValueKind
 
-# 导入基类
 from .base import (
     BackendBase,
     BackendCapabilities,
@@ -48,6 +37,9 @@ from .base import (
     OutputFormat,
     BackendError,
 )
+from .type_system import get_type_mapper
+from .compilation_context import CompilationContext
+from .llvm_instruction_strategy import InstructionStrategyFactory
 
 # 优化提示模块（可选依赖）
 try:
@@ -66,6 +58,8 @@ except ImportError:
     FunctionOptimizationHints = None
     LLVMBackendHintAdapter = None
 
+logger = logging.getLogger(__name__)
+
 
 class LLVMBackendError(BackendError):
     """LLVM 后端错误"""
@@ -74,36 +68,73 @@ class LLVMBackendError(BackendError):
 
 
 class LLVMBackend(BackendBase):
-    """ZhC LLVM 后端 - 使用 llvmlite 生成真正的 LLVM IR
+    """
+    ZhC LLVM 后端 - 重构版本
 
-    功能：
-    - IRProgram → LLVM Module
-    - IRFunction → LLVM Function
-    - IRBasicBlock → LLVM BasicBlock
-    - IRInstruction → LLVM Instruction
-    - 支持 bitcode 输出
-    - 支持 JIT 执行
-
-    TASK-P3-003 新增功能：
-    - 支持优化提示分析
-    - 自动添加 LLVM 函数属性
+    改进：
+    1. 使用策略模式处理指令编译
+    2. 使用统一的类型映射器
+    3. 使用编译上下文管理状态
+    4. 更清晰的代码结构
+    5. 支持优化提示分析
     """
 
-    # ZhC 类型 → LLVM 类型映射
-    TYPE_MAP = {
-        "整数型": ll.IntType(32) if ll else None,
-        "浮点型": ll.FloatType() if ll else None,
-        "双精度浮点型": ll.DoubleType() if ll else None,
-        "字符型": ll.IntType(8) if ll else None,
-        "字节型": ll.IntType(8) if ll else None,
-        "布尔型": ll.IntType(1) if ll else None,
-        "空型": ll.VoidType() if ll else None,
-        "i32": ll.IntType(32) if ll else None,
-        "i64": ll.IntType(64) if ll else None,
-        "i16": ll.IntType(16) if ll else None,
-        "i8": ll.IntType(8) if ll else None,
-        "i1": ll.IntType(1) if ll else None,
-    }
+    def __init__(
+        self,
+        target_triple: Optional[str] = None,
+        enable_optimization_hints: bool = True,
+    ):
+        """
+        初始化 LLVM 后端
+
+        Args:
+            target_triple: 目标平台三元组
+            enable_optimization_hints: 是否启用优化提示（默认 True）
+        """
+        if not LLVM_AVAILABLE:
+            raise LLVMBackendError(
+                "llvmlite 未安装。请运行: pip install llvmlite>=0.39.0"
+            )
+
+        self.target_triple = target_triple
+        self.module: Optional[ll.Module] = None
+        self.type_mapper = get_type_mapper()
+
+        # 初始化编译上下文
+        self.context = CompilationContext()
+
+        # 初始化 LLVM
+        llvm.initialize()
+        llvm.initialize_native_target()
+        llvm.initialize_native_asmprinter()
+
+        # TASK-P3-003：优化提示配置
+        self.enable_optimization_hints = (
+            enable_optimization_hints and OPTIMIZATION_HINTS_AVAILABLE
+        )
+        self.optimization_hints: Optional[ProgramOptimizationHints] = None
+        self.hint_adapter: Optional[LLVMBackendHintAdapter] = None
+
+        if self.enable_optimization_hints:
+            self.hint_adapter = LLVMBackendHintAdapter()
+
+    def _create_debug_listener(self, source_file: str, output_file: str = "debug.json"):
+        """
+        创建 LLVM 后端专用调试监听器
+
+        Args:
+            source_file: 源文件路径
+            output_file: 输出文件路径
+
+        Returns:
+            LLVMDebugListener: LLVM 后端调试监听器
+        """
+        from .llvm_debug_listener import LLVMDebugListener
+
+        return LLVMDebugListener(
+            source_file=source_file,
+            module_name=self.module_name if hasattr(self, "module_name") else "main",
+        )
 
     @property
     def name(self) -> str:
@@ -111,7 +142,7 @@ class LLVMBackend(BackendBase):
 
     @property
     def description(self) -> str:
-        return "LLVM 后端 (llvmlite)"
+        return "LLVM 后端 (llvmlite) - 重构版"
 
     @property
     def capabilities(self) -> BackendCapabilities:
@@ -138,61 +169,6 @@ class LLVMBackend(BackendBase):
             required_tools=["llvmlite"],
         )
 
-    def __init__(
-        self,
-        target_triple: Optional[str] = None,
-        enable_optimization_hints: bool = True,
-    ):
-        """初始化 LLVM 后端
-
-        Args:
-            target_triple: 目标平台三元组（如 "x86_64-apple-darwin"）
-            enable_optimization_hints: 是否启用优化提示（默认 True）
-        """
-        if not LLVM_AVAILABLE:
-            raise LLVMBackendError(
-                "llvmlite 未安装。请运行: pip install llvmlite>=0.39.0"
-            )
-
-        self.target_triple = target_triple
-        self.module: Optional[ll.Module] = None
-        self.functions: Dict[str, ll.Function] = {}
-        self.blocks: Dict[str, ll.Block] = {}
-        self.values: Dict[str, ll.Value] = {}
-
-        # TASK-P3-003：优化提示配置
-        self.enable_optimization_hints = (
-            enable_optimization_hints and OPTIMIZATION_HINTS_AVAILABLE
-        )
-        self.optimization_hints: Optional[ProgramOptimizationHints] = None
-        self.hint_adapter: Optional[LLVMBackendHintAdapter] = None
-
-        if self.enable_optimization_hints:
-            self.hint_adapter = LLVMBackendHintAdapter()
-
-        # 初始化 LLVM
-        llvm.initialize()
-        llvm.initialize_native_target()
-        llvm.initialize_native_asmprinter()
-
-    def _create_debug_listener(self, source_file: str, output_file: str = "debug.json"):
-        """
-        创建 LLVM 后端专用调试监听器
-
-        Args:
-            source_file: 源文件路径
-            output_file: 输出文件路径
-
-        Returns:
-            LLVMDebugListener: LLVM 后端调试监听器
-        """
-        from .llvm_debug_listener import LLVMDebugListener
-
-        return LLVMDebugListener(
-            source_file=source_file,
-            module_name=self.module_name if hasattr(self, "module_name") else "main",
-        )
-
     def compile(
         self,
         ir: IRProgram,
@@ -200,7 +176,7 @@ class LLVMBackend(BackendBase):
         options: Optional[CompileOptions] = None,
     ) -> CompileResult:
         """
-        编译 IR 到目标文件（BackendBase 接口）
+        编译 IR 到目标文件
 
         Args:
             ir: IR 程序
@@ -218,7 +194,6 @@ class LLVMBackend(BackendBase):
 
             # 2. 根据输出格式选择输出方式
             if options.output_format == OutputFormat.LLVM_IR:
-                # 输出 LLVM IR 文本
                 ll_file = output_path.with_suffix(".ll")
                 ll_file.write_text(str(module))
                 return CompileResult(
@@ -227,7 +202,6 @@ class LLVMBackend(BackendBase):
                 )
 
             elif options.output_format == OutputFormat.LLVM_BC:
-                # 输出 LLVM bitcode
                 bc_file = output_path.with_suffix(".bc")
                 llvm_bitcode = llvm.parse_assembly(str(module))
                 llvm_bitcode.to_bitcode_file(str(bc_file))
@@ -246,6 +220,7 @@ class LLVMBackend(BackendBase):
                 )
 
         except Exception as e:
+            logger.error(f"LLVM 编译失败: {e}")
             return CompileResult(
                 success=False,
                 errors=[str(e)],
@@ -254,7 +229,8 @@ class LLVMBackend(BackendBase):
     def compile_to_module(
         self, ir: IRProgram, module_name: str = "zhc_module"
     ) -> ll.Module:
-        """编译 ZhC IR 到 LLVM Module（原有接口）
+        """
+        编译 ZhC IR 到 LLVM Module
 
         Args:
             ir: ZhC IR 程序
@@ -274,6 +250,12 @@ class LLVMBackend(BackendBase):
         if self.target_triple:
             self.module.triple = self.target_triple
 
+        # 设置编译上下文
+        self.context.module = self.module
+        self.context.functions.clear()
+        self.context.blocks.clear()
+        self.context.values.clear()
+
         # 编译全局变量
         for gv in ir.global_vars:
             self._compile_global_var(gv)
@@ -284,7 +266,7 @@ class LLVMBackend(BackendBase):
 
         return self.module
 
-    def _compile_global_var(self, gv: IRGlobalVar):
+    def _compile_global_var(self, gv: IRGlobalVar) -> None:
         """编译全局变量"""
         ty = self._get_llvm_type(gv.ty or "i32")
 
@@ -293,9 +275,9 @@ class LLVMBackend(BackendBase):
         global_var.linkage = "external"
         global_var.initializer = ll.Constant(ty, 0)
 
-        self.values[gv.name] = global_var
+        self.context.values[gv.name] = global_var
 
-    def _compile_function(self, func: IRFunction):
+    def _compile_function(self, func: IRFunction) -> None:
         """编译函数"""
         # 获取返回类型
         ret_ty = self._get_llvm_type(func.return_type or "i32")
@@ -316,14 +298,16 @@ class LLVMBackend(BackendBase):
         # TASK-P3-003：应用优化提示
         self._apply_function_hints(llvm_func, func.name)
 
-        self.functions[func.name] = llvm_func
+        self.context.functions[func.name] = llvm_func
+        self.context.current_function = llvm_func
 
         # 编译基本块
         for bb in func.basic_blocks:
             self._compile_basic_block(llvm_func, bb)
 
     def _apply_function_hints(self, llvm_func: ll.Function, func_name: str):
-        """应用函数优化提示
+        """
+        应用函数优化提示
 
         TASK-P3-003 新增
 
@@ -338,220 +322,57 @@ class LLVMBackend(BackendBase):
         if func_hints and self.hint_adapter:
             self.hint_adapter.apply_to_llvm_function(llvm_func, func_hints)
 
-    def _compile_basic_block(self, llvm_func: ll.Function, bb: IRBasicBlock):
+    def _compile_basic_block(self, llvm_func: ll.Function, bb: IRBasicBlock) -> None:
         """编译基本块"""
         # 创建基本块
         block = llvm_func.append_basic_block(bb.label)
-        self.blocks[bb.label] = block
+        self.context.blocks[bb.label] = block
+        self.context.current_block = block
 
         # 创建指令生成器
         builder = ll.IRBuilder(block)
 
-        # 编译指令
+        # 编译指令（使用策略模式）
         for instr in bb.instructions:
             self._compile_instruction(builder, instr)
 
-    def _compile_instruction(self, builder: ll.IRBuilder, instr: IRInstruction):
-        """编译指令"""
+    def _compile_instruction(self, builder: ll.IRBuilder, instr: IRInstruction) -> None:
+        """
+        编译指令 - 使用策略模式
+
+        改进：使用策略工厂获取对应的编译策略，替代 if-elif 链
+        """
         op = instr.opcode
 
-        if op == Opcode.RET:
-            if instr.operands:
-                val = self._get_value(instr.operands[0])
-                builder.ret(val)
-            else:
-                builder.ret_void()
+        # 从工厂获取策略
+        strategy = InstructionStrategyFactory.get_strategy(op)
 
-        elif op == Opcode.ADD:
-            a = self._get_value(instr.operands[0])
-            b = self._get_value(instr.operands[1])
-            result = builder.add(a, b, name=self._get_result_name(instr))
-            self._store_result(instr, result)
-
-        elif op == Opcode.SUB:
-            a = self._get_value(instr.operands[0])
-            b = self._get_value(instr.operands[1])
-            result = builder.sub(a, b, name=self._get_result_name(instr))
-            self._store_result(instr, result)
-
-        elif op == Opcode.MUL:
-            a = self._get_value(instr.operands[0])
-            b = self._get_value(instr.operands[1])
-            result = builder.mul(a, b, name=self._get_result_name(instr))
-            self._store_result(instr, result)
-
-        elif op == Opcode.DIV:
-            a = self._get_value(instr.operands[0])
-            b = self._get_value(instr.operands[1])
-            result = builder.sdiv(a, b, name=self._get_result_name(instr))
-            self._store_result(instr, result)
-
-        elif op == Opcode.MOD:
-            a = self._get_value(instr.operands[0])
-            b = self._get_value(instr.operands[1])
-            result = builder.srem(a, b, name=self._get_result_name(instr))
-            self._store_result(instr, result)
-
-        elif op == Opcode.EQ:
-            a = self._get_value(instr.operands[0])
-            b = self._get_value(instr.operands[1])
-            result = builder.icmp_signed("==", a, b, name=self._get_result_name(instr))
-            self._store_result(instr, result)
-
-        elif op == Opcode.NE:
-            a = self._get_value(instr.operands[0])
-            b = self._get_value(instr.operands[1])
-            result = builder.icmp_signed("!=", a, b, name=self._get_result_name(instr))
-            self._store_result(instr, result)
-
-        elif op == Opcode.LT:
-            a = self._get_value(instr.operands[0])
-            b = self._get_value(instr.operands[1])
-            result = builder.icmp_signed("<", a, b, name=self._get_result_name(instr))
-            self._store_result(instr, result)
-
-        elif op == Opcode.LE:
-            a = self._get_value(instr.operands[0])
-            b = self._get_value(instr.operands[1])
-            result = builder.icmp_signed("<=", a, b, name=self._get_result_name(instr))
-            self._store_result(instr, result)
-
-        elif op == Opcode.GT:
-            a = self._get_value(instr.operands[0])
-            b = self._get_value(instr.operands[1])
-            result = builder.icmp_signed(">", a, b, name=self._get_result_name(instr))
-            self._store_result(instr, result)
-
-        elif op == Opcode.GE:
-            a = self._get_value(instr.operands[0])
-            b = self._get_value(instr.operands[1])
-            result = builder.icmp_signed(">=", a, b, name=self._get_result_name(instr))
-            self._store_result(instr, result)
-
-        elif op == Opcode.ALLOC:
-            ty = self._get_llvm_type_from_operand(
-                instr.operands[0] if instr.operands else None
-            )
-            result = builder.alloca(ty, name=self._get_result_name(instr))
-            self._store_result(instr, result)
-
-        elif op == Opcode.LOAD:
-            ptr = self._get_value(instr.operands[0])
-            ty = self._get_llvm_type("i32")  # 默认类型
-            result = builder.load(ptr, name=self._get_result_name(instr))
-            self._store_result(instr, result)
-
-        elif op == Opcode.STORE:
-            val = self._get_value(instr.operands[0])
-            ptr = self._get_value(instr.operands[1])
-            builder.store(val, ptr)
-
-        elif op == Opcode.JMP:
-            target = self._get_block(instr.operands[0])
-            builder.branch(target)
-
-        elif op == Opcode.JZ:
-            cond = self._get_value(instr.operands[0])
-            target = self._get_block(instr.operands[1])
-            # 需要两个分支，这里简化处理
-            builder.cbranch(cond, target, target)  # TODO: 需要完整的条件分支
-
-        elif op == Opcode.CALL:
-            callee_name = str(instr.operands[0])
-            args = [self._get_value(a) for a in instr.operands[1:]]
-
-            # 查找函数
-            callee = self.functions.get(callee_name)
-            if callee:
-                result = builder.call(callee, args, name=self._get_result_name(instr))
-                self._store_result(instr, result)
-            else:
-                # 外部函数
-                func_ty = ll.FunctionType(ll.IntType(32), [ll.IntType(32)] * len(args))
-                callee = ll.Function(self.module, func_ty, callee_name)
-                result = builder.call(callee, args, name=self._get_result_name(instr))
-                self._store_result(instr, result)
-
+        if strategy:
+            # 使用策略编译指令
+            strategy.compile(builder, instr, self.context)
         else:
             # 未实现的指令
-            pass
+            logger.warning(f"未实现的指令: {op.name}")
 
     def _get_llvm_type(self, zhc_type: str) -> ll.Type:
         """获取 LLVM 类型"""
-        if zhc_type in self.TYPE_MAP:
-            return self.TYPE_MAP[zhc_type]
-        return ll.IntType(32)  # 默认类型
+        # 使用统一的类型映射器
+        llvm_type = self.type_mapper.to_llvm(zhc_type)
+        if llvm_type:
+            return llvm_type
 
-    def _get_llvm_type_from_operand(self, operand) -> ll.Type:
-        """从操作数获取 LLVM 类型"""
-        if operand is None:
-            return ll.IntType(32)
-
-        if hasattr(operand, "ty"):
-            return self._get_llvm_type(operand.ty or "i32")
-
+        # 默认返回 i32
         return ll.IntType(32)
 
-    def _get_value(self, operand) -> ll.Value:
-        """获取 LLVM 值"""
-        # 如果是字符串
-        if isinstance(operand, str):
-            # 检查是否是已存在的值
-            if operand in self.values:
-                return self.values[operand]
+    def is_available(self) -> bool:
+        """检查 llvmlite 是否可用"""
+        return LLVM_AVAILABLE
 
-            # 检查是否是常量
-            if operand.isdigit():
-                return ll.Constant(ll.IntType(32), int(operand))
-
-            # 检查是否是变量名（%开头）
-            if operand.startswith("%"):
-                name = operand[1:]
-                if name in self.values:
-                    return self.values[name]
-
-            # 默认返回常量
-            return ll.Constant(ll.IntType(32), 0)
-
-        # 如果是 IRValue 对象
-        if hasattr(operand, "name"):
-            name = operand.name
-            if name in self.values:
-                return self.values[name]
-
-            # 常量
-            if hasattr(operand, "kind") and operand.kind == ValueKind.CONST:
-                return ll.Constant(ll.IntType(32), operand.const_value or 0)
-
-        return ll.Constant(ll.IntType(32), 0)
-
-    def _get_block(self, operand) -> ll.Block:
-        """获取 LLVM 基本块"""
-        label = str(operand)
-        if label in self.blocks:
-            return self.blocks[label]
-
-        # 如果找不到，返回第一个块
-        if self.blocks:
-            return list(self.blocks.values())[0]
-
-        raise LLVMBackendError(f"基本块 {label} 不存在")
-
-    def _get_result_name(self, instr: IRInstruction) -> Optional[str]:
-        """获取结果名称"""
-        if instr.result:
-            res_obj = instr.result[0]
-            if hasattr(res_obj, "name"):
-                return res_obj.name
-            return str(res_obj)
+    def get_version(self) -> Optional[str]:
+        """获取 llvmlite 版本"""
+        if LLVM_AVAILABLE:
+            return f"llvmlite {llvmlite.__version__}"
         return None
-
-    def _store_result(self, instr: IRInstruction, value: ll.Value):
-        """存储结果值"""
-        if instr.result:
-            res_obj = instr.result[0]
-            name = res_obj.name if hasattr(res_obj, "name") else str(res_obj)
-            self.values[name] = value
 
     def to_llvm_ir(self) -> str:
         """转换为 LLVM IR 文本"""
@@ -579,33 +400,19 @@ class LLVMBackend(BackendBase):
         # 生成 bitcode
         return mod.as_bitcode()
 
-    # ===== BackendBase 接口实现 =====
-
-    def is_available(self) -> bool:
-        """检查 llvmlite 是否可用"""
-        return LLVM_AVAILABLE
-
-    def get_version(self) -> Optional[str]:
-        """获取 llvmlite 版本"""
-        if LLVM_AVAILABLE:
-            return f"llvmlite {llvmlite.__version__}"
-        return None
-
-    # ===== 原有方法 =====
-
-    def save_bitcode(self, filepath: str):
+    def save_bitcode(self, filepath: str) -> None:
         """保存 bitcode 到文件"""
         bitcode = self.to_bitcode()
         with open(filepath, "wb") as f:
             f.write(bitcode)
 
-    def save_llvm_ir(self, filepath: str):
+    def save_llvm_ir(self, filepath: str) -> None:
         """保存 LLVM IR 文本到文件"""
         llvm_ir = self.to_llvm_ir()
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(llvm_ir)
 
-    def compile_to_object(self, filepath: str):
+    def compile_to_object(self, filepath: str) -> None:
         """编译为目标文件 (.o)"""
         if not self.module:
             raise LLVMBackendError("模块未编译")
@@ -635,7 +442,8 @@ class LLVMBackend(BackendBase):
 def compile_to_llvm(
     ir: IRProgram, output_path: Optional[str] = None, output_format: str = "ir"
 ) -> Optional[str]:
-    """便捷函数：编译 ZhC IR 到 LLVM
+    """
+    便捷函数：编译 ZhC IR 到 LLVM
 
     Args:
         ir: ZhC IR 程序

@@ -582,7 +582,7 @@ class ZHCCompiler:
             verrors = verifier.verify(ir)
             if verrors:
                 for e in verrors:
-                    print(f"  IR 验证错误: {e.msg}")
+                    print(f"  IR 验证错误: {e.message}")
                 return None
 
             if self.config.optimize_ir:

@@ -174,8 +174,36 @@ class CBackend:
     # 函数和基本块生成
     # ------------------------------------------------------------------
 
+    # ---------------------------------------------------------------------------
+    # 辅助方法
+    # ---------------------------------------------------------------------------
+
+    def _resolve_val(self, v) -> str:
+        """将 IRValue 解析为 C 变量名（字符串）。
+
+        IR 中的临时变量名形如 %0、%1，用户变量名如 x、y。
+        ALLOC 指令建立 %N → var_name 映射，此处用该映射将临时变量名
+        转换为实际 C 变量名。若映射中不存在（理论上不应该），则原样返回。
+
+        Args:
+            v: IRValue 对象，或字符串（如块标签）
+
+        Returns:
+            C 代码中可用的变量名字符串
+        """
+        if not isinstance(v, str) and hasattr(v, "name"):
+            return self.temp_names.get(v.name, v.name)
+        if isinstance(v, str):
+            return v
+        return str(v)
+
     def _generate_function(self, func: IRFunction) -> None:
         """生成单个C函数
+
+        使用带 goto 标签的展平策略：
+        - entry 块（label == "entry"）不输出标签，避免冗余
+        - 其余每个基本块前插入 `<label>:;` 标签（加分号规避空语句警告）
+        - 跳转指令转换为 goto 语句，条件跳转转换为 if+goto
 
         Args:
             func: IR函数对象
@@ -191,9 +219,55 @@ class CBackend:
 
         self._emit(f"{hint_prefix}{ret_type} {func_name}({params}) {{")
 
-        # 展平所有基本块的指令
+        # 重置每个函数的临时变量名表
+        self.temp_names = {}
+        # 临时变量计数器（用于生成 t0, t1, t2... 等C变量名）
+        temp_counter = 0
+
+        # 预扫描：建立 IR临时变量 → C变量名 映射
+        # ALLOC 指令：%N → 用户变量名（如 x）
+        # 其他指令：%N → 生成的临时变量名（如 t0, t1）
         for bb in func.basic_blocks:
-            self._generate_basic_block(bb)
+            for instr in bb.instructions:
+                if instr.result:
+                    for res in instr.result:
+                        # 跳过已映射的（避免重复）
+                        if res.name in self.temp_names:
+                            continue
+                        if instr.opcode == Opcode.ALLOC and instr.operands:
+                            # ALLOC：映射到用户变量名
+                            var = instr.operands[0]
+                            self.temp_names[res.name] = var.name
+                        else:
+                            # 其他指令：生成临时变量名 t0, t1, t2...
+                            c_name = f"t{temp_counter}"
+                            self.temp_names[res.name] = c_name
+                            temp_counter += 1
+
+        # 声明所有变量（用户变量 + 生成的临时变量）
+        # 需要收集类型信息，暂时统一用 int
+        declared = set()
+        for bb in func.basic_blocks:
+            for instr in bb.instructions:
+                if instr.opcode == Opcode.ALLOC and instr.operands:
+                    var = instr.operands[0]
+                    if var.name not in declared:
+                        ty = getattr(var, "ty", None) or "int"
+                        self._emit(f"  {resolve_type(ty)} {var.name};")
+                        declared.add(var.name)
+        # 声明生成的临时变量（统一用 int 类型）
+        for ir_name, c_name in self.temp_names.items():
+            if c_name.startswith("t") and c_name not in declared:
+                self._emit(f"  int {c_name};")
+                declared.add(c_name)
+
+        # 输出各基本块（除 entry 外都添加 goto 标签）
+        for bb in func.basic_blocks:
+            if bb.label != "entry":
+                # 空语句 `;` 是为了让标签后紧跟声明时不报错
+                self._emit(f"{bb.label}:;")
+            for instr in bb.instructions:
+                self._generate_instruction(instr)
 
         self._emit("}")
         self._emit("")
@@ -279,89 +353,108 @@ class CBackend:
     def _handle_return(self, instr: IRInstruction) -> None:
         """处理 RET 指令"""
         if instr.operands:
-            self._emit(f"return {instr.operands[0]};")
+            self._emit(f"return {self._resolve_val(instr.operands[0])};")
         else:
             self._emit("return;")
 
     def _handle_alloc(self, instr: IRInstruction) -> None:
-        """处理 ALLOC 指令 — 变量声明"""
+        """处理 ALLOC 指令 — 变量声明（已在预扫描中输出，此处仅建立映射）"""
         if instr.operands and instr.result:
             var = instr.operands[0]
             res = instr.result[0]
-            ty = getattr(var, "ty", None) or "int"
             self.temp_names[res.name] = var.name
-            self._emit(f"{resolve_type(ty)} {var.name};")
 
     def _handle_store(self, instr: IRInstruction) -> None:
-        """处理 STORE 指令 — 赋值语句"""
+        """处理 STORE 指令 — 赋值语句
+
+        示例: store 10 → %0   生成: x = 10;
+        """
         if len(instr.operands) >= 2:
-            val, ptr = instr.operands[0], instr.operands[1]
+            val = self._resolve_val(instr.operands[0])
+            ptr = self._resolve_val(instr.operands[1])
             self._emit(f"{ptr} = {val};")
 
     def _handle_load(self, instr: IRInstruction) -> None:
         """处理 LOAD 指令 — 取值"""
         if len(instr.operands) >= 1 and instr.result:
-            ptr = instr.operands[0]
-            res = instr.result[0]
+            ptr = self._resolve_val(instr.operands[0])
+            res = self._resolve_val(instr.result[0])
             self._emit(f"{res} = {ptr};")
 
     def _handle_const(self, instr: IRInstruction) -> None:
-        """处理 CONST 指令 — 常量赋值"""
+        """处理 CONST 指令 — 常量赋值
+
+        示例: const 42 → %1   生成: t1 = 42;
+        """
         if instr.operands and instr.result:
-            const_val = instr.operands[0]
-            res = instr.result[0]
+            const_val = self._resolve_val(instr.operands[0])
+            res = self._resolve_val(instr.result[0])
             self._emit(f"{res} = {const_val};")
 
     def _handle_neg(self, instr: IRInstruction) -> None:
         """处理 NEG 指令 — 取负"""
         if instr.operands and instr.result:
-            res = instr.result[0]
-            opnd = instr.operands[0]
+            res = self._resolve_val(instr.result[0])
+            opnd = self._resolve_val(instr.operands[0])
             self._emit(f"{res} = -{opnd};")
 
     def _handle_lnot(self, instr: IRInstruction) -> None:
         """处理 L_NOT 指令 — 逻辑非"""
         if instr.operands and instr.result:
-            res = instr.result[0]
-            opnd = instr.operands[0]
+            res = self._resolve_val(instr.result[0])
+            opnd = self._resolve_val(instr.operands[0])
             self._emit(f"{res} = !{opnd};")
 
     def _handle_call(self, instr: IRInstruction) -> None:
         """处理 CALL 指令 — 函数调用"""
         if not instr.operands:
             return
-        func_val = instr.operands[0]
-        args = instr.operands[1:]
-        args_str = ", ".join(str(a) for a in args)
+        func_val = self._resolve_val(instr.operands[0])
+        args = ", ".join(self._resolve_val(a) for a in instr.operands[1:])
         if instr.result:
-            res = instr.result[0]
-            self._emit(f"{res} = {func_val}({args_str});")
+            res = self._resolve_val(instr.result[0])
+            self._emit(f"{res} = {func_val}({args});")
         else:
-            self._emit(f"{func_val}({args_str});")
+            self._emit(f"{func_val}({args});")
 
     def _handle_getptr(self, instr: IRInstruction) -> None:
         """处理 GETPTR 指令 — 取地址/数组索引"""
         if len(instr.operands) >= 2 and instr.result:
-            base, index = instr.operands[0], instr.operands[1]
-            res = instr.result[0]
+            base = self._resolve_val(instr.operands[0])
+            index = self._resolve_val(instr.operands[1])
+            res = self._resolve_val(instr.result[0])
             self._emit(f"{res} = {base}[{index}];")
         elif len(instr.operands) >= 1 and instr.result:
-            base = instr.operands[0]
-            res = instr.result[0]
+            base = self._resolve_val(instr.operands[0])
+            res = self._resolve_val(instr.result[0])
             self._emit(f"{res} = &{base};")
 
     def _handle_gep(self, instr: IRInstruction) -> None:
         """处理 GEP 指针算术"""
         if len(instr.operands) >= 2 and instr.result:
-            base, index = instr.operands[0], instr.operands[1]
-            res = instr.result[0]
+            base = self._resolve_val(instr.operands[0])
+            index = self._resolve_val(instr.operands[1])
+            res = self._resolve_val(instr.result[0])
             self._emit(f"{res} = {base} + {index};")
 
     def _handle_jmp(self, instr: IRInstruction) -> None:
-        """处理 JMP 指令（展平模式下无需输出）"""
+        """处理 JMP 指令 — 转换为 C goto 语句
+
+        示例: jmp while_end   生成: goto while_end;
+        """
+        if instr.operands:
+            target = self._resolve_val(instr.operands[0])
+            self._emit(f"goto {target};")
 
     def _handle_jz(self, instr: IRInstruction) -> None:
-        """处理 JZ 条件跳转（展平模式下无需输出）"""
+        """处理 JZ 条件跳转 — 转换为 C if + goto 语句
+
+        示例: jz %cond, if_end   生成: if (!cond) goto if_end;
+        """
+        if len(instr.operands) >= 2:
+            cond = self._resolve_val(instr.operands[0])
+            target = self._resolve_val(instr.operands[1])
+            self._emit(f"if (!{cond}) goto {target};")
 
     # ------------------------------------------------------------------
     # 辅助方法
@@ -375,8 +468,9 @@ class CBackend:
             op_str: C运算符（如 '+', '*', '==' 等）
         """
         if len(instr.operands) >= 2 and instr.result:
-            left, right = instr.operands[0], instr.operands[1]
-            res = instr.result[0]
+            left = self._resolve_val(instr.operands[0])
+            right = self._resolve_val(instr.operands[1])
+            res = self._resolve_val(instr.result[0])
             self._emit(f"{res} = {left} {op_str} {right};")
 
     def _emit(self, line: str = "") -> None:

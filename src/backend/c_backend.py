@@ -1,20 +1,23 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ZhC C 后端 - IR 到 C 代码转换器
+ZhC C 后端 - 重构版本
 
 将 IR 程序转换为 C 代码，然后调用 GCC/Clang 编译为目标文件。
 
 架构：
 IRProgram → CBackend → C代码 → GCC/Clang → 目标文件
 
+改进：
+1. 使用统一的编译器运行器
+2. 使用统一的类型映射器
+3. 更清晰的代码结构
+
 作者：远
-日期：2026-04-08
+日期：2026-04-09
 """
 
-import subprocess
 from pathlib import Path
-from typing import Optional, Any, TYPE_CHECKING
+from typing import Optional, Any, List, TYPE_CHECKING
 
 from .base import (
     BackendBase,
@@ -22,8 +25,9 @@ from .base import (
     CompileOptions,
     CompileResult,
     OutputFormat,
-    ToolNotFoundError,
 )
+from .type_system import get_type_mapper
+from .compiler_runner import create_c_compiler_runner
 
 if TYPE_CHECKING:
     from zhc.ir.program import IRProgram
@@ -34,38 +38,28 @@ class CBackend(BackendBase):
     C 后端 - IR → C 代码 → 目标文件
 
     工作流程：
-    1. IRProgram → C 代码（IRToCConverter）
-    2. C 代码 → 目标文件（GCC/Clang）
-
-    支持的输出格式：
-    - C 源码 (.c)
-    - 目标文件 (.o)
-    - 可执行文件
-    - 静态库 (.a)
-    - 共享库 (.so)
+    1. IRProgram → C 代码（使用类型映射器）
+    2. C 代码 → 目标文件（使用编译器运行器）
     """
 
-    # 类型映射表
-    TYPE_MAP = {
-        "整数型": "int",
-        "短整型": "short",
-        "长整型": "long",
-        "字符型": "char",
-        "浮点型": "float",
-        "双精度浮点型": "double",
-        "布尔型": "int",
-        "空类型": "void",
-        "字符串型": "char*",
-    }
-
-    def __init__(self, compiler: str = "gcc"):
+    def __init__(self, compiler: str = "gcc", optimization_level: str = "O2"):
         """
         初始化 C 后端
 
         Args:
             compiler: C 编译器路径（gcc, clang, arm-gcc 等）
+            optimization_level: 优化级别
         """
         self.compiler = compiler
+        self.optimization_level = optimization_level
+        self.type_mapper = get_type_mapper()
+
+        # 创建编译器运行器
+        self.runner = create_c_compiler_runner(
+            compiler=compiler,
+            optimization_level=optimization_level,
+        )
+
         self._check_compiler_available()
 
     def _create_debug_listener(self, source_file: str, output_file: str = "debug.json"):
@@ -138,7 +132,7 @@ class CBackend(BackendBase):
         # 设置调试信息生成
         debug_manager = self._setup_debug(ir, options)
 
-        # 1. IR → C 代码（发射调试事件）
+        # 1. IR → C 代码
         c_code = self._generate_c_code(ir, debug_manager)
 
         # 2. 写入临时 C 文件
@@ -147,7 +141,6 @@ class CBackend(BackendBase):
 
         # 3. 根据输出格式选择编译方式
         if options.output_format == OutputFormat.C_CODE:
-            # 只输出 C 代码
             return CompileResult(
                 success=True,
                 output_files=[c_file],
@@ -196,13 +189,11 @@ class CBackend(BackendBase):
 
         lines.append("")
 
-        # 生成函数实现（发射调试事件）
-        addr_counter = 0  # 模拟地址计数器
+        # 生成函数实现
         for func in ir.functions:
-            func_lines = self._generate_function(func, debug_manager, addr_counter)
+            func_lines = self._generate_function(func, debug_manager)
             lines.append(func_lines)
             lines.append("")
-            addr_counter += len(func_lines.splitlines()) * 4  # 模拟地址增长
 
         # 生成主函数（如果有）
         if ir.has_main:
@@ -215,34 +206,25 @@ class CBackend(BackendBase):
 
     def _generate_function_declaration(self, func) -> str:
         """生成函数声明"""
-        ret_type = self.TYPE_MAP.get(func.return_type, func.return_type)
         params = ", ".join(
-            f"{self.TYPE_MAP.get(p.type, p.type)} {p.name}" for p in func.params
+            f"{self.type_mapper.to_c(p.type)} {p.name}" for p in func.params
         )
         if not params:
             params = "void"
-        return f"{ret_type} {func.name}({params});"
+        return f"{self.type_mapper.to_c(func.return_type)} {func.name}({params});"
 
     def _generate_function(
-        self, func, debug_manager: Optional[Any] = None, start_addr: int = 0
+        self,
+        func,
+        debug_manager: Optional[Any] = None,
     ) -> str:
-        """
-        生成函数实现
-
-        Args:
-            func: IR 函数
-            debug_manager: 调试管理器（可选）
-            start_addr: 起始地址
-
-        Returns:
-            str: 函数实现的 C 代码
-        """
-        # 获取函数行号（从第一个基本块获取）
+        """生成函数实现"""
+        # 获取函数行号
         start_line = 1
         end_line = 1
 
         # 发射函数调试事件
-        params = [
+        params_info = [
             {"name": p.name, "type": p.type, "line": start_line} for p in func.params
         ]
         self._emit_function_debug(
@@ -250,108 +232,83 @@ class CBackend(BackendBase):
             name=func.name,
             start_line=start_line,
             end_line=end_line,
-            start_addr=start_addr,
-            end_addr=start_addr + 100,  # 估算
             return_type=func.return_type,
-            parameters=params,
+            parameters=params_info,
         )
-
-        # 发射参数调试事件
-        addr_offset = 8  # 假设参数从 rbp+8 开始
-        for p in func.params:
-            self._emit_variable_debug(
-                debug_manager,
-                name=p.name,
-                type_name=p.type,
-                line_number=start_line,
-                address=start_addr + addr_offset,
-                is_parameter=True,
-            )
-            addr_offset += 8
 
         lines = []
 
         # 函数头
-        ret_type = self.TYPE_MAP.get(func.return_type, func.return_type)
         params_str = ", ".join(
-            f"{self.TYPE_MAP.get(p.type, p.type)} {p.name}" for p in func.params
+            f"{self.type_mapper.to_c(p.type)} {p.name}" for p in func.params
         )
         if not params_str:
             params_str = "void"
-        lines.append(f"{ret_type} {func.name}({params_str}) {{")
+        lines.append(
+            f"{self.type_mapper.to_c(func.return_type)} {func.name}({params_str}) {{"
+        )
 
-        # 函数体
-        addr_counter = start_addr + 16  # 假设从 rbp+16 开始局部变量
+        # 函数体 - 生成基本块
         for block in func.blocks:
             for inst in block.instructions:
-                inst_code = self._generate_instruction(
-                    inst, debug_manager, addr_counter
-                )
-                lines.append(f"    {inst_code}")
-                addr_counter += 4
+                inst_code = self._generate_instruction(inst, debug_manager)
+                if inst_code:
+                    lines.append(f"    {inst_code}")
 
         # 函数尾
         lines.append("}")
         return "\n".join(lines)
 
     def _generate_instruction(
-        self, inst, debug_manager: Optional[Any] = None, addr: int = 0
-    ) -> str:
+        self,
+        inst,
+        debug_manager: Optional[Any] = None,
+    ) -> Optional[str]:
         """
         生成指令的 C 代码
 
-        Args:
-            inst: IR 指令
-            debug_manager: 调试管理器（可选）
-            addr: 当前地址
-
-        Returns:
-            str: C 代码
+        使用字典映射替代 if-elif 链
         """
-        # 发射行号映射调试事件
+        opcode = inst.opcode.name
         line_number = getattr(inst, "line_number", 0)
-        if line_number > 0:
+
+        # 发射行号映射调试事件
+        if line_number > 0 and debug_manager:
             self._emit_line_mapping_debug(
-                debug_manager, line_number=line_number, address=addr
+                debug_manager, line_number=line_number, address=0
             )
 
-        # 简化实现，实际需要完整的 IR → C 映射
-        opcode = inst.opcode.name
+        # 使用字典映射获取生成器函数
+        generators = self._get_instruction_generators()
+        generator = generators.get(opcode)
 
-        if opcode == "ADD":
-            return f"{inst.result} = {inst.operands[0]} + {inst.operands[1]};"
-        elif opcode == "SUB":
-            return f"{inst.result} = {inst.operands[0]} - {inst.operands[1]};"
-        elif opcode == "MUL":
-            return f"{inst.result} = {inst.operands[0]} * {inst.operands[1]};"
-        elif opcode == "DIV":
-            return f"{inst.result} = {inst.operands[0]} / {inst.operands[1]};"
-        elif opcode == "RET":
-            if inst.operands:
-                return f"return {inst.operands[0]};"
-            return "return;"
-        elif opcode == "CALL":
-            args = ", ".join(inst.operands)
-            if inst.result:
-                return f"{inst.result} = {inst.function_name}({args});"
-            return f"{inst.function_name}({args});"
-        elif opcode == "LOAD":
-            return f"{inst.result} = *{inst.operands[0]};"
-        elif opcode == "STORE":
-            return f"*{inst.operands[0]} = {inst.operands[1]};"
-        elif opcode == "ALLOC":
-            # 发射变量调试事件
-            if hasattr(inst, "result") and hasattr(inst, "type"):
-                self._emit_variable_debug(
-                    debug_manager,
-                    name=inst.result,
-                    type_name=inst.type,
-                    line_number=line_number,
-                    address=addr,
-                )
-            return f"{inst.result} = malloc(sizeof({inst.type}));"
+        if generator:
+            return generator(self, inst)
 
-        return f"// 未实现的指令: {opcode}"
+        return None
+
+    def _get_instruction_generators(self) -> dict:
+        """
+        获取指令生成器字典
+
+        使用方法引用而非 lambda，便于扩展
+        """
+        return {
+            "ADD": lambda s,
+            i: f"{i.result[0].name if i.result else '_'} = {i.operands[0]} + {i.operands[1]};",
+            "SUB": lambda s,
+            i: f"{i.result[0].name if i.result else '_'} = {i.operands[0]} - {i.operands[1]};",
+            "MUL": lambda s,
+            i: f"{i.result[0].name if i.result else '_'} = {i.operands[0]} * {i.operands[1]};",
+            "DIV": lambda s,
+            i: f"{i.result[0].name if i.result else '_'} = {i.operands[0]} / {i.operands[1]};",
+            "RET": lambda s, i: f"return {i.operands[0]};" if i.operands else "return;",
+            "ALLOC": lambda s,
+            i: f"{i.result[0].name if i.result else '_'} = malloc(sizeof({s.type_mapper.to_c(getattr(i, 'type', 'int'))}));",
+            "STORE": lambda s, i: f"{i.operands[1]} = {i.operands[0]};",
+            "LOAD": lambda s,
+            i: f"{i.result[0].name if i.result else '_'} = *{i.operands[0]};",
+        }
 
     def _generate_main_function(self, ir: "IRProgram") -> str:
         """生成主函数"""
@@ -371,14 +328,31 @@ int main(int argc, char** argv) {
         """
         调用编译器编译 C 文件
 
-        Args:
-            c_file: C 源文件
-            output_path: 输出路径
-            options: 编译选项
-
-        Returns:
-            CompileResult: 编译结果
+        使用统一的编译器运行器
         """
+        cmd = self._build_compiler_command(c_file, output_path, options)
+
+        # 使用编译器运行器
+        output = self.runner.run(cmd)
+
+        # 解析输出
+        errors, warnings = self.runner.parse_output(output)
+        output_files = [output_path] if output.returncode == 0 else []
+
+        metadata = {
+            "compiler": self.compiler,
+            "duration_seconds": output.duration_seconds,
+        }
+
+        return self.runner.to_compile_result(output, output_files, metadata)
+
+    def _build_compiler_command(
+        self,
+        c_file: Path,
+        output_path: Path,
+        options: CompileOptions,
+    ) -> List[str]:
+        """构建编译器命令"""
         cmd = [self.compiler]
 
         # 优化级别
@@ -408,78 +382,22 @@ int main(int argc, char** argv) {
         # 额外标志
         cmd.extend(options.extra_flags)
 
-        # 执行编译
-        try:
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-            )
+        return cmd
 
-            errors = []
-            warnings = []
+    def _check_compiler_available(self) -> None:
+        """检查编译器是否可用"""
+        if not self.runner.check_available():
+            from .base import ToolNotFoundError
 
-            if proc.stderr:
-                for line in proc.stderr.splitlines():
-                    if "error" in line.lower():
-                        errors.append(line)
-                    elif "warning" in line.lower():
-                        warnings.append(line)
-
-            return CompileResult(
-                success=proc.returncode == 0,
-                output_files=[output_path] if proc.returncode == 0 else [],
-                errors=errors,
-                warnings=warnings,
-                exit_code=proc.returncode,
-            )
-
-        except FileNotFoundError:
             raise ToolNotFoundError(
                 self.compiler,
                 f"请安装 {self.compiler} 或指定正确的编译器路径",
             )
 
-    def _check_compiler_available(self) -> None:
-        """检查编译器是否可用"""
-        try:
-            proc = subprocess.run(
-                [self.compiler, "--version"],
-                capture_output=True,
-                text=True,
-            )
-            if proc.returncode != 0:
-                raise ToolNotFoundError(
-                    self.compiler,
-                    f"{self.compiler} 不可用",
-                )
-        except FileNotFoundError:
-            raise ToolNotFoundError(
-                self.compiler,
-                f"请安装 {self.compiler}",
-            )
-
     def is_available(self) -> bool:
         """检查后端是否可用"""
-        try:
-            subprocess.run(
-                [self.compiler, "--version"],
-                capture_output=True,
-            )
-            return True
-        except FileNotFoundError:
-            return False
+        return self.runner.check_available()
 
     def get_version(self) -> Optional[str]:
         """获取编译器版本"""
-        try:
-            proc = subprocess.run(
-                [self.compiler, "--version"],
-                capture_output=True,
-                text=True,
-            )
-            if proc.returncode == 0:
-                return proc.stdout.splitlines()[0]
-        except FileNotFoundError:
-            pass
-        return None
+        return self.runner.get_version()

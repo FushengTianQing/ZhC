@@ -130,11 +130,30 @@ class IRGenerator(ASTVisitor):
         operands: List[IRValue] = None,
         result: List[IRValue] = None,
     ) -> Optional[IRValue]:
-        """发射 IR 指令"""
+        """发射 IR 指令
+
+        发出 JMP/JZ 等跳转指令时，同时更新当前基本块的 successor 列表，
+        以便后续分析（如 DCE）能够正确追踪控制流。
+        """
         if operands is None:
             operands = []
         if result is None:
             result = []
+
+        # 更新控制流图的 successor 边（JMP → 唯一后继，JZ → 两个后继）
+        if opcode == Opcode.JMP and operands:
+            # JMP：唯一后继是操作数中的块标签
+            target = operands[0]
+            if isinstance(target, str):
+                self.current_block.add_successor(target)
+        elif opcode == Opcode.JZ and operands:
+            # JZ：两个后继——then分支（条件为真）和 else/合并分支（条件为假）
+            # operands[0] 是条件值（字符串标签），operands[1] 是目标块标签
+            if len(operands) >= 2:
+                target = operands[1]
+                if isinstance(target, str):
+                    self.current_block.add_successor(target)
+
         instr = IRInstruction(opcode=opcode, operands=operands, result=result)
         self.current_block.add_instruction(instr)
         # 返回结果值（如果有）
@@ -390,9 +409,46 @@ class IRGenerator(ASTVisitor):
         left = self._eval_expr(getattr(node, "left", None))
         right = self._eval_expr(getattr(node, "right", None))
         op = getattr(node, "operator", getattr(node, "op", "+"))
-        op = op.upper() if isinstance(op, str) else str(op)
+
+        # AST 运算符 → Opcode 枚举名映射
+        # AST 使用符号（如 >, <, ==），Opcode 使用名称（如 GT, LT, EQ）
+        op_map = {
+            # 算术运算
+            "+": "ADD",
+            "-": "SUB",
+            "*": "MUL",
+            "/": "DIV",
+            "%": "MOD",
+            # 比较运算
+            "==": "EQ",
+            "!=": "NE",
+            "<": "LT",
+            "<=": "LE",
+            ">": "GT",
+            ">=": "GE",
+            # 逻辑运算
+            "&&": "L_AND",
+            "||": "L_OR",
+            # 位运算
+            "&": "AND",
+            "|": "OR",
+            "^": "XOR",
+            "<<": "SHL",
+            ">>": "SHR",
+            # 中文运算符
+            "并且": "L_AND",
+            "或者": "L_OR",
+            "大于": "GT",
+            "小于": "LT",
+            "大于等于": "GE",
+            "小于等于": "LE",
+            "等于": "EQ",
+            "不等于": "NE",
+        }
+
+        opcode_name = op_map.get(op, op.upper() if isinstance(op, str) else str(op))
         try:
-            opcode = Opcode[op]
+            opcode = Opcode[opcode_name]
         except (KeyError, ValueError):
             opcode = Opcode.ADD
         result = self._new_temp()
@@ -560,7 +616,8 @@ class IRGenerator(ASTVisitor):
         old_block = self.current_block
         self._switch_block(then_bb)
         node.then_branch.accept(self)
-        if self.current_block and not self.current_block.is_terminated():
+        then_terminated = self.current_block and self.current_block.is_terminated()
+        if not then_terminated:
             self._emit(Opcode.JMP, [merge_bb.label])
         old_block.add_successor(then_bb.label)
         old_block.add_successor(else_bb.label)
@@ -570,13 +627,27 @@ class IRGenerator(ASTVisitor):
         self._switch_block(else_bb)
         if node.else_branch:
             node.else_branch.accept(self)
-        if self.current_block and not self.current_block.is_terminated():
+        else_terminated = self.current_block and self.current_block.is_terminated()
+        if not else_terminated:
             self._emit(Opcode.JMP, [merge_bb.label])
         then_bb.add_successor(merge_bb.label)
         else_bb.add_predecessor(old_block.label)
 
-        # merge 基本块
-        self._switch_block(merge_bb)
+        # merge 基本块：只有当至少一个分支未终止时才切换到 merge
+        # 如果两个分支都终止（如都有 return），merge 块不可达，不应切换
+        if not (then_terminated and else_terminated):
+            self._switch_block(merge_bb)
+        else:
+            # 两个分支都终止，merge 块不可达
+            # 移除 merge 块及其所有引用，避免 IR 验证器报错
+            self.current_function.basic_blocks.remove(merge_bb)
+            # 清理 then_bb 的 successor 引用（原来跳转到 merge）
+            if merge_bb.label in then_bb.successors:
+                then_bb.successors.remove(merge_bb.label)
+            # 清理 entry 块中指向 merge 的 successor（如果有的话）
+            if merge_bb.label in old_block.successors:
+                old_block.successors.remove(merge_bb.label)
+            self.current_block = None  # 标记当前块为空，避免函数结尾添加额外 ret
 
     def visit_while_stmt(self, node: WhileStmtNode):
         """while 循环"""
@@ -596,9 +667,10 @@ class IRGenerator(ASTVisitor):
         # 条件块
         self._switch_block(cond_bb)
         cond = self._eval_expr(node.condition)
+        # JZ: 条件为假（0）时跳转到 end 退出循环；否则（1）继续到 body 执行循环体
         if cond:
-            self._emit(Opcode.JZ, [cond, body_bb.label])
-        self._emit(Opcode.JMP, [end_bb.label])
+            self._emit(Opcode.JZ, [cond, end_bb.label])
+        self._emit(Opcode.JMP, [body_bb.label])
 
         # 循环体
         cond_bb.add_successor(body_bb.label)
@@ -638,9 +710,10 @@ class IRGenerator(ASTVisitor):
         # 条件块
         self._switch_block(cond_bb)
         cond = self._eval_expr(node.condition) if node.condition else None
+        # JZ: 条件为假时跳转到 end 退出循环
         if cond:
-            self._emit(Opcode.JZ, [cond, body_bb.label])
-        self._emit(Opcode.JMP, [end_bb.label])
+            self._emit(Opcode.JZ, [cond, end_bb.label])
+        self._emit(Opcode.JMP, [body_bb.label])
 
         # 更新块
         update_bb.add_predecessor(body_bb.label)
@@ -717,9 +790,10 @@ class IRGenerator(ASTVisitor):
         # 条件块
         self._switch_block(cond_bb)
         cond = self._eval_expr(node.condition)
+        # do-while: 条件为真则继续循环（跳转body）；条件为假则退出（跳转end）
         if cond:
-            self._emit(Opcode.JZ, [cond, body_bb.label])
-        self._emit(Opcode.JMP, [end_bb.label])
+            self._emit(Opcode.JZ, [cond, end_bb.label])
+        self._emit(Opcode.JMP, [body_bb.label])
         cond_bb.add_successor(body_bb.label)
         cond_bb.add_successor(end_bb.label)
 

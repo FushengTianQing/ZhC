@@ -109,19 +109,8 @@ from .llvm_instruction_strategy import (
 # 编译上下文
 from .compilation_context import CompilationContext
 
-# === 重构版本后端（可选启用）===
-# 重构后的 LLVM 后端
-try:
-    from .llvm_backend_refactored import (
-        LLVMBackend as LLVMBackendRefactored,
-        LLVMBackendError as LLVMBackendErrorRefactored,
-    )
-except ImportError:
-    LLVMBackendRefactored = None
-    LLVMBackendErrorRefactored = None
-
-# 重构后的 C 后端
-from .c_backend_refactored import CBackend as CBackendRefactored
+# === 重构版本后端（已启用）===
+# 2026-04-09: c_backend.py 和 llvm_backend.py 已重构，使用统一架构
 
 # 寄存器分配器接口
 from .allocator_interface import (
@@ -188,10 +177,6 @@ __all__ = [
     "InstructionStrategy",
     "InstructionStrategyFactory",
     "CompilationContext",
-    # 重构版本后端
-    "LLVMBackendRefactored",
-    "LLVMBackendErrorRefactored",
-    "CBackendRefactored",
     # 寄存器分配器
     "AllocationStrategy",
     "AllocatorCapabilities",

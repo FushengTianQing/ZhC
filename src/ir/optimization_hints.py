@@ -370,6 +370,9 @@ class OptimizationHintAnalyzer:
 
         return ProgramOptimizationHints(function_hints=function_hints)
 
+    # C 标准中不允许被内联或标注 cold 属性的特殊函数集合
+    _NON_INLINABLE_FUNCTIONS = frozenset({"main"})
+
     def _analyze_function(self, func: IRFunction) -> FunctionOptimizationHints:
         """分析单个函数
 
@@ -383,18 +386,23 @@ class OptimizationHintAnalyzer:
         reason: Dict[OptimizationHint, str] = {}
         confidence: Dict[OptimizationHint, float] = {}
 
+        # C 标准 (ISO/IEC 9899) 明确规定 main 函数不能被声明为 inline，
+        # 且 GCC/Clang 对 main 添加 inline 或 cold 属性会产生编译错误。
+        # 因此对特殊函数跳过所有内联和冷热点分析。
+        is_non_inlinable = func.name in self._NON_INLINABLE_FUNCTIONS
+
         # 1. 计算指令数
         instruction_count = self._count_instructions(func)
 
-        # 2. 小函数识别
-        if instruction_count <= self.SMALL_FUNCTION_THRESHOLD:
+        # 2. 小函数识别（main 等特殊函数不内联）
+        if instruction_count <= self.SMALL_FUNCTION_THRESHOLD and not is_non_inlinable:
             hints.add(OptimizationHint.INLINE)
             reason[OptimizationHint.INLINE] = f"小函数（{instruction_count} 条指令）"
             confidence[OptimizationHint.INLINE] = 0.9
 
-        # 3. 单调用点函数识别
+        # 3. 单调用点函数识别（main 等特殊函数不强制内联）
         call_count = self.call_counts.get(func.name, 0)
-        if call_count == 1:
+        if call_count == 1 and not is_non_inlinable:
             hints.add(OptimizationHint.ALWAYS_INLINE)
             reason[OptimizationHint.ALWAYS_INLINE] = "单调用点函数"
             confidence[OptimizationHint.ALWAYS_INLINE] = 0.95
@@ -405,8 +413,12 @@ class OptimizationHintAnalyzer:
             reason[OptimizationHint.HOT] = f"热点函数（调用 {call_count} 次）"
             confidence[OptimizationHint.HOT] = 0.8
 
-        # 5. 冷点函数识别（排除单调用点）
-        if call_count <= self.COLD_FUNCTION_THRESHOLD and call_count != 1:
+        # 5. 冷点函数识别（排除单调用点；main 等特殊函数也不标注 cold）
+        if (
+            call_count <= self.COLD_FUNCTION_THRESHOLD
+            and call_count != 1
+            and not is_non_inlinable
+        ):
             hints.add(OptimizationHint.COLD)
             reason[OptimizationHint.COLD] = f"冷点函数（调用 {call_count} 次）"
             confidence[OptimizationHint.COLD] = 0.7
