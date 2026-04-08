@@ -20,6 +20,8 @@ from enum import Enum
 
 if TYPE_CHECKING:
     from zhc.ir.program import IRProgram
+    from zhc.debug.debug_manager import DebugManager
+    from zhc.debug.debug_listener import DebugListener
 
 
 class OutputFormat(Enum):
@@ -218,6 +220,195 @@ class BackendBase(ABC):
             List[str]: 支持的目标列表
         """
         return self.capabilities.target_platforms
+
+    # ========== 调试信息接口 ==========
+
+    def _create_debug_listener(
+        self,
+        source_file: str,
+        output_file: str = "debug.json"
+    ) -> "DebugListener":
+        """
+        创建后端专用调试监听器
+
+        子类应覆盖此方法以提供特定后端的调试监听器。
+        默认返回 None，表示不支持调试信息。
+
+        Args:
+            source_file: 源文件路径
+            output_file: 输出文件路径
+
+        Returns:
+            DebugListener: 调试监听器实例，或 None
+        """
+        return None
+
+    def _setup_debug(
+        self,
+        ir: "IRProgram",
+        options: CompileOptions
+    ) -> Optional["DebugManager"]:
+        """
+        设置调试信息生成
+
+        根据 CompileOptions.debug 决定是否启用调试信息。
+        如果启用，创建 DebugManager 并添加后端专用监听器。
+
+        Args:
+            ir: IR 程序
+            options: 编译选项
+
+        Returns:
+            DebugManager: 调试管理器实例，或 None（未启用）
+        """
+        if not options.debug:
+            return None
+
+        # 检查后端是否支持调试
+        if not self.capabilities.supports_debug:
+            return None
+
+        # 导入 DebugManager（延迟导入避免循环依赖）
+        from zhc.debug.debug_manager import DebugManager
+
+        # 获取源文件路径
+        source_file = getattr(ir, 'source_file', 'unknown.zhc')
+
+        # 创建调试管理器
+        manager = DebugManager(source_file=source_file, enable_debug=True)
+
+        # 创建并添加后端专用监听器
+        listener = self._create_debug_listener(source_file)
+        if listener:
+            manager.add_listener(listener)
+
+        return manager
+
+    def _emit_compile_unit_debug(
+        self,
+        debug_manager: Optional["DebugManager"],
+        name: str,
+        source_file: str,
+        comp_dir: str = ""
+    ) -> None:
+        """
+        发射编译单元调试事件
+
+        Args:
+            debug_manager: 调试管理器（可能为 None）
+            name: 编译单元名称
+            source_file: 源文件路径
+            comp_dir: 编译目录
+        """
+        if debug_manager:
+            debug_manager.emit_compile_unit(name, source_file, comp_dir)
+
+    def _emit_function_debug(
+        self,
+        debug_manager: Optional["DebugManager"],
+        name: str,
+        start_line: int,
+        end_line: int,
+        start_addr: int = 0,
+        end_addr: int = 0,
+        return_type: str = "void",
+        parameters: Optional[List[Dict]] = None
+    ) -> None:
+        """
+        发射函数定义调试事件
+
+        Args:
+            debug_manager: 调试管理器（可能为 None）
+            name: 函数名
+            start_line: 起始行号
+            end_line: 结束行号
+            start_addr: 起始地址
+            end_addr: 结束地址
+            return_type: 返回类型
+            parameters: 参数列表
+        """
+        if debug_manager:
+            debug_manager.emit_function(
+                name=name,
+                start_line=start_line,
+                end_line=end_line,
+                start_addr=start_addr,
+                end_addr=end_addr,
+                return_type=return_type,
+                parameters=parameters
+            )
+
+    def _emit_variable_debug(
+        self,
+        debug_manager: Optional["DebugManager"],
+        name: str,
+        type_name: str,
+        line_number: int,
+        address: int = 0,
+        is_parameter: bool = False
+    ) -> None:
+        """
+        发射变量定义调试事件
+
+        Args:
+            debug_manager: 调试管理器（可能为 None）
+            name: 变量名
+            type_name: 类型名
+            line_number: 定义行号
+            address: 内存地址
+            is_parameter: 是否为函数参数
+        """
+        if debug_manager:
+            debug_manager.emit_variable(
+                name=name,
+                type_name=type_name,
+                line_number=line_number,
+                address=address,
+                is_parameter=is_parameter
+            )
+
+    def _emit_line_mapping_debug(
+        self,
+        debug_manager: Optional["DebugManager"],
+        line_number: int,
+        address: int,
+        column: int = 0,
+        file_index: int = 0
+    ) -> None:
+        """
+        发射行号映射调试事件
+
+        Args:
+            debug_manager: 调试管理器（可能为 None）
+            line_number: 源码行号
+            address: 机器码地址
+            column: 列号
+            file_index: 文件索引
+        """
+        if debug_manager:
+            debug_manager.emit_line_mapping(
+                line_number=line_number,
+                address=address,
+                column=column,
+                file_index=file_index
+            )
+
+    def _finalize_debug(
+        self,
+        debug_manager: Optional["DebugManager"]
+    ) -> Dict[str, Any]:
+        """
+        完成调试信息生成
+
+        Args:
+            debug_manager: 调试管理器（可能为 None）
+
+        Returns:
+            Dict[str, Any]: 调试信息输出
+        """
+        if debug_manager:
+            return debug_manager.emit_finalize()
+        return {}
 
     def validate_options(self, options: CompileOptions) -> List[str]:
         """

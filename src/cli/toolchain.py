@@ -195,9 +195,30 @@ class PerformanceOptimizer:
 
 
 class DebugInfoGenerator:
-    """调试信息生成器"""
+    """
+    调试信息生成器
+    
+    .. deprecated::
+        此类的功能已被 backend/base.py 的 BackendBase 调试接口取代。
+        请使用 BackendBase._setup_debug() 和 BackendBase._emit_*_debug() 方法。
+        
+        示例::
+            # 新方式（推荐）
+            backend = GCCBackend()
+            debug_manager = backend._setup_debug(ir, options)
+            backend._emit_function_debug(debug_manager, ...)
+            
+            # 旧方式（已废弃）
+            generator = DebugInfoGenerator()  # 不要使用
+    """
 
     def __init__(self):
+        import warnings
+        warnings.warn(
+            "DebugInfoGenerator 已废弃，请使用 BackendBase._setup_debug() 方法",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.line_mapping: Dict[int, str] = {}
         self.symbol_table: Dict[str, Dict] = {}
 
@@ -218,7 +239,7 @@ class DebugInfoGenerator:
 
     def generate_debug_info(self) -> str:
         """生成调试信息"""
-        lines = ["// 调试信息"]
+        lines = ["// 调试信息（已废弃）"]
 
         lines.append(f"// 源文件行数: {len(self.line_mapping)}")
         lines.append(f"// 符号数: {len(self.symbol_table)}")

@@ -167,6 +167,24 @@ class LLVMBackend(BackendBase):
         llvm.initialize()
         llvm.initialize_native_target()
         llvm.initialize_native_asmprinter()
+
+    def _create_debug_listener(
+        self,
+        source_file: str,
+        output_file: str = "debug.json"
+    ):
+        """
+        创建 LLVM 后端专用调试监听器
+
+        Args:
+            source_file: 源文件路径
+            output_file: 输出文件路径
+
+        Returns:
+            LLVMDebugListener: LLVM 后端调试监听器
+        """
+        from .llvm_debug_listener import LLVMDebugListener
+        return LLVMDebugListener(source_file=source_file, module_name=self.module_name if hasattr(self, 'module_name') else 'main')
     
     def compile(
         self,

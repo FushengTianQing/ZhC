@@ -169,17 +169,19 @@ src/
 │
 ├── typeinfer/               # 类型推导模块（Hindley-Milner）
 │
-├── backend/                 # 后端模块 (11 files)
+├── backend/                 # 后端模块 (13 files)
 │   ├── base.py                # BackendBase 抽象基类
 │   ├── manager.py             # BackendManager 后端管理器
 │   ├── c_backend.py           # C 后端
 │   ├── gcc_backend.py         # GCC 工具链后端
 │   ├── clang_backend.py       # Clang 工具链后端
 │   ├── llvm_backend.py        # LLVM IR 后端
+│   ├── llvm_debug_listener.py # LLVM 调试监听器
 │   ├── llvm_instruction.py    # LLVM 指令生成器
 │   ├── llvm_jit.py            # LLVM JIT 执行引擎
 │   ├── llvm_type_mapper.py    # LLVM 类型映射器
 │   ├── wasm_backend.py        # WASM 后端
+│   ├── wasm_debug_listener.py # WASM 调试监听器
 │   └── allocator_interface.py # 分配器接口
 ├── lsp/                     # Language Server Protocol
 ├── debugger/                # 调试器模块
@@ -823,7 +825,70 @@ def auto_select(target=None, prefer_llvm=True) -> BackendBase:
 - LLVM 不可用 → Clang → GCC → C
 - GCC/Clang 都不可用 → C 后端（生成 .c 文件）
 
+#### 3.9.10 调试信息生成
+
+**架构**：统一集成到 BackendBase，通过 DebugListener 协议支持多后端扩展。
+
+```
+BackendBase (抽象基类)
+    ├── _setup_debug(ir, options) → DebugManager
+    ├── _create_debug_listener(source_file) → DebugListener
+    ├── _emit_compile_unit_debug(...)
+    ├── _emit_function_debug(...)
+    ├── _emit_variable_debug(...)
+    ├── _emit_line_mapping_debug(...)
+    └── _finalize_debug(...) → Dict
+
+DebugManager (debug/debug_manager.py)
+    └── emit_*() → 分发给所有注册的 DebugListener
+
+后端专用 DebugListener：
+    ├── CDebugListener (codegen/c_debug_listener.py) → DWARF
+    ├── LLVMDebugListener (backend/llvm_debug_listener.py) → LLVM IR metadata
+    └── WASMDebugListener (backend/wasm_debug_listener.py) → WASM DWARF
+```
+
+**BackendBase 调试接口**：
+
+| 方法 | 说明 |
+|:---|:---|
+| `_setup_debug(ir, options)` | 创建 DebugManager，设置调试监听器 |
+| `_create_debug_listener(source)` | 创建后端专用 DebugListener |
+| `_emit_*_debug(...)` | 发射各类调试事件 |
+
+**DebugListener 协议**：
+
+| 方法 | 事件 | 数据 |
+|:---|:---|:---|
+| `on_compile_unit()` | 编译单元开始 | name, source_file, comp_dir |
+| `on_function()` | 函数定义 | name, lines, addr, return_type, params |
+| `on_variable()` | 变量定义 | name, type, line, address |
+| `on_line_mapping()` | 行号映射 | line_number, address |
+| `on_type_definition()` | 类型定义 | type_name, kind, size, members |
+| `on_finalize()` | 完成 | 返回调试信息字典 |
+
+**使用方式**：
+
+```python
+# 启用调试信息生成
+options = CompileOptions(debug=True)
+backend = GCCBackend()
+result = backend.compile(ir, output_path, options)
+# 自动生成 DWARF 调试信息
+```
+
+**调试信息输出**：
+
+| 后端 | 调试格式 | 输出位置 |
+|:---|:---|:---|
+| GCCBackend | DWARF | 目标文件内置 |
+| ClangBackend | DWARF | 目标文件内置 |
+| LLVMBackend | LLVM IR metadata | .ll 文件 |
+| WASMBackend | WASM DWARF | .wasm custom sections |
+
 ---
+
+### 3.10 命令行模块 (cli/)
 
 ### 3.10 命令行模块 (cli/)
 
@@ -1216,3 +1281,11 @@ tests/
     - CompileResult - 统一编译结果
     - OutputFormat - 输出格式枚举
     - BackendCapabilities - 后端能力描述
+  - **调试信息集成** (Phase 12.1):
+    - BackendBase 添加调试接口 (`_setup_debug`, `_create_debug_listener`, `_emit_*_debug`)
+    - 创建 LLVMDebugListener (`backend/llvm_debug_listener.py`)
+    - 创建 WASMDebugListener (`backend/wasm_debug_listener.py`)
+    - CBackend 集成 DebugManager（发射调试事件）
+    - GCCBackend/ClangBackend 继承 CBackend 调试功能
+    - LLVMBackend/WASMBackend 集成专用调试监听器
+    - 废弃 cli/toolchain.py 的 DebugInfoGenerator

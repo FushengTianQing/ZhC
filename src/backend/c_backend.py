@@ -70,6 +70,24 @@ class CBackend(BackendBase):
         self.compiler = compiler
         self._check_compiler_available()
 
+    def _create_debug_listener(
+        self,
+        source_file: str,
+        output_file: str = "debug.json"
+    ):
+        """
+        创建 C 后端专用调试监听器
+
+        Args:
+            source_file: 源文件路径
+            output_file: 输出文件路径
+
+        Returns:
+            CDebugListener: C 后端调试监听器
+        """
+        from zhc.codegen.c_debug_listener import CDebugListener
+        return CDebugListener(source_file=source_file, output_file=output_file)
+
     @property
     def name(self) -> str:
         return "c"
@@ -122,15 +140,18 @@ class CBackend(BackendBase):
         """
         options = options or CompileOptions()
 
-        # 1. IR → C 代码
-        c_code = self._generate_c_code(ir)
+        # 设置调试信息生成
+        debug_manager = self._setup_debug(ir, options)
+
+        # 1. IR → C 代码（发射调试事件）
+        c_code = self._generate_c_code(ir, debug_manager)
 
         # 2. 写入临时 C 文件
         c_file = output_path.with_suffix(".c")
         c_file.write_text(c_code)
 
         # 3. 根据输出格式选择编译方式
-        if options.output_format == OutputFormat.C:
+        if options.output_format == OutputFormat.C_CODE:
             # 只输出 C 代码
             return CompileResult(
                 success=True,
@@ -142,16 +163,32 @@ class CBackend(BackendBase):
         # 4. 调用编译器
         return self._compile_c_file(c_file, output_path, options)
 
-    def _generate_c_code(self, ir: "IRProgram") -> str:
+    def _generate_c_code(
+        self,
+        ir: "IRProgram",
+        debug_manager: Optional[Any] = None
+    ) -> str:
         """
         从 IR 生成 C 代码
 
         Args:
             ir: IR 程序
+            debug_manager: 调试管理器（可选）
 
         Returns:
             str: C 代码
         """
+        # 获取源文件路径
+        source_file = getattr(ir, 'source_file', 'unknown.zhc')
+
+        # 发射编译单元调试事件
+        self._emit_compile_unit_debug(
+            debug_manager,
+            name=ir.name if hasattr(ir, 'name') else 'main',
+            source_file=source_file,
+            comp_dir=''
+        )
+
         lines = [
             "// 由 ZhC C 后端生成",
             "#include <stdio.h>",
@@ -166,14 +203,21 @@ class CBackend(BackendBase):
 
         lines.append("")
 
-        # 生成函数实现
+        # 生成函数实现（发射调试事件）
+        addr_counter = 0  # 模拟地址计数器
         for func in ir.functions:
-            lines.append(self._generate_function(func))
+            func_start_addr = addr_counter
+            func_lines = self._generate_function(func, debug_manager, addr_counter)
+            lines.append(func_lines)
             lines.append("")
+            addr_counter += len(func_lines.splitlines()) * 4  # 模拟地址增长
 
         # 生成主函数（如果有）
         if ir.has_main:
             lines.append(self._generate_main_function(ir))
+
+        # 完成调试信息
+        self._finalize_debug(debug_manager)
 
         return "\n".join(lines)
 
@@ -188,31 +232,106 @@ class CBackend(BackendBase):
             params = "void"
         return f"{ret_type} {func.name}({params});"
 
-    def _generate_function(self, func) -> str:
-        """生成函数实现"""
+    def _generate_function(
+        self,
+        func,
+        debug_manager: Optional[Any] = None,
+        start_addr: int = 0
+    ) -> str:
+        """
+        生成函数实现
+
+        Args:
+            func: IR 函数
+            debug_manager: 调试管理器（可选）
+            start_addr: 起始地址
+
+        Returns:
+            str: 函数实现的 C 代码
+        """
+        # 获取函数行号（从第一个基本块获取）
+        start_line = 1
+        end_line = 1
+
+        # 发射函数调试事件
+        params = [
+            {'name': p.name, 'type': p.type, 'line': start_line}
+            for p in func.params
+        ]
+        self._emit_function_debug(
+            debug_manager,
+            name=func.name,
+            start_line=start_line,
+            end_line=end_line,
+            start_addr=start_addr,
+            end_addr=start_addr + 100,  # 估算
+            return_type=func.return_type,
+            parameters=params
+        )
+
+        # 发射参数调试事件
+        addr_offset = 8  # 假设参数从 rbp+8 开始
+        for p in func.params:
+            self._emit_variable_debug(
+                debug_manager,
+                name=p.name,
+                type_name=p.type,
+                line_number=start_line,
+                address=start_addr + addr_offset,
+                is_parameter=True
+            )
+            addr_offset += 8
+
         lines = []
 
         # 函数头
         ret_type = self.TYPE_MAP.get(func.return_type, func.return_type)
-        params = ", ".join(
+        params_str = ", ".join(
             f"{self.TYPE_MAP.get(p.type, p.type)} {p.name}"
             for p in func.params
         )
-        if not params:
-            params = "void"
-        lines.append(f"{ret_type} {func.name}({params}) {{")
+        if not params_str:
+            params_str = "void"
+        lines.append(f"{ret_type} {func.name}({params_str}) {{")
 
         # 函数体
+        addr_counter = start_addr + 16  # 假设从 rbp+16 开始局部变量
         for block in func.blocks:
             for inst in block.instructions:
-                lines.append(f"    {self._generate_instruction(inst)}")
+                inst_code = self._generate_instruction(inst, debug_manager, addr_counter)
+                lines.append(f"    {inst_code}")
+                addr_counter += 4
 
         # 函数尾
         lines.append("}")
         return "\n".join(lines)
 
-    def _generate_instruction(self, inst) -> str:
-        """生成指令的 C 代码"""
+    def _generate_instruction(
+        self,
+        inst,
+        debug_manager: Optional[Any] = None,
+        addr: int = 0
+    ) -> str:
+        """
+        生成指令的 C 代码
+
+        Args:
+            inst: IR 指令
+            debug_manager: 调试管理器（可选）
+            addr: 当前地址
+
+        Returns:
+            str: C 代码
+        """
+        # 发射行号映射调试事件
+        line_number = getattr(inst, 'line_number', 0)
+        if line_number > 0:
+            self._emit_line_mapping_debug(
+                debug_manager,
+                line_number=line_number,
+                address=addr
+            )
+
         # 简化实现，实际需要完整的 IR → C 映射
         opcode = inst.opcode.name
 
@@ -238,6 +357,15 @@ class CBackend(BackendBase):
         elif opcode == "STORE":
             return f"*{inst.operands[0]} = {inst.operands[1]};"
         elif opcode == "ALLOC":
+            # 发射变量调试事件
+            if hasattr(inst, 'result') and hasattr(inst, 'type'):
+                self._emit_variable_debug(
+                    debug_manager,
+                    name=inst.result,
+                    type_name=inst.type,
+                    line_number=line_number,
+                    address=addr
+                )
             return f"{inst.result} = malloc(sizeof({inst.type}));"
 
         return f"// 未实现的指令: {opcode}"

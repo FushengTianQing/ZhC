@@ -77,7 +77,7 @@ class WebAssemblyBackend(BackendBase):
     def capabilities(self) -> BackendCapabilities:
         return BackendCapabilities(
             supports_jit=False,
-            supports_debug=False,
+            supports_debug=True,  # WASM 支持 DWARF 调试
             supports_optimization=True,
             supports_cross_compile=True,
             target_platforms=["wasm32"],
@@ -115,6 +115,24 @@ class WebAssemblyBackend(BackendBase):
             'total_wasm_size': 0,
             'total_js_size': 0
         }
+
+    def _create_debug_listener(
+        self,
+        source_file: str,
+        output_file: str = "debug.json"
+    ):
+        """
+        创建 WASM 后端专用调试监听器
+
+        Args:
+            source_file: 源文件路径
+            output_file: 输出文件路径
+
+        Returns:
+            WASMDebugListener: WASM 后端调试监听器
+        """
+        from .wasm_debug_listener import WASMDebugListener
+        return WASMDebugListener(source_file=source_file, module_name='main')
 
     # ===== BackendBase 接口实现 =====
 

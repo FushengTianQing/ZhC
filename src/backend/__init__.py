@@ -69,6 +69,10 @@ except ImportError:
 # WASM 后端（可选，需要 Emscripten）
 from .wasm_backend import WebAssemblyBackend, WASMCompileResult
 
+# 调试监听器
+from .llvm_debug_listener import LLVMDebugListener
+from .wasm_debug_listener import WASMDebugListener
+
 # 寄存器分配器接口
 from .allocator_interface import (
     AllocationStrategy,
@@ -112,6 +116,10 @@ __all__ = [
     'LLVM_BACKEND_AVAILABLE',
     'WebAssemblyBackend',
     'WASMCompileResult',
+
+    # 调试监听器
+    'LLVMDebugListener',
+    'WASMDebugListener',
 
     # 寄存器分配器
     'AllocationStrategy',
