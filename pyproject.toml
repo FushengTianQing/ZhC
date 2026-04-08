@@ -340,16 +340,15 @@ zhc-test = "scripts.run_tests:main"
 
 
 # =============================================================================
-# 构建系统配置（使用setuptools或hatchling）
+# 构建系统配置（使用setuptools）
 # =============================================================================
 [build-system]
 requires = ["setuptools>=64.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
-# Setuptools特定配置
-[tool.setuptools]
-package-dir = {"" = "src"}
-packages = ["zhc"]
+# Setuptools特定配置 - 自动发现包
+[tool.setuptools.packages.find]
+where = ["src"]
 
 
 # =============================================================================
