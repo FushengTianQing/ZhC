@@ -256,6 +256,15 @@ class BackendManager:
         except Exception:
             pass
 
+        # C 后端 - 重构版本（并行注册，用于对比测试）
+        try:
+            from .c_backend_refactored import CBackend as CBackendRefactored
+
+            backend = CBackendRefactored()
+            cls._backends["c-refactored"] = backend
+        except Exception:
+            pass
+
         # WASM 后端
         try:
             from .wasm_backend import WebAssemblyBackend
