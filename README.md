@@ -2,12 +2,86 @@
 
 **开始用中文写C程序吧！🚀**
 
-[![版本](https://img.shields.io/badge/版本-v6.0-blue)](https://github.com/yuan/zhc)
+[![版本](https://img.shields.io/badge/版本-v10.0-blue)](https://github.com/yuan/zhc)
 [![Python版本](https://img.shields.io/badge/Python-3.8+-green)](https://www.python.org/)
 [![许可证](https://img.shields.io/badge/许可证-MIT-yellow)](LICENSE)
 [![构建状态](https://img.shields.io/badge/构建-通过-brightgreen)](tests/)
 
-//////////////////////////////////////////////////////////////////////////////
+---
+
+## 🏗️ 架构设计
+
+> 详细架构文档: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
+### 编译流水线
+
+```mermaid
+flowchart TB
+    subgraph 输入
+        A[.zhc 源文件]
+    end
+
+    subgraph 词法分析
+        B[Lexer<br/>Token 分词]
+    end
+
+    subgraph 语法分析
+        C[Parser<br/>AST 构建]
+    end
+
+    subgraph 语义分析
+        D[SemanticAnalyzer<br/>类型检查 + 作用域]
+    end
+
+    subgraph IR 生成
+        E[IRGenerator<br/>AST → IR]
+    end
+
+    subgraph 优化
+        F[IROptimizer<br/>常量折叠 + DCE + 内联 + 循环优化]
+    end
+
+    subgraph 代码生成
+        G[CBackend / LLVM Backend<br/>IR → C/LLVM IR]
+    end
+
+    subgraph 输出
+        H[.c 文件]
+        I[可执行文件]
+    end
+
+    A --> B --> C --> D --> E --> F --> G
+    G --> H
+    H --> I
+
+    style A fill:#e1f5fe
+    style H fill:#c8e6c9
+    style I fill:#a5d6a7
+```
+
+### 核心模块
+
+| 模块 | 文件数 | 主要职责 |
+|:-----|:-------|:---------|
+| **parser/** | 14 | 词法分析、语法分析、AST 构建 |
+| **semantic/** | 13 | 类型检查、作用域分析、泛型、模式匹配、异步系统 |
+| **ir/** | 22 | IR 生成、SSA、数据流分析、支配树、函数内联、循环优化、寄存器分配 |
+| **codegen/** | 8 | C 代码生成、LLVM 后端、异步/泛型/模式匹配代码生成 |
+| **analysis/** | 9 | 复杂度分析、空指针检测、资源泄漏检测、未使用变量检测 |
+| **compiler/** | 13 | 编译流水线、缓存系统、性能优化 |
+
+### 阶段详细说明
+
+| 阶段 | 组件 | 输入 | 输出 | 主要功能 |
+|:-----|:-----|:-----|:-----|:---------|
+| 词法分析 | Lexer | 源代码 | Token 序列 | 识别关键字、标识符、运算符 |
+| 语法分析 | Parser | Token 序列 | AST | 构建抽象语法树 |
+| 语义分析 | SemanticAnalyzer | AST | 带类型的 AST | 类型检查、作用域分析、符号解析 |
+| IR 生成 | IRGenerator | AST | ZHC IR | 生成中间表示 |
+| IR 优化 | IROptimizer | ZHC IR | 优化后的 IR | 常量折叠、死代码消除、函数内联、循环优化 |
+| 代码生成 | CBackend/LLVM | IR | C/LLVM IR | 生成目标代码 |
+
+---
 
 ## 一、现状分析
 
@@ -262,19 +336,29 @@ zhc 文件.zhc --parse-only
 
 ```
 zhc/
-├── src/
-│   └── zhc/              # 模块化编译器核心
-│       ├── parser/        # 解析器模块（模块、类、内存语法）
-│       ├── converter/     # 转换器模块（代码转换、错误处理）
-│       ├── analyzer/      # 分析器模块（依赖、性能、内存安全）
-│       ├── compiler/      # 编译器模块（流水线、缓存、优化）
-│       ├── cli/           # 命令行工具
-│       ├── types/         # 类型系统（智能指针）
-│       └── lib/           # 标准库
-├── docs/                 # 文档
-├── examples/             # 示例代码
-├── tests/                # 测试套件
-└── 构建/                 # 编译输出目录
+├── src/                       # 编译器源码 (~182 Python files)
+│   ├── parser/                 # 解析器模块 (14 files)
+│   ├── semantic/               # 语义分析 (13 files, ~84KB 主文件)
+│   ├── ir/                     # IR 中间表示 (22 files)
+│   ├── codegen/                # 代码生成器 (8 files)
+│   ├── converter/              # 转换器模块 (12 files)
+│   ├── analysis/               # 分析器模块 (9 files)
+│   ├── analyzer/               # 旧分析器模块 (17 files)
+│   ├── compiler/               # 编译器核心 (13 files)
+│   ├── type_system/            # 类型系统
+│   ├── typeinfer/              # 类型推导
+│   ├── generics/               # 泛型系统
+│   ├── backend/                # 后端模块
+│   ├── lsp/                    # Language Server Protocol
+│   ├── debugger/               # 调试器
+│   ├── cli/                    # 命令行工具
+│   ├── api/                    # API 模块
+│   ├── utils/                  # 工具模块
+│   └── lib/                    # 标准库 (.zhc + .h)
+├── docs/                       # 文档
+├── examples/                   # 示例代码
+├── tests/                      # 测试套件 (~114 test files)
+└── scripts/                    # 辅助脚本
 ```
 
 ## 🔧 开发环境
@@ -347,4 +431,4 @@ curl -sSL https://raw.githubusercontent.com/yuan/zhc/main/install.sh | bash
 zhc --version
 ```
 
-*最后更新: 2026-04-02*
+*最后更新: 2026-04-08*

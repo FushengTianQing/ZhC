@@ -1,6 +1,6 @@
 # ZHC 编译器架构设计文档
 
-**版本**: v6.0  
+**版本**: v10.0  
 **更新日期**: 2026-04-08  
 **架构师**: 远
 
@@ -86,9 +86,11 @@ src/
 ├── __init__.py              # 包入口，导出公共API
 ├── __main__.py              # CLI入口点
 ├── cli.py                   # 主命令行接口
+├── cli_parser.py            # CLI 参数解析器
+├── config.py                # 配置管理
 ├── keywords.py              # 中文关键词映射表
 │
-├── parser/                  # 解析器模块
+├── parser/                  # 解析器模块 (14 files)
 │   ├── module.py           # 模块语法解析
 │   ├── class_.py           # 类语法解析
 │   ├── class_extended.py   # 扩展类解析器
@@ -96,7 +98,42 @@ src/
 │   ├── scope.py            # 作用域管理
 │   └── smart_pointer.py    # 智能指针解析
 │
-├── converter/               # 转换器模块
+├── semantic/                # 语义分析模块 (13 files)
+│   ├── semantic_analyzer.py    # 主语义分析器 (84KB)
+│   ├── symbol_table_optimized.py # 优化的符号表
+│   ├── type_utils.py           # 类型工具
+│   ├── generics.py             # 泛型语义分析
+│   ├── generic_parser.py       # 泛型解析
+│   ├── generic_instantiator.py # 泛型实例化
+│   ├── pattern_matching.py     # 模式匹配
+│   ├── pattern_parser.py       # 模式解析
+│   ├── pattern_analyzer.py     # 模式分析
+│   ├── cfg_analyzer.py         # CFG 分析
+│   ├── async_system.py         # 异步系统
+│   └── async_parser.py         # 异步解析
+│
+├── ir/                      # IR 中间表示模块 (22 files)
+│   ├── [核心 IR]
+│   ├── symbol.py, types.py, opcodes.py, values.py
+│   ├── instructions.py, program.py, printer.py
+│   ├── ir_generator.py, ir_verifier.py, optimizer.py
+│   ├── mappings.py, c_backend.py, llvm_backend.py
+│   ├── [优化器]
+│   ├── dataflow.py, dominator.py, ssa.py
+│   ├── inline_optimizer.py, loop_optimizer.py, loop_unroller.py
+│   ├── optimization_hints.py, register_allocator.py
+│   └── allocator_interface.py
+│
+├── codegen/                 # 代码生成模块 (8 files)
+│   ├── c_codegen.py            # C 代码生成器
+│   ├── c_debug_listener.py     # 调试监听器
+│   ├── async_codegen.py        # 异步代码生成
+│   ├── generic_codegen.py      # 泛型代码生成
+│   ├── pattern_codegen.py      # 模式匹配代码生成
+│   ├── register_allocator.py   # 寄存器分配
+│   └── allocator_interface.py  # 分配器接口
+│
+├── converter/               # 转换器模块 (12 files)
 │   ├── code.py             # 代码转换器
 │   ├── error.py            # 错误处理器
 │   ├── integrated.py       # 集成转换器
@@ -107,22 +144,60 @@ src/
 │   ├── operator.py         # 运算符重载
 │   └── memory.py           # 内存语法转换器
 │
-├── analyzer/                # 分析器模块
+├── analysis/                # 分析器模块 (9 files)
+│   ├── base_analyzer.py        # 分析器基类
+│   ├── analyzer_scheduler.py   # 分析调度器
+│   ├── complexity_analyzer.py  # 复杂度分析
+│   ├── null_pointer_analyzer.py # 空指针分析
+│   ├── resource_leak_analyzer.py # 资源泄漏分析
+│   ├── unused_variable_analyzer.py # 未使用变量分析
+│   ├── report_generator.py     # 报告生成器
+│   └── ast_utils.py            # AST 工具
+│
+├── analyzer/                # 旧分析器模块 (17 files)
 │   ├── dependency.py       # 依赖关系分析
 │   ├── performance.py      # 性能分析器
 │   └── memory_safety.py    # 内存安全分析
 │
-├── compiler/                # 编译器模块
+├── compiler/                # 编译器模块 (13 files)
 │   ├── pipeline.py         # 编译流水线
 │   ├── cache.py            # 缓存系统
 │   └── optimizer.py        # 性能优化器
 │
-├── types/                   # 类型系统
+├── type_system/             # 类型系统
 │   └── smart_ptr.py        # 智能指针实现
+│
+├── typeinfer/               # 类型推导模块
+│
+├── generics/                # 泛型系统 (3 files)
+│   ├── generic_parser.py       # 泛型解析
+│   └── generic_instantiator.py # 泛型实例化
+│
+├── backend/                 # 后端模块
+├── opt/                     # 优化模块
+├── lsp/                     # Language Server Protocol
+├── debugger/                # 调试器模块
+├── debug/                   # 调试工具
+├── tool/                    # 工具模块
+├── template/                # 模板模块
+├── package/                 # 包管理模块
 │
 ├── cli/                     # 命令行子模块
 │   ├── main.py             # 主命令处理
 │   └── toolchain.py        # 工具链管理
+│
+├── api/                     # API 模块
+│   ├── CompilationResult   # 编译结果
+│   └── CompilationStats    # 编译统计
+│
+├── utils/                   # 工具模块
+│   ├── file_utils.py       # 文件工具
+│   ├── string_utils.py     # 字符串工具
+│   └── error_utils.py      # 错误工具
+│
+├── errors/                  # 错误模块
+│
+├── config/                  # 配置模块
 │
 └── lib/                     # 标准库
     ├── __init__.py
@@ -193,17 +268,52 @@ src/
 
 ---
 
-### 3.3 分析器模块 (analyzer/)
+### 3.3 语义分析模块 (semantic/)
 
-**职责**：分析代码质量、依赖关系、性能特征
+**职责**：类型检查、作用域分析、符号解析、泛型处理、模式匹配
 
 #### 关键类
+
+| 类名 | 文件 | 职责 |
+|:---|:---|:---|
+| SemanticAnalyzer | semantic_analyzer.py | 主语义分析器，类型检查、作用域管理 |
+| SymbolTable | symbol_table_optimized.py | 优化的符号表实现 |
+| GenericAnalyzer | generics.py | 泛型语义分析 |
+| GenericInstantiator | generic_instantiator.py | 泛型实例化 |
+| PatternMatcher | pattern_matching.py | 模式匹配实现 |
+| CFGAnalyzer | cfg_analyzer.py | 控制流图分析 |
+| AsyncAnalyzer | async_system.py | 异步系统语义分析 |
+
+#### 数据流
+```
+AST → SemanticAnalyzer → 带类型的 AST → IRGenerator
+```
+
+---
+
+### 3.4 分析器模块 (analyzer/ + analysis/)
+
+**职责**：分析代码质量、依赖关系、性能特征、内存安全
+
+#### analyzer/ 关键类
 
 | 类名 | 文件 | 职责 |
 |:---|:---|:---|
 | DependencyResolver | dependency.py | 模块依赖解析、循环检测、拓扑排序 |
 | PerformanceAnalyzer | performance.py | 性能测量、基准测试、优化建议 |
 | MemorySafetyAnalyzer | memory_safety.py | 内存泄漏检测、越界检查 |
+
+#### analysis/ 关键类
+
+| 类名 | 文件 | 职责 |
+|:---|:---|:---|
+| BaseAnalyzer | base_analyzer.py | 分析器基类 |
+| AnalyzerScheduler | analyzer_scheduler.py | 分析任务调度 |
+| ComplexityAnalyzer | complexity_analyzer.py | 代码复杂度分析 |
+| NullPointerAnalyzer | null_pointer_analyzer.py | 空指针检测 |
+| ResourceLeakAnalyzer | resource_leak_analyzer.py | 资源泄漏检测 |
+| UnusedVariableAnalyzer | unused_variable_analyzer.py | 未使用变量检测 |
+| ReportGenerator | report_generator.py | 分析报告生成 |
 
 #### 依赖解析算法
 
@@ -217,7 +327,7 @@ src/
 
 ---
 
-### 3.4 编译器模块 (compiler/)
+### 3.5 编译器模块 (compiler/)
 
 **职责**：协调各模块完成完整的编译流程
 
@@ -234,20 +344,49 @@ src/
 ```
 源文件 (.zhc)
     ↓
-[模块解析] ModuleParser.parse_file()
+[词法分析] Lexer
     ↓
-[依赖分析] DependencyResolver.resolve()
+[语法分析] Parser → AST
     ↓
-[代码转换] CodeConverter.convert()
+[语义分析] SemanticAnalyzer → 类型化 AST
     ↓
-[代码生成] 生成 .h 和 .c 文件
+[IR 生成] IRGenerator → ZHC IR
+    ↓
+[IR 优化] Optimizer（常量折叠/DCE/函数内联/循环优化）
+    ↓
+[代码生成] CBackend/CodeGenerator → .c 文件
     ↓
 [C编译] clang/gcc 编译为可执行文件
 ```
 
 ---
 
-### 3.5 类型系统 (types/)
+### 3.6 代码生成模块 (codegen/)
+
+**职责**：将 AST 或 IR 转换为目标代码（C/其他）
+
+#### 关键类
+
+| 类名 | 文件 | 职责 |
+|:---|:---|:---|
+| CCodegen | c_codegen.py | 主 C 代码生成器 |
+| CDebugListener | c_debug_listener.py | 调试信息生成 |
+| AsyncCodegen | async_codegen.py | 异步代码生成 |
+| GenericCodegen | generic_codegen.py | 泛型代码生成 |
+| PatternCodegen | pattern_codegen.py | 模式匹配代码生成 |
+| RegisterAllocator | register_allocator.py | 寄存器分配 |
+
+#### 代码生成流程
+
+```
+类型化 AST → CCodegen.visit_*() → C 代码
+    ↓
+IR → CBackend → C 代码
+```
+
+---
+
+### 3.7 类型系统 (types/ + type_system/ + typeinfer/ + generics/)
 
 **职责**：实现高级类型系统特性
 
@@ -261,7 +400,23 @@ C代码:
     int* ptr = malloc(sizeof(int));
     *ptr = 42;
     // 自动添加析构逻辑
-### 3.5 IR 中间表示 (ir/)
+```
+
+#### 泛型系统
+
+```python
+中文语法:
+    泛型<类型参数> 函数 最大值(泛型<类型参数> a, 泛型<类型参数> b) {
+        返回 a > b ? a : b;
+    }
+    
+C代码:
+    #define 最大值(T, a, b) ((a) > (b) ? (a) : (b))
+```
+
+---
+
+### 3.8 IR 中间表示 (ir/)
 
 **职责**：Phase 7 新增的 IR 层，为代码优化提供中间表示基础。
 
@@ -303,6 +458,39 @@ src/ir/
                         C 代码 → clang → 可执行文件
 ```
 
+#### IR 模块完整文件列表
+
+```
+src/ir/
+├── __init__.py              # 模块入口
+├── symbol.py                # 统一 Symbol + Scope + SymbolCategory
+├── types.py                 # ZHCTy = TypeInfo 别名
+├── opcodes.py                # 35+ 操作码（算术/比较/位运算/内存/控制流/转换）
+├── values.py                # IRValue, ValueKind
+├── instructions.py          # IRInstruction, IRBasicBlock
+├── program.py               # IRProgram, IRFunction, IRGlobalVar, IRStructDef
+├── printer.py               # IRPrinter
+├── ir_generator.py          # AST → IR 生成器（42 个 visit 方法）
+├── ir_verifier.py           # 7 项 IR 合法性检查
+├── optimizer.py             # ConstantFolding + DeadCodeElimination + PassManager
+├── mappings.py              # TYPE_MAP / FUNCTION_NAME_MAP 等
+├── c_backend.py             # IR → C 后端（基本块展平算法）
+├── llvm_backend.py          # IR → LLVM 后端（可选）
+│
+├── [优化器模块]
+├── dataflow.py              # 数据流分析框架
+├── dominator.py             # 支配树分析
+├── ssa.py                    # 静态单赋值形式转换
+├── inline_optimizer.py      # 函数内联优化
+├── loop_optimizer.py         # 循环优化
+├── loop_unroller.py         # 循环展开
+├── optimization_hints.py     # 优化提示
+├── register_allocator.py    # 寄存器分配
+│
+└── [代码生成]
+    └── allocator_interface.py  # 分配器接口
+```
+
 #### CLI 参数（Phase 7）
 
 | 参数 | 默认 | 说明 |
@@ -313,7 +501,7 @@ src/ir/
 
 ---
 
-### 3.6 命令行模块 (cli/)
+### 3.9 命令行模块 (cli/)
 
 **职责**：提供用户友好的命令行接口
 
@@ -630,7 +818,55 @@ tests/
   - 编写开发者指南
   - 完善架构文档
 
-### Phase 7: DevOps 流程（计划中）
+### Phase 7: IR 中间表示层（已完成）
+- **时间**: 2026-04-08
+- **主要变化**:
+  - 新增 IR 中间表示层 (`src/ir/`, 22 files)
+  - 实现 IRGenerator（AST → IR，42 个 visit 方法）
+  - 实现 IRVerifier（7 项合法性检查）
+  - 实现 IROptimizer（常量折叠、死代码消除、PassManager）
+  - 实现 CBackend（IR → C，基本块展平算法）
+  - 新增高级优化器：
+    - dataflow.py - 数据流分析框架
+    - dominator.py - 支配树分析
+    - ssa.py - 静态单赋值形式转换
+    - inline_optimizer.py - 函数内联优化
+    - loop_optimizer.py - 循环优化
+    - loop_unroller.py - 循环展开
+  - 新增 CLI 参数：`--backend ir|ast`, `--dump-ir`, `--no-optimize`
+
+### Phase 8: 语义分析增强（已完成）
+- **时间**: 2026-04-08
+- **主要变化**:
+  - 扩展语义分析模块 (`src/semantic/`, 13 files)
+  - 实现泛型语义分析 (`generics.py`, `generic_parser.py`, `generic_instantiator.py`)
+  - 实现模式匹配 (`pattern_matching.py`, `pattern_parser.py`, `pattern_analyzer.py`)
+  - 实现 CFG 分析 (`cfg_analyzer.py`)
+  - 实现异步系统语义分析 (`async_system.py`, `async_parser.py`)
+  - 优化符号表 (`symbol_table_optimized.py`)
+
+### Phase 9: 代码生成增强（已完成）
+- **时间**: 2026-04-08
+- **主要变化**:
+  - 扩展代码生成模块 (`src/codegen/`, 8 files)
+  - 实现异步代码生成 (`async_codegen.py`)
+  - 实现泛型代码生成 (`generic_codegen.py`)
+  - 实现模式匹配代码生成 (`pattern_codegen.py`)
+  - 实现寄存器分配 (`register_allocator.py`)
+  - 添加调试监听器 (`c_debug_listener.py`)
+
+### Phase 10: 分析器扩展（已完成）
+- **时间**: 2026-04-08
+- **主要变化**:
+  - 新增分析模块 (`src/analysis/`, 9 files)
+  - 实现复杂度分析 (`complexity_analyzer.py`)
+  - 实现空指针检测 (`null_pointer_analyzer.py`)
+  - 实现资源泄漏检测 (`resource_leak_analyzer.py`)
+  - 实现未使用变量检测 (`unused_variable_analyzer.py`)
+  - 实现分析调度器 (`analyzer_scheduler.py`)
+  - 实现报告生成器 (`report_generator.py`)
+
+### Phase 11: DevOps 流程（计划中）
 - **时间**: 2026-04-08 之后
 - **计划变化**:
   - 增强 CI/CD 流程
