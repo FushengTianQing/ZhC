@@ -454,7 +454,8 @@ def compile_to_llvm(
         输出路径或 LLVM IR 文本
     """
     backend = LLVMBackend()
-    backend.compile(ir)
+    # 先编译到 module
+    backend.compile_to_module(ir, "zhc_module")
 
     if output_path:
         if output_format == "ir":

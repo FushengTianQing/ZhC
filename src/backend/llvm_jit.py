@@ -69,7 +69,7 @@ class LLVMJIT:
 
         # 使用 LLVMBackend 编译
         backend = LLVMBackend()
-        self._module = backend.compile(ir, module_name)
+        self._module = backend.compile_to_module(ir, module_name)
 
         # 解析 IR
         llvm_ir = str(self._module)
