@@ -3,8 +3,16 @@
 
 将 ZhC IR 转换为 LLVM bitcode，支持 JIT 执行。
 
+优化提示支持（TASK-P3-003）：
+- 小函数添加 LLVM inline 属性
+- 热点函数添加 LLVM hot 属性
+- 冷点函数添加 LLVM cold 属性
+- 强制内联添加 LLVM alwaysinline 属性
+- 不返回函数添加 LLVM noreturn 属性
+
 作者：远
 日期：2026-04-08
+重构：2026-04-08（TASK-P3-003：添加优化提示支持）
 """
 
 import os
@@ -27,6 +35,22 @@ from zhc.ir.instructions import IRBasicBlock, IRInstruction
 from zhc.ir.opcodes import Opcode
 from zhc.ir.values import IRValue, ValueKind
 
+# 优化提示模块（可选依赖）
+try:
+    from zhc.ir.optimization_hints import (
+        OptimizationHintAnalyzer,
+        ProgramOptimizationHints,
+        FunctionOptimizationHints,
+        LLVMBackendHintAdapter,
+    )
+    OPTIMIZATION_HINTS_AVAILABLE = True
+except ImportError:
+    OPTIMIZATION_HINTS_AVAILABLE = False
+    OptimizationHintAnalyzer = None
+    ProgramOptimizationHints = None
+    FunctionOptimizationHints = None
+    LLVMBackendHintAdapter = None
+
 
 class LLVMBackendError(Exception):
     """LLVM 后端错误"""
@@ -43,6 +67,10 @@ class LLVMBackend:
     - IRInstruction → LLVM Instruction
     - 支持 bitcode 输出
     - 支持 JIT 执行
+    
+    TASK-P3-003 新增功能：
+    - 支持优化提示分析
+    - 自动添加 LLVM 函数属性
     """
     
     # ZhC 类型 → LLVM 类型映射
@@ -61,11 +89,12 @@ class LLVMBackend:
         "i1": ll.IntType(1) if ll else None,
     }
     
-    def __init__(self, target_triple: Optional[str] = None):
+    def __init__(self, target_triple: Optional[str] = None, enable_optimization_hints: bool = True):
         """初始化 LLVM 后端
         
         Args:
             target_triple: 目标平台三元组（如 "x86_64-apple-darwin"）
+            enable_optimization_hints: 是否启用优化提示（默认 True）
         """
         if not LLVM_AVAILABLE:
             raise LLVMBackendError(
@@ -77,6 +106,14 @@ class LLVMBackend:
         self.functions: Dict[str, ll.Function] = {}
         self.blocks: Dict[str, ll.Block] = {}
         self.values: Dict[str, ll.Value] = {}
+        
+        # TASK-P3-003：优化提示配置
+        self.enable_optimization_hints = enable_optimization_hints and OPTIMIZATION_HINTS_AVAILABLE
+        self.optimization_hints: Optional[ProgramOptimizationHints] = None
+        self.hint_adapter: Optional[LLVMBackendHintAdapter] = None
+        
+        if self.enable_optimization_hints:
+            self.hint_adapter = LLVMBackendHintAdapter()
         
         # 初始化 LLVM
         llvm.initialize()
@@ -93,6 +130,11 @@ class LLVMBackend:
         Returns:
             LLVM Module
         """
+        # TASK-P3-003：分析优化提示
+        if self.enable_optimization_hints:
+            analyzer = OptimizationHintAnalyzer(ir)
+            self.optimization_hints = analyzer.analyze()
+        
         # 创建模块
         self.module = ll.Module(name=module_name)
         
@@ -138,11 +180,30 @@ class LLVMBackend:
         for i, param in enumerate(func.params):
             llvm_func.args[i].name = param.name
         
+        # TASK-P3-003：应用优化提示
+        self._apply_function_hints(llvm_func, func.name)
+        
         self.functions[func.name] = llvm_func
         
         # 编译基本块
         for bb in func.basic_blocks:
             self._compile_basic_block(llvm_func, bb)
+    
+    def _apply_function_hints(self, llvm_func: ll.Function, func_name: str):
+        """应用函数优化提示
+        
+        TASK-P3-003 新增
+        
+        Args:
+            llvm_func: LLVM 函数
+            func_name: 函数名
+        """
+        if not self.enable_optimization_hints or not self.hint_adapter:
+            return
+        
+        func_hints = self.optimization_hints.get_function_hints(func_name)
+        if func_hints and self.hint_adapter:
+            self.hint_adapter.apply_to_llvm_function(llvm_func, func_hints)
     
     def _compile_basic_block(self, llvm_func: ll.Function, bb: IRBasicBlock):
         """编译基本块"""

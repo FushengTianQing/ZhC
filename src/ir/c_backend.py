@@ -7,12 +7,20 @@ ZHC IR - IR → C 后端
 使用基本块展平算法，将 IR 基本块展平为线性 C 代码。
 采用指令分发模式（dispatch table）替代 if/elif 链，降低圈复杂度。
 
+优化提示支持（TASK-P3-003）：
+- 小函数添加 `inline` 关键字
+- 热点函数添加 `__attribute__((hot))`
+- 冷点函数添加 `__attribute__((cold))`
+- 强制内联添加 `__attribute__((always_inline))`
+- 不返回函数添加 `__attribute__((noreturn))`
+
 作者：远
 日期：2026-04-03
 重构：2026-04-07（引入指令分发表，降低 _generate_instruction 复杂度）
+重构：2026-04-08（TASK-P3-003：添加优化提示支持）
 """
 
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
 from zhc.ir.program import IRProgram, IRFunction
 from zhc.ir.instructions import IRBasicBlock, IRInstruction
@@ -21,6 +29,22 @@ from zhc.ir.mappings import (
     resolve_type,
     resolve_function_name,
 )
+
+# 优化提示模块（可选依赖）
+try:
+    from zhc.ir.optimization_hints import (
+        OptimizationHintAnalyzer,
+        ProgramOptimizationHints,
+        FunctionOptimizationHints,
+        CBackendHintAdapter,
+    )
+    OPTIMIZATION_HINTS_AVAILABLE = True
+except ImportError:
+    OPTIMIZATION_HINTS_AVAILABLE = False
+    OptimizationHintAnalyzer = None
+    ProgramOptimizationHints = None
+    FunctionOptimizationHints = None
+    CBackendHintAdapter = None
 
 # ---------------------------------------------------------------------------
 # 二元运算符映射表（IR Opcode → C 运算符）
@@ -53,11 +77,28 @@ class CBackend:
 
     将 IRProgram 转换为 C 代码字符串。使用指令分发表（dispatch table）
     将每种 opcode 映射到对应的生成方法，替代传统的 if/elif 链。
+    
+    TASK-P3-003 新增功能：
+    - 支持优化提示分析
+    - 自动添加 inline 关键字和 GCC/Clang 属性
     """
 
-    def __init__(self):
+    def __init__(self, enable_optimization_hints: bool = True):
+        """初始化 C 后端
+        
+        Args:
+            enable_optimization_hints: 是否启用优化提示（默认 True）
+        """
         self.output_lines: List[str] = []
         self.temp_names: dict = {}  # IR temp name -> C temp name
+        
+        # 优化提示配置
+        self.enable_optimization_hints = enable_optimization_hints and OPTIMIZATION_HINTS_AVAILABLE
+        self.optimization_hints: Optional[ProgramOptimizationHints] = None
+        self.hint_adapter: Optional[CBackendHintAdapter] = None
+        
+        if self.enable_optimization_hints:
+            self.hint_adapter = CBackendHintAdapter()
 
         # 指令分发表：opcode → 生成方法
         self._op_handlers: Dict[Opcode, Callable[[IRInstruction], None]] = {
@@ -92,6 +133,11 @@ class CBackend:
         """
         self.output_lines = []
         self.temp_names = {}
+
+        # TASK-P3-003：分析优化提示
+        if self.enable_optimization_hints:
+            analyzer = OptimizationHintAnalyzer(ir)
+            self.optimization_hints = analyzer.analyze()
 
         self._emit_headers()
         self._emit_global_vars(ir)
@@ -136,7 +182,11 @@ class CBackend:
         params = ", ".join(
             f"{resolve_type(p.ty or 'int')} {p.name}" for p in func.params
         )
-        self._emit(f"{ret_type} {func_name}({params}) {{")
+        
+        # TASK-P3-003：获取优化提示前缀
+        hint_prefix = self._get_function_hint_prefix(func.name)
+        
+        self._emit(f"{hint_prefix}{ret_type} {func_name}({params}) {{")
 
         # 展平所有基本块的指令
         for bb in func.basic_blocks:
@@ -144,6 +194,26 @@ class CBackend:
 
         self._emit("}")
         self._emit("")
+    
+    def _get_function_hint_prefix(self, func_name: str) -> str:
+        """获取函数的优化提示前缀
+        
+        TASK-P3-003 新增
+        
+        Args:
+            func_name: 函数名
+            
+        Returns:
+            优化提示前缀字符串
+        """
+        if not self.enable_optimization_hints or not self.hint_adapter:
+            return ""
+        
+        func_hints = self.optimization_hints.get_function_hints(func_name)
+        if func_hints and self.hint_adapter:
+            return self.hint_adapter.get_function_prefix(func_hints)
+        
+        return ""
 
     def _generate_basic_block(self, bb: IRBasicBlock) -> None:
         """生成基本块内的所有指令
