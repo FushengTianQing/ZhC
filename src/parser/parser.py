@@ -20,6 +20,9 @@ from zhc.errors import (
     unexpected_token,
 )
 
+# 导入泛型解析混入类
+from ..semantic.generic_parser import GenericParserMixin
+
 
 class ErrorRecovery:
     """错误恢复管理器
@@ -107,7 +110,7 @@ class ErrorRecovery:
         return self.recovery_stats.copy()
 
 
-class Parser:
+class Parser(GenericParserMixin):
     """语法分析器"""
     
     def __init__(self, tokens: List[Token]):
@@ -120,6 +123,9 @@ class Parser:
         self.pos = 0
         self.errors: List[ParserError] = []
         self.recovery = ErrorRecovery(self)  #错误恢复管理器
+        
+        # 初始化泛型解析混入类
+        GenericParserMixin.__init__(self)
     
     def current_token(self) -> Token:
         """获取当前Token"""
@@ -290,6 +296,12 @@ class Parser:
     
     def parse_declaration(self) -> Optional[ASTNode]:
         """解析声明（dispatch table 分派）"""
+        # --- 泛型声明 ---
+        if self.match(TokenType.GENERIC_TYPE):
+            return self.parse_generic_type_declaration()
+        if self.match(TokenType.GENERIC_FUNC):
+            return self.parse_generic_function_declaration()
+        
         # --- 直接分派的 token ---
         if self.match(TokenType.MODULE):
             return self.parse_module_decl()
