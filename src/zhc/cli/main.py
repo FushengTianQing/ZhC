@@ -115,34 +115,28 @@ class BuildCommand(CommandHandler):
             print("   请在项目根目录运行此命令")
             return 1
 
-        build_cmd = ["python3", "-m", "src.__main__"]
-
-        # 参数映射表
-        arg_flags = {
-            "release": "--release",
-            "debug": "--debug",
-            "cache": "--cache",
-            "verbose": "--verbose",
-        }
-
-        for attr, flag in arg_flags.items():
-            if getattr(args, attr, False):
-                build_cmd.append(flag)
-
         with open(config_file, "r", encoding="utf-8") as f:
             config = json.load(f)
 
         entry_module = config.get("入口模块", "src/主程序.zhc")
-        build_cmd.append(entry_module)
 
-        result = subprocess.run(build_cmd)
+        # 直接调用编译器
+        from zhc import ZHCCompiler
+        from zhc.config import CompilerConfig, OutputConfig, CacheConfig
 
-        if result.returncode == 0:
+        compiler_config = CompilerConfig(
+            output=OutputConfig(verbose=getattr(args, "verbose", False)),
+            cache=CacheConfig(enabled=getattr(args, "cache", False)),
+        )
+        compiler = ZHCCompiler(compiler_config)
+
+        result = compiler.compile_single_file(Path(entry_module))
+        if result.success:
             print("✅ 编译成功")
             return 0
         else:
             print("❌ 编译失败")
-            return result.returncode
+            return 1
 
 
 class RunCommand(CommandHandler):
@@ -207,19 +201,15 @@ class TestCommand(CommandHandler):
         for test_file in test_files:
             print(f"\n🔧 测试: {test_file.name}")
 
-            compile_cmd = [
-                "python3",
-                "-m",
-                "src.__main__",
-                str(test_file),
-                "--output-dir",
-                "构建/测试",
-            ]
-            compile_result = subprocess.run(compile_cmd, capture_output=True, text=True)
+            # 直接调用编译器
+            from zhc import ZHCCompiler
+            from zhc.config import CompilerConfig, OutputConfig
 
-            if compile_result.returncode != 0:
+            compiler = ZHCCompiler(CompilerConfig(output=OutputConfig(verbose=True)))
+            result = compiler.compile_single_file(test_file, Path("构建/测试"))
+
+            if not result.success:
                 print(f"❌ 编译失败: {test_file}")
-                print(compile_result.stderr)
                 continue
 
             test_name = test_file.stem
@@ -479,16 +469,19 @@ class CompileCommand(CommandHandler):
     def execute(self, args: argparse.Namespace, cli: "CommandLineInterface") -> int:
         print(f"🔧 编译文件: {args.file}")
 
-        compile_cmd = ["python3", "-m", "src.__main__"]
+        # 直接调用编译器，避免 subprocess
+        from zhc import ZHCCompiler
+        from zhc.config import CompilerConfig, OutputConfig
+        from pathlib import Path
 
-        if args.output:
-            compile_cmd.extend(["-o", args.output])
+        input_file = Path(args.file)
+        output_dir = Path(args.output) if args.output else None
 
-        compile_cmd.append(args.file)
+        config = CompilerConfig(output=OutputConfig(verbose=True))
+        compiler = ZHCCompiler(config)
 
-        result = subprocess.run(compile_cmd)
-
-        return result.returncode
+        result = compiler.compile_single_file(input_file, output_dir)
+        return 0 if result.success else 1
 
 
 class CommandLineInterface:
@@ -656,13 +649,7 @@ class CommandLineInterface:
         if handler:
             return handler.execute(args, self)
 
-        # 如果没有指定命令，尝试直接编译文件
-        if hasattr(args, "file") and args.file:
-            compile_cmd = ["python3", "-m", "src.__main__", args.file]
-            result = subprocess.run(compile_cmd)
-            return result.returncode
-
-        print("❌ 错误: 未知命令或缺少参数")
+        print("❌ 错误: 未知命令")
         self.parser.print_help()
         return 1
 

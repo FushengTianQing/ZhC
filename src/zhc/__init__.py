@@ -17,7 +17,7 @@ __version__ = "3.0.0"
 __author__ = "中文C编译器项目组"
 
 # 导出公共API
-from .cli import main
+from .cli import main, ZHCCompiler
 from .keywords import M
 
-__all__ = ["main", "M", "__version__"]
+__all__ = ["main", "ZHCCompiler", "M", "__version__"]

@@ -427,9 +427,9 @@ class ZHCCompiler:
         errors = validator.get_errors()
         if errors:
             print(validator.format_errors())
-            if len(errors) > CompilerConfig.MAX_DISPLAY_ERRORS:
+            if len(errors) > self.config.MAX_DISPLAY_ERRORS:
                 print(
-                    f"  ... 还有 {len(errors) - CompilerConfig.MAX_DISPLAY_ERRORS} 个错误未显示"
+                    f"  ... 还有 {len(errors) - self.config.MAX_DISPLAY_ERRORS} 个错误未显示"
                 )
             return False
 
@@ -474,9 +474,9 @@ class ZHCCompiler:
         if errors:
             result["errors"] = [str(e) for e in errors[:10]]
             print(validator.format_errors())
-            if len(errors) > CompilerConfig.MAX_DISPLAY_ERRORS:
+            if len(errors) > self.config.MAX_DISPLAY_ERRORS:
                 print(
-                    f"  ... 还有 {len(errors) - CompilerConfig.MAX_DISPLAY_ERRORS} 个错误未显示"
+                    f"  ... 还有 {len(errors) - self.config.MAX_DISPLAY_ERRORS} 个错误未显示"
                 )
             result["success"] = False
 
