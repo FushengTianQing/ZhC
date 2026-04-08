@@ -167,11 +167,7 @@ src/
 ├── type_system/             # 类型系统
 │   └── smart_ptr.py        # 智能指针实现
 │
-├── typeinfer/               # 类型推导模块
-│
-├── generics/                # 泛型系统 (3 files)
-│   ├── generic_parser.py       # 泛型解析
-│   └── generic_instantiator.py # 泛型实例化
+├── typeinfer/               # 类型推导模块（Hindley-Milner）
 │
 ├── backend/                 # 后端模块
 ├── opt/                     # 优化模块
@@ -278,11 +274,12 @@ src/
 |:---|:---|:---|
 | SemanticAnalyzer | semantic_analyzer.py | 主语义分析器，类型检查、作用域管理 |
 | SymbolTable | symbol_table_optimized.py | 优化的符号表实现 |
-| GenericAnalyzer | generics.py | 泛型语义分析 |
-| GenericInstantiator | generic_instantiator.py | 泛型实例化 |
+| GenericManager | generics.py | 泛型类型/函数注册表 |
+| GenericInstantiator | generic_instantiator.py | 泛型单态化（Phase 9 集成） |
+| TypeInferenceEngine | typeinfer/engine.py | Hindley-Milner 类型推导引擎 |
 | PatternMatcher | pattern_matching.py | 模式匹配实现 |
 | CFGAnalyzer | cfg_analyzer.py | 控制流图分析 |
-| AsyncAnalyzer | async_system.py | 异步系统语义分析 |
+| AsyncAnalyzer | async_system.py | 异步系统语义分析 | |
 
 #### 数据流
 ```
@@ -404,14 +401,22 @@ C代码:
 
 #### 泛型系统
 
-```python
-中文语法:
-    泛型<类型参数> 函数 最大值(泛型<类型参数> a, 泛型<类型参数> b) {
-        返回 a > b ? a : b;
-    }
-    
-C代码:
-    #define 最大值(T, a, b) ((a) > (b) ? (a) : (b))
+**状态**：Phase 8 实现，Phase 9 集成完成
+
+**支持语法**：
+```
+泛型类型 列表<类型 T> { ... }
+泛型函数 T 最大值<类型 T: 可比较>(T a, T b) -> T { ... }
+```
+
+**实现组件**：
+- `semantic/generics.py` - GenericType、GenericFunction、GenericManager
+- `semantic/generic_parser.py` - GenericParserMixin（已集成到 Parser）
+- `semantic/generic_instantiator.py` - GenericInstantiator（Phase 9 集成到 SemanticAnalyzer）
+
+**编译流程**：
+```
+泛型声明 → GenericManager 注册 → 函数调用检测 → 类型实参推导 → 实例化 → 符号表注册
 ```
 
 ---
@@ -1004,6 +1009,7 @@ tests/
   - 实现 CFG 分析 (`cfg_analyzer.py`)
   - 实现异步系统语义分析 (`async_system.py`, `async_parser.py`)
   - 优化符号表 (`symbol_table_optimized.py`)
+  - **Phase 9 更新**：将 GenericInstantiator 集成到 SemanticAnalyzer，实现泛型函数调用实例化
 
 ### Phase 9: 代码生成增强（已完成）
 - **时间**: 2026-04-08

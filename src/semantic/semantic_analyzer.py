@@ -267,6 +267,9 @@ class SemanticAnalyzer:
         # Phase 8: 类型推导引擎 — Hindley-Milner 算法，作为 _infer_expr_type 后备
         self._type_inference_engine = None  # 延迟初始化
 
+        # Phase 9: 泛型实例化器 — 将泛型函数/类型实例化为具体版本
+        self._instantiator = None  # 延迟初始化
+
         self.stats = {
             'nodes_visited': 0,
             'symbols_added': 0,
@@ -313,7 +316,15 @@ class SemanticAnalyzer:
             from ..typeinfer.engine import TypeInferenceEngine
             self._type_inference_engine = TypeInferenceEngine()
         return self._type_inference_engine
-    
+
+    @property
+    def instantiator(self):
+        """延迟获取泛型实例化器实例（Phase 9）"""
+        if self._instantiator is None:
+            from .generic_instantiator import GenericInstantiator
+            self._instantiator = GenericInstantiator(self.generic_manager)
+        return self._instantiator
+
     def _node_location(self, node: ASTNode) -> str:
         """获取节点的位置描述"""
         return f"{node.line}:{node.column}"
@@ -1282,6 +1293,39 @@ class SemanticAnalyzer:
         except Exception as e:
             # 泛型注册失败不影响主流程
             pass
+
+    def _register_function_instance(self, instance) -> None:
+        """
+        注册实例化后的泛型函数到符号表（Phase 9）
+        
+        Args:
+            instance: FunctionInstance 对象
+        """
+        from .generics import FunctionInstance
+        
+        if not isinstance(instance, FunctionInstance):
+            return
+        
+        # 创建符号
+        symbol = Symbol(
+            name=instance.name,
+            symbol_type="函数",
+            data_type=instance.specialized_return_type,
+            is_defined=True,
+        )
+        symbol.return_type = instance.specialized_return_type
+        
+        # 转换参数
+        for param in instance.specialized_params:
+            param_symbol = Symbol(
+                name=param.name,
+                symbol_type="参数",
+                data_type=param.type_name,
+            )
+            symbol.parameters.append(param_symbol)
+        
+        # 注册到符号表
+        self.symbol_table.add_symbol(symbol)
     
     def _infer_expr_type(self, node: ASTNode):
         """推导表达式的类型（返回 TypeInfo 或 None）"""
@@ -1350,6 +1394,38 @@ class SemanticAnalyzer:
             if hasattr(node, 'callee') and hasattr(node.callee, 'name'):
                 func_name = node.callee.name
             if func_name:
+                # ===== Phase 9: 泛型函数实例化 =====
+                # 检查是否是泛型函数
+                if self.generic_manager.is_generic_function(func_name):
+                    # 从实参推导类型参数
+                    arg_types = []
+                    if hasattr(node, 'args') and node.args:
+                        for arg in node.args:
+                            arg_type = self._infer_expr_type(arg)
+                            if arg_type:
+                                arg_types.append(arg_type.name if hasattr(arg_type, 'name') else str(arg_type))
+                            else:
+                                arg_types.append('未知')
+                    
+                    # 使用 GenericTypeInferrer 推导类型实参
+                    from .generic_instantiator import GenericTypeInferrer
+                    inferrer = GenericTypeInferrer(self.instantiator)
+                    
+                    generic_funcs = self.generic_manager.get_generic_functions(func_name)
+                    if generic_funcs:
+                        type_args = inferrer.infer_type_arguments(generic_funcs[0], arg_types)
+                        
+                        if type_args:
+                            # 实例化泛型函数
+                            instance = self.instantiator.instantiate_function(
+                                generic_funcs[0], type_args
+                            )
+                            # 注册实例化后的函数到符号表
+                            self._register_function_instance(instance)
+                            return self.type_checker.get_type(instance.specialized_return_type)
+                # ===== Phase 9 结束 =====
+                
+                # 原有逻辑：查找普通函数
                 symbol = self.symbol_table.lookup(func_name)
                 if symbol and symbol.return_type:
                     return self.type_checker.get_type(symbol.return_type)
