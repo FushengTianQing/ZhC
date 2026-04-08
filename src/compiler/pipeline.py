@@ -394,18 +394,22 @@ class CompilationPipeline:
             self.stats['total_files'] -= 1
             return None
         
-        # 4. C 代码生成 (AST → C)
-        from ..codegen import CCodeGenerator
-        
-        generator = CCodeGenerator()
-        c_code = generator.generate(ast)
-        
+        # 4. IR 代码生成 (AST → IR → C)
+        from zhc.ir.ir_generator import IRGenerator
+        from zhc.backend.c_backend import CBackend
+
+        ir_gen = IRGenerator()
+        ir = ir_gen.generate(ast)
+
+        c_backend = CBackend()
+        c_code = c_backend._generate_c_code(ir)
+
         self.stats['converted_files'] += 1
-        
+
         # 5. 写入 C 文件
         c_filepath = filepath.with_suffix('.c')
         h_filepath = filepath.with_suffix('.h')
-        
+
         with open(c_filepath, 'w', encoding='utf-8') as f:
             f.write(c_code)
         

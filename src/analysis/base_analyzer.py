@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any, Set
 from enum import Enum
+from typing import Set as TypingSet
 
 
 class Severity(Enum):
@@ -187,13 +188,20 @@ class ASTWalker:
             所有节点的列表
         """
         nodes = []
-        self._walk_node(self.ast, nodes)
+        visited: Set[int] = set()  # 防止循环引用
+        self._walk_node(self.ast, nodes, visited)
         return nodes
     
-    def _walk_node(self, node: Any, nodes: List[Any]) -> None:
+    def _walk_node(self, node: Any, nodes: List[Any], visited: Set[int]) -> None:
         """递归遍历节点"""
         if node is None:
             return
+        
+        # 防止循环引用
+        node_id = id(node)
+        if node_id in visited:
+            return
+        visited.add(node_id)
         
         nodes.append(node)
         
@@ -209,12 +217,12 @@ class ASTWalker:
             
             if isinstance(attr, list):
                 for child in attr:
-                    self._walk_node(child, nodes)
+                    self._walk_node(child, nodes, visited)
             elif isinstance(attr, dict):
                 for child in attr.values():
-                    self._walk_node(child, nodes)
+                    self._walk_node(child, nodes, visited)
             elif hasattr(attr, '__dict__') and not isinstance(attr, (str, int, float, bool)):
-                self._walk_node(attr, nodes)
+                self._walk_node(attr, nodes, visited)
     
     def find_nodes(self, node_type: type) -> List[Any]:
         """

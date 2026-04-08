@@ -99,9 +99,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--clean-cache", action="store_true", help="清理编译缓存")
     parser.add_argument(
         "--backend",
-        choices=["ast", "ir", "llvm", "wasm"],
-        default="ast",
-        help="编译后端: ast=直接AST生成C, ir=IR中间表示→C, llvm=LLVM IR, wasm=WebAssembly"
+        choices=["ir", "llvm", "wasm"],
+        default="ir",
+        help="编译后端: ir=IR中间表示→C, llvm=LLVM IR, wasm=WebAssembly"
     )
     parser.add_argument(
         "--dump-ir",

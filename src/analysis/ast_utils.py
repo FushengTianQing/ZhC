@@ -76,14 +76,21 @@ def find_all_nodes(ast: Any, node_type: Any = None, recursive: bool = True) -> L
         匹配节点的列表
     """
     results = []
-    _walk_nodes(ast, results, node_type, recursive)
+    visited: Set[int] = set()  # 防止循环引用
+    _walk_nodes(ast, results, node_type, recursive, visited)
     return results
 
 
-def _walk_nodes(node: Any, results: List[Any], node_type: Any, recursive: bool) -> None:
+def _walk_nodes(node: Any, results: List[Any], node_type: Any, recursive: bool, visited: Set[int]) -> None:
     """递归遍历节点"""
     if node is None:
         return
+    
+    # 防止循环引用
+    node_id = id(node)
+    if node_id in visited:
+        return
+    visited.add(node_id)
     
     # 检查类型匹配
     if node_type is None:
@@ -109,12 +116,12 @@ def _walk_nodes(node: Any, results: List[Any], node_type: Any, recursive: bool) 
         
         if isinstance(attr, list):
             for child in attr:
-                _walk_nodes(child, results, node_type, recursive)
+                _walk_nodes(child, results, node_type, recursive, visited)
         elif isinstance(attr, dict):
             for child in attr.values():
-                _walk_nodes(child, results, node_type, recursive)
+                _walk_nodes(child, results, node_type, recursive, visited)
         elif hasattr(attr, '__dict__') and not isinstance(attr, (str, int, float, bool, type(None))):
-            _walk_nodes(attr, results, node_type, recursive)
+            _walk_nodes(attr, results, node_type, recursive, visited)
 
 
 def find_variable_declarations(ast: Any) -> List[Any]:

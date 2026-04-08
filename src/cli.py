@@ -141,6 +141,30 @@ class ZHCCompiler:
                 )
             warnings.extend(semantic_result.get("warnings", []))
 
+            # 阶段2.5：安全分析（默认启用，ERROR 级别阻止编译）
+            from zhc.analysis import create_security_scheduler, Severity
+            security_scheduler = create_security_scheduler()
+            context = {
+                "source_file": str(input_file),
+                "file_name": input_file.name
+            }
+            security_scheduler.run_all(ast, context)
+
+            if security_scheduler.has_errors():
+                error_results = security_scheduler.filter_by_severity(Severity.ERROR)
+                errors.extend([str(r) for r in error_results])
+                print(f"  [安全分析] 发现 {len(error_results)} 个错误，阻止编译")
+                return CompilationResult.failure_result(
+                    input_file=input_file,
+                    errors=errors,
+                    warnings=warnings,
+                    elapsed_time=time.time() - start_time
+                )
+
+            if security_scheduler.has_warnings() and self.config.verbose:
+                warning_results = security_scheduler.filter_by_severity(Severity.WARNING)
+                print(f"  [安全分析] 发现 {len(warning_results)} 个警告")
+
             # 阶段3：代码生成 (AST→C 或 AST→IR→C)
             c_code = self._generate_code(ast)
             if c_code is None:
@@ -498,11 +522,8 @@ class ZHCCompiler:
             perf_analyzer = PerformanceAnalyzer()
 
         backend = self.config.backend
-        
-        if backend == "ast":
-            # 直接从 AST 生成 C 代码
-            code = self._generate_directly(ast, perf_analyzer)
-        elif backend == "ir":
+
+        if backend == "ir":
             # 通过 IR → C 后端
             code = self._generate_via_ir(ast, perf_analyzer, target="c")
         elif backend == "llvm":
@@ -512,51 +533,14 @@ class ZHCCompiler:
             # 通过 IR → WASM 后端
             code = self._generate_via_ir(ast, perf_analyzer, target="wasm")
         else:
-            # 默认使用 AST 模式
-            code = self._generate_directly(ast, perf_analyzer)
+            # 默认使用 IR → C 后端
+            code = self._generate_via_ir(ast, perf_analyzer, target="c")
 
         # 输出性能报告
         if perf_analyzer is not None:
             print("\n" + perf_analyzer.print_report())
 
         return code
-
-    def _generate_directly(self, ast, perf_analyzer=None):
-        """直接从AST生成C代码"""
-        from zhc.codegen import CCodeGenerator
-        from zhc.debug.debug_manager import DebugManager
-        from zhc.codegen.c_debug_listener import CDebugListener
-
-        # 创建调试信息管理器（事件发射器）
-        debug_manager = DebugManager(
-            source_file=str(getattr(ast, 'source_file', 'unknown.zhc')),
-            enable_debug=self.config.debug_enabled
-        )
-
-        # 添加 C 后端调试监听器
-        if self.config.debug_enabled:
-            c_listener = CDebugListener(
-                source_file=str(getattr(ast, 'source_file', 'unknown.zhc')),
-                output_file='debug.json'
-            )
-            debug_manager.add_listener(c_listener)
-
-        def run_codegen():
-            """通过 CCodeGenerator 直接从 AST 生成 C 代码"""
-            g = CCodeGenerator(debug_manager=debug_manager)
-            code = g.generate(ast)
-            
-            # 生成调试信息
-            if debug_manager.enable_debug:
-                debug_info = debug_manager.emit_finalize()
-                # 可以将调试信息写入文件或嵌入到输出中
-            
-            return code
-
-        if perf_analyzer:
-            result, _ = perf_analyzer.measure_operation("代码生成", run_codegen)
-            return result
-        return run_codegen()
 
     def _generate_via_ir(self, ast, perf_analyzer=None, target: str = "c"):
         """通过IR中间表示生成代码

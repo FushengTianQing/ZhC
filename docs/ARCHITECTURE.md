@@ -1,7 +1,7 @@
 # ZHC 编译器架构设计文档
 
-**版本**: v11.0  
-**更新日期**: 2026-04-08  
+**版本**: v12.0
+**更新日期**: 2026-04-09  
 **架构师**: 远
 
 ---
@@ -124,25 +124,21 @@ src/
 │   ├── optimization_hints.py, register_allocator.py
 │   └── allocator_interface.py
 │
-├── codegen/                 # 代码生成模块 (8 files)
-│   ├── c_codegen.py            # C 代码生成器
-│   ├── c_debug_listener.py     # 调试监听器
-│   ├── async_codegen.py        # 异步代码生成
-│   ├── generic_codegen.py      # 泛型代码生成
-│   ├── pattern_codegen.py      # 模式匹配代码生成
-│   ├── register_allocator.py   # 寄存器分配
-│   └── allocator_interface.py  # 分配器接口
-│
-├── converter/               # 转换器模块 (12 files)
-│   ├── code.py             # 代码转换器
-│   ├── error.py            # 错误处理器
-│   ├── integrated.py       # 集成转换器
-│   ├── attribute.py        # 属性转换器
-│   ├── method.py           # 方法转换器
-│   ├── inheritance.py      # 继承转换器
-│   ├── virtual.py          # 虚函数转换器
-│   ├── operator.py         # 运算符重载
-│   └── memory.py           # 内存语法转换器
+├── backend/                 # 后端模块 (14 files)
+│   ├── base.py                # BackendBase 抽象基类
+│   ├── manager.py             # BackendManager 后端管理器
+│   ├── c_backend.py           # C 后端
+│   ├── c_debug_listener.py    # C 后端调试监听器（从 codegen/ 移入）
+│   ├── gcc_backend.py         # GCC 工具链后端
+│   ├── clang_backend.py       # Clang 工具链后端
+│   ├── llvm_backend.py        # LLVM IR 后端
+│   ├── llvm_debug_listener.py # LLVM 调试监听器
+│   ├── llvm_instruction.py    # LLVM 指令生成器
+│   ├── llvm_jit.py           # LLVM JIT 执行引擎
+│   ├── llvm_type_mapper.py   # LLVM 类型映射器
+│   ├── wasm_backend.py       # WASM 后端
+│   ├── wasm_debug_listener.py # WASM 调试监听器
+│   └── allocator_interface.py # 分配器接口
 │
 ├── analysis/                # 分析器模块 (9 files)
 │   ├── base_analyzer.py        # 分析器基类
@@ -169,7 +165,7 @@ src/
 │
 ├── typeinfer/               # 类型推导模块（Hindley-Milner）
 │
-├── backend/                 # 后端模块 (13 files)
+├── backend/                 # 后端模块 (14 files)
 │   ├── base.py                # BackendBase 抽象基类
 │   ├── manager.py             # BackendManager 后端管理器
 │   ├── c_backend.py           # C 后端
@@ -320,9 +316,39 @@ AST → SemanticAnalyzer → 带类型的 AST → IRGenerator
 | AnalyzerScheduler | analyzer_scheduler.py | 分析任务调度 |
 | ComplexityAnalyzer | complexity_analyzer.py | 代码复杂度分析 |
 | NullPointerAnalyzer | null_pointer_analyzer.py | 空指针检测 |
+| DivisionByZeroAnalyzer | null_pointer_analyzer.py | 除零错误检测 |
 | ResourceLeakAnalyzer | resource_leak_analyzer.py | 资源泄漏检测 |
 | UnusedVariableAnalyzer | unused_variable_analyzer.py | 未使用变量检测 |
 | ReportGenerator | report_generator.py | 分析报告生成 |
+
+#### 安全分析 vs 质量分析
+
+ZHC 将静态分析器分为两类，具有不同的执行策略：
+
+| 类型 | 触发条件 | 严重级别 | 编译行为 |
+|:---|:---|:---|:---|
+| **安全分析器** | 默认启用 | ERROR | 阻止编译 |
+| **质量分析器** | `--analyze` 启用 | WARNING/INFO | 仅生成报告 |
+
+**安全分析器列表**：
+- `DivisionByZeroAnalyzer` - 除零错误（ERROR）
+- `NullPointerAnalyzer` - 空指针检测（WARNING）
+- `ResourceLeakAnalyzer` - 资源泄漏检测（WARNING）
+
+**质量分析器列表**：
+- `UnusedVariableAnalyzer` - 未使用变量（WARNING）
+- `ComplexityAnalyzer` - 代码复杂度（INFO）
+- `CodeSmellAnalyzer` - 代码异味（INFO）
+- `DeadCodeAnalyzer` - 死代码检测（WARNING）
+
+**编译流程集成**：
+```
+阶段1: 词法分析 → Token 序列
+阶段2: 语义分析 → 带类型的 AST
+阶段2.5: 安全分析 → ERROR 则阻止编译  ← 新增
+阶段3: 代码生成 → C 代码
+阶段4: 写入输出
+```
 
 #### 依赖解析算法
 
@@ -512,7 +538,7 @@ src/ir/
 
 | 参数 | 默认 | 说明 |
 |------|------|------|
-| `--backend ir\|ast` | ast | 选择后端 |
+| `--backend ir\|llvm\|wasm` | ir | 选择后端 |
 | `--dump-ir` | 关闭 | 打印 IR |
 | `--no-optimize` | 关闭 | 禁用优化 Pass |
 
@@ -798,11 +824,9 @@ zhc hello.zhc --no-optimize        # 禁用 IR 优化
 
 | 参数 | 值 | 说明 |
 |:---|:---|:---|
-| `--backend` | `gcc` | IR → C → GCC → 可执行文件 |
-| | `clang` | IR → C → Clang → 可执行文件 |
+| `--backend` | `ir` | IR → C 后端（默认） |
 | | `llvm` | IR → LLVM → .ll/.bc |
 | | `wasm` | IR → WASM → .wasm（实验性） |
-| | `ir` | IR → C 后端（默认） |
 | `--dump-ir` | - | 打印 IR（仅 ir/llvm 后端） |
 | `--no-optimize` | - | 禁用 IR 优化 |
 
@@ -843,7 +867,7 @@ DebugManager (debug/debug_manager.py)
     └── emit_*() → 分发给所有注册的 DebugListener
 
 后端专用 DebugListener：
-    ├── CDebugListener (codegen/c_debug_listener.py) → DWARF
+    ├── CDebugListener (backend/c_debug_listener.py) → DWARF
     ├── LLVMDebugListener (backend/llvm_debug_listener.py) → LLVM IR metadata
     └── WASMDebugListener (backend/wasm_debug_listener.py) → WASM DWARF
 ```
@@ -1149,8 +1173,8 @@ tests/
 
 ---
 
-**文档维护者**: 远  
-**最后更新**: 2026-04-08 (Phase 12: 统一多后端架构)
+**文档维护者**: 远
+**最后更新**: 2026-04-09 (Phase 13: 废弃 codegen 模块，统一 IR 后端)
 
 ---
 
@@ -1222,7 +1246,7 @@ tests/
     - inline_optimizer.py - 函数内联优化
     - loop_optimizer.py - 循环优化
     - loop_unroller.py - 循环展开
-  - 新增 CLI 参数：`--backend ir|ast`, `--dump-ir`, `--no-optimize`
+  - 新增 CLI 参数：`--backend ir|llvm|wasm`, `--dump-ir`, `--no-optimize`
 
 ### Phase 8: 语义分析增强（已完成）
 - **时间**: 2026-04-08
@@ -1238,12 +1262,12 @@ tests/
 ### Phase 9: 代码生成增强（已完成）
 - **时间**: 2026-04-08
 - **主要变化**:
-  - 扩展代码生成模块 (`src/codegen/`, 8 files)
-  - 实现异步代码生成 (`async_codegen.py`)
-  - 实现泛型代码生成 (`generic_codegen.py`)
-  - 实现模式匹配代码生成 (`pattern_codegen.py`)
-  - 实现寄存器分配 (`register_allocator.py`)
-  - 添加调试监听器 (`c_debug_listener.py`)
+  - 扩展 IR 代码生成模块 (`src/ir/`, 22 files)
+  - 实现异步代码生成（IR 层支持）
+  - 实现泛型代码生成（IR 层支持）
+  - 实现模式匹配代码生成（IR 层支持）
+  - 实现寄存器分配 (`ir/register_allocator.py`)
+  - 添加调试监听器 (`backend/c_debug_listener.py`)
 
 ### Phase 10: 分析器扩展（已完成）
 - **时间**: 2026-04-08
@@ -1289,3 +1313,26 @@ tests/
     - GCCBackend/ClangBackend 继承 CBackend 调试功能
     - LLVMBackend/WASMBackend 集成专用调试监听器
     - 废弃 cli/toolchain.py 的 DebugInfoGenerator
+  - **安全分析集成** (Phase 12.2):
+    - 分离安全分析器与质量分析器 (`analysis/__init__.py`)
+    - 安全分析器默认启用，ERROR 级别阻止编译
+    - 质量分析器仅 `--analyze` 启用，不阻止编译
+    - 集成安全分析到编译流程 (`cli.py` 阶段2.5)
+    - 修复 ASTWalker 循环引用问题（添加 visited 集合）
+
+### Phase 13: 废弃 codegen 模块，统一 IR 后端（已完成）
+- **时间**: 2026-04-09
+- **主要变化**:
+  - **删除废弃目录**:
+    - 删除 `src/codegen/` 目录（原 AST 直接代码生成）
+    - 删除 `src/converter/` 目录（废弃的 C 代码转换）
+  - **移动文件**:
+    - `c_debug_listener.py` 从 `codegen/` 移至 `backend/`
+  - **移除 --backend ast 模式**:
+    - CLI 只保留 `--backend ir|llvm|wasm`
+    - 默认后端从 `ast` 改为 `ir`
+    - `config.py` 和 `cli_parser.py` 更新
+    - `cli.py` 删除 `_generate_directly()` 方法
+    - `compiler/pipeline.py` 改用 IR 路径
+  - **清理引用**:
+    - 更新 `backend/c_backend.py` 导入路径

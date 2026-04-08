@@ -85,7 +85,7 @@ class CBackend(BackendBase):
         Returns:
             CDebugListener: C 后端调试监听器
         """
-        from zhc.codegen.c_debug_listener import CDebugListener
+        from .c_debug_listener import CDebugListener
         return CDebugListener(source_file=source_file, output_file=output_file)
 
     @property
