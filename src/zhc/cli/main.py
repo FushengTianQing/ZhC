@@ -175,18 +175,17 @@ class RunCommand(CommandHandler):
         if cli._command_handlers["build"].execute(build_args, cli) != 0:
             return 1
 
-        # 确定运行文件
-        if args.file:
-            run_file = Path(args.file)
+        # 确定运行文件（始终使用项目配置）
+        config_file = Path("zhc.config.json")
+        if config_file.exists():
+            with open(config_file, "r", encoding="utf-8") as f:
+                config = json.load(f)
+            project_name = config.get("项目名称", "程序")
+            output_dir = Path(config.get("编译选项", {}).get("输出目录", "./构建"))
         else:
-            config_file = Path("zhc.config.json")
-            if config_file.exists():
-                with open(config_file, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-                project_name = config.get("项目名称", "项目")
-            else:
-                project_name = "程序"
-            run_file = Path("构建") / project_name
+            project_name = "程序"
+            output_dir = Path("构建")
+        run_file = output_dir / project_name
 
         if not run_file.exists():
             print(f"❌ 错误: 找不到可执行文件: {run_file}")

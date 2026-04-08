@@ -526,9 +526,34 @@ class IRGenerator(ASTVisitor):
         return None
 
     def _eval_assignment(self, node: ASTNode) -> Optional[IRValue]:
-        """求值赋值表达式"""
+        """求值赋值表达式
+
+        对于数组赋值（如 数组[j] = 值），需要特殊处理：
+        - target 只生成 GEP（获取地址），不生成 LOAD
+        - STORE 写入这个地址
+        """
         value = self._eval_expr(getattr(node, "value", None))
-        target = self._eval_expr(getattr(node, "target", None))
+
+        # 检查 target 是否是数组访问
+        target_node = getattr(node, "target", None)
+        if target_node and hasattr(target_node, "node_type"):
+            nt = target_node.node_type.name
+            if nt == "ARRAY_EXPR":
+                # 数组赋值：只生成 GEP，不生成 LOAD
+                base = self._eval_expr(
+                    getattr(target_node, "array", None)
+                    or getattr(target_node, "object", None)
+                )
+                index = self._eval_expr(getattr(target_node, "index", None))
+                if base and index:
+                    elem_ptr = self._new_temp()
+                    self._emit(Opcode.GEP, [base, index], [elem_ptr])
+                    if value:
+                        self._emit(Opcode.STORE, [value, elem_ptr])
+                    return value
+
+        # 普通赋值
+        target = self._eval_expr(target_node)
         if value:
             self._emit(Opcode.STORE, [value, target] if target else [value])
         return value
