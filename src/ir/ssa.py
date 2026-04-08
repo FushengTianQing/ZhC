@@ -4,8 +4,69 @@ ZHC IR - SSA 构建器
 
 实现 Static Single Assignment (SSA) 形式的构建。
 
-SSA 是一种中间表示形式，其中每个变量只被赋值一次。
-通过支配树和支配边界计算，插入 Phi 节点来实现。
+## SSA 简介
+
+SSA（Static Single Assignment，静态单赋值）是一种重要的中间表示形式，
+其核心特点是每个变量只能被赋值一次。这一特性简化了数据流分析，
+使得许多编译器优化算法变得更加简单和高效。
+
+### 为什么需要 SSA？
+
+传统的 IR 中，同一个变量可以被多次赋值：
+
+    传统 IR（非 SSA）：
+    %a = 1
+    %a = %a + 1    ; %a 被重新赋值
+    %b = %a        ; 不清楚 %a 指哪个版本
+
+SSA 通过引入版本号来解决这个问题：
+
+    SSA 形式：
+    %a.0 = 1
+    %a.1 = add %a.0, 1
+    %b = %a.1       ; 明确使用最新版本
+
+### Phi 节点
+
+在控制流汇合处，需要"选择"来自不同路径的值，这就是 Phi 节点的作用：
+
+    if (cond) {
+        %a.0 = 1
+    } else {
+        %a.1 = 2
+    }
+    ; 这里 %a 可能是 %a.0 或 %a.1，需要 Phi 节点
+    %a.2 = phi [%a.0, %entry], [%a.1, %else]
+
+## 算法概述
+
+SSA 构建的核心问题是：哪些位置需要插入 Phi 节点？
+
+答案在支配边界（Dominance Frontier）中：
+- 如果基本块 B 定义了变量 V
+- 那么在 V 的支配边界上的每个基本块都需要一个 Phi 节点
+
+### 构建步骤
+
+1. **计算支配树**：使用 Lengauer-Tarjan 算法，O(N α(N)) 复杂度
+2. **计算支配边界**：找出所有需要 Phi 节点的位置
+3. **收集全局变量**：找出所有被多个基本块定义的变量
+4. **插入 Phi 节点**：在支配边界位置插入
+5. **重命名变量**：DFS 遍历支配树，维护版本栈
+
+## 核心数据结构
+
+- **VersionedValue**: SSA 版本化变量，格式 `base.version`
+- **PhiNode**: Phi 节点，表示控制流汇合处的值选择
+- **DominatorTree**: 支配树，表示基本块之间的支配关系
+- **DominanceFrontier**: 支配边界，每个基本块需要 Phi 节点的位置
+
+## 参考文献
+
+1. Cytron, R., et al. "Efficiently Computing Static Single Assignment Form
+   and the Control Dependence Graph." TOPLAS 1991.
+2. Lengauer, T., & Tarjan, R. E. "A Fast Algorithm for Finding Dominators
+   in a Flowgraph." TOPLAS 1979.
 
 作者：远
 日期：2026-04-08
@@ -224,7 +285,35 @@ class SSABuilder:
     # -------------------------------------------------------------------------
 
     def _compute_dominator_tree(self):
-        """计算支配树（使用 Lengauer-Tarjan 算法）"""
+        """计算支配树（使用 Lengauer-Tarjan 算法）
+        
+        ## 支配关系定义
+        
+        基本块 A **支配** 基本块 B，当且仅当从入口到 B 的每条路径都经过 A。
+        记作 A dom B。
+        
+        基本块 A **直接支配** 基本块 B，当且仅当：
+        1. A 支配 B
+        2. A 不是 B
+        3. 不存在 C，使得 A 支配 C 且 C 支配 B
+        
+        记作 A idom B。直接支配关系形成一棵树，称为支配树。
+        
+        ## 算法选择
+        
+        本实现使用 Lengauer-Tarjan 算法，时间复杂度 O(N α(N))，
+        其中 N 是基本块数量，α 是反阿克曼函数（实际中接近常数）。
+        
+        相比简单的迭代算法（O(N²)），Lengauer-Tarjan 在大型 CFG 上
+        有显著的性能优势。
+        
+        ## 实现细节
+        
+        1. 构建控制流图（CFG）的邻接表表示
+        2. 调用 LengauerTarjanDominator.build() 计算直接支配者
+        3. 从直接支配者推导支配者集合
+        4. 计算支配树深度（用于后续遍历）
+        """
         self.dom_tree = DominatorTree()
 
         if not self.current_function.basic_blocks:
@@ -265,12 +354,45 @@ class SSABuilder:
 
     def _compute_dominance_frontier(self):
         """计算支配边界
-
-        支配边界 DF(B) 包含所有满足以下条件的基本块 Y：
-        1. B 支配 Y 的某个前驱
+        
+        ## 支配边界定义
+        
+        基本块 B 的支配边界 DF(B) 包含所有满足以下条件的基本块 Y：
+        1. B 支配 Y 的某个前驱 P（即 B 是 P 的支配者）
         2. B 不严格支配 Y（即 B 不是 Y 的唯一支配者）
-
-        实现使用 Cooper 等人的算法。
+        
+        ## 直观理解
+        
+        支配边界可以理解为：变量在 B 中定义后，
+        "流出"B 的所有位置就是 DF(B)。
+        
+        例子：
+        
+            A ──→ B ──→ C
+            └──→ D ──→ C
+                      ↑
+                    汇合
+        
+        如果 B 定义了变量 x：
+        - C 是 x 的支配边界（因为 B 支配 C 的前驱 D，且 B 不支配 C）
+        - D 不是支配边界（因为 x 没有在 B 到 D 的路径上被"传播"）
+        
+        ## 算法（Cooper 等人）
+        
+        对于每个基本块 X：
+        1. 如果 X 有多个前驱，则每个前驱 P 都将 X 加入 DF(P)
+        2. 对于 X 的每个后继 Y，如果 X 不是 Y 的直接支配者，
+           则将 Y 加入 DF(X)
+        
+        ## 为什么需要支配边界？
+        
+        支配边界精确地告诉我们：为了使变量 V 在 SSA 形式下正确工作，
+        必须在哪些基本块的入口插入 Phi 节点。
+        
+        具体来说：
+        - 如果块 B 定义了变量 V
+        - 那么 V 的支配边界 DF(B) 上的每个基本块
+        - 都需要为 V 插入一个 Phi 节点
         """
         self.dom_frontier = DominanceFrontier()
 
@@ -333,12 +455,73 @@ class SSABuilder:
     def _insert_phi_nodes(self):
         """
         插入 Phi 节点
-
-        使用迭代算法：
-        1. 对于每个全局变量（被多个基本块定义的变量）
-        2. 在该变量的支配边界位置插入 Phi 节点
-        3. 将 Phi 节点加入变量的定义集合
-        4. 重复直到收敛
+        
+        ## 算法思想
+        
+        使用迭代算法，基于支配边界计算需要插入 Phi 节点的位置。
+        
+        核心观察：
+        - 如果块 B 定义了变量 V
+        - 那么 V 的支配边界 DF(B) 上的每个基本块都需要一个 Phi 节点
+        - Phi 节点本身也是一个定义，可能触发更多的 Phi 节点
+        
+        ## 算法步骤
+        
+        1. 收集所有全局变量（被多个基本块定义的变量）
+        2. 对于每个全局变量 V：
+           a. 找出所有定义 V 的基本块
+           b. 对于每个定义块 B，遍历 DF(B)
+           c. 在 DF(B) 中的每个块 Y 插入 Phi 节点
+           d. 将 Y 加入待处理队列（因为 Phi 也是定义）
+           e. 重复直到队列为空
+        
+        ## 工作列表算法
+        
+        使用工作列表（worklist）避免重复处理：
+        
+            worklist = {定义 V 的所有基本块}
+            processed = {}
+            
+            while worklist not empty:
+                B = worklist.pop()
+                for Y in DF(B):
+                    if Y not in processed:
+                        insert_phi(V, Y)
+                        worklist.add(Y)
+                        processed.add(Y)
+        
+        ## Phi 节点结构
+        
+        Phi 节点格式：
+        
+            %result = phi [value1, block1], [value2, block2], ...
+        
+        含义：如果控制流来自 block_i，则 result = value_i
+        
+        ## 示例
+        
+        原始代码：
+        
+            if (cond) {
+                x = 1;
+            } else {
+                x = 2;
+            }
+            y = x;  // 这里需要 Phi 节点
+        
+        SSA 形式：
+        
+            if.then:
+                %x.0 = 1
+                br if.end
+            
+            if.else:
+                %x.1 = 2
+                br if.end
+            
+            if.end:
+                %x.2 = phi [%x.0, if.then], [%x.1, if.else]
+                %y = %x.2
         """
         self.phi_nodes.clear()
         self.processed_phis.clear()
@@ -425,9 +608,79 @@ class SSABuilder:
     def _rename_variables(self):
         """
         重命名变量
-
-        从入口块开始，按照深度优先顺序遍历支配树，
-        维护每个变量的版本栈，重命名所有使用点。
+        
+        ## 算法思想
+        
+        使用 DFS 遍历支配树，维护每个变量的版本栈。
+        在遍历过程中：
+        - 遇到变量定义：创建新版本，压入栈
+        - 遇到变量使用：使用栈顶版本
+        - 离开基本块：弹出该块定义的版本
+        
+        ## 版本栈
+        
+        对于每个变量 V，维护一个版本栈：
+        
+            stack[V] = [V.0, V.1, V.2, ...]
+        
+        栈顶是当前可见的最新版本。
+        
+        ## 算法步骤
+        
+        1. 初始化所有变量的版本栈为空
+        2. 从入口块开始 DFS 遍历支配树
+        3. 对于每个基本块 B：
+           a. 添加 Phi 节点的定义到版本栈
+           b. 重写基本块中的指令：
+              - 操作数：使用栈顶版本
+              - 结果：创建新版本，压入栈
+           c. 更新后继基本块的 Phi 节点 incoming 值
+           d. 递归处理支配树子节点
+           e. 回溯：弹出该块定义的所有版本
+        
+        ## 为什么沿支配树遍历？
+        
+        支配树保证了：
+        - 父节点定义的变量在子节点中可见
+        - 子节点定义的变量不影响父节点
+        - 版本栈的压入/弹出顺序正确
+        
+        ## 示例
+        
+        原始代码：
+        
+            entry:
+                %x = 1
+                br loop
+            
+            loop:
+                %x = add %x, 1
+                br exit
+            
+            exit:
+                %y = %x
+        
+        重命名过程：
+        
+            entry:
+                stack[x] = []
+                %x.0 = 1
+                stack[x].push(x.0)  // stack[x] = [x.0]
+                br loop
+            
+            loop:
+                %x.1 = add stack[x].top(), 1  // 使用 x.0
+                stack[x].push(x.1)  // stack[x] = [x.0, x.1]
+                br exit
+            
+            exit:
+                %y = stack[x].top()  // 使用 x.1
+            
+            回溯 loop:
+                stack[x].pop()  // stack[x] = [x.0]
+            
+            回溯 entry:
+                stack[x].pop()  // stack[x] = []
         """
         # 初始化版本栈
         self.rename_stack.clear()

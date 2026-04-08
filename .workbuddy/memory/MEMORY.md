@@ -46,6 +46,7 @@
 - `src/ir/dominator.py` - Lengauer-Tarjan 支配树算法 (O(N α(N)))
 - `src/ir/dataflow.py` - 数据流分析
 - `src/ir/loop_optimizer.py` - 循环优化
+- `src/ir/loop_unroller.py` - 循环展开优化 ✅ 新增
 - `src/ir/inline_optimizer.py` - 内联优化
 - `src/ir/register_allocator.py` - 寄存器分配算法（线性扫描、图着色）✅ 已从 codegen 迁移
 - `src/analyzer/interprocedural_alias.py` - 过程间别名分析（已合并 alias_analysis.py）
@@ -73,23 +74,96 @@
 - **远**: 项目负责人，关注代码质量和团队技术提升
 - 工作日期: 初次见面 2026-04-01
 
-## LLVM & WASM 后端集成方案
-- **文档**: `docs/LLVM_WASM_BACKEND_INTEGRATION_PLAN.md`
-- **LLVM 技术选型**: `llvmlite>=0.39.0`（LLVM 12 绑定）
-- **WASM 技术选型**: `wasm-tools`（Rust 实现）+ Python subprocess
-- **现状差距**:
-  - `LLVMPrinter`（`src/ir/llvm_backend.py`）仅为文本生成器，输出 .ll 文本而非真正 bitcode
-  - `WASMBackend`（`src/backend/wasm_backend.py`）仅为 Emscripten wrapper，非原生 WASM 生成
-  - `llvm_backend.py` 有 bug：第 142/152 行引用 `Instruction` 应为 `IRInstruction`
-- **实施计划**: 阶段1(LLVM, 1-2周) → 阶段2(WASM原生, 3-5周) → 阶段3(集成, 6周)
+## C 重写方案分析 (2026-04-08)
+- 报告路径: `docs/C重写方案分析报告.md`
+- 结论: 不建议全量重写，建议增量 C 扩展（lexer + IR 优化层）
+- 工期: 8 周（分 5 阶段）
+- 技术选型: CFFI（非 Python C API）
+
+## LLVM & WASM 后端集成方案 (2026-04-08)
+
+### 技术选型
+- **LLVM**: `llvmlite>=0.39.0`（LLVM 12 绑定）
+- **WASM**: `wasm-tools`（Rust 实现）+ Python subprocess
+
+### 现状差距
+- `LLVMPrinter`（`src/ir/llvm_backend.py`）仅为文本生成器，输出 .ll 文本而非真正 bitcode
+- `WASMBackend`（`src/backend/wasm_backend.py`）仅为 Emscripten wrapper，非原生 WASM 生成
+- `llvm_backend.py` 有 bug：第 142/152 行引用 `Instruction` 应为 `IRInstruction`
+
+### LLVM 集成详细方案（5 阶段，约 9.5 天）
+1. **阶段 1**: 修复 LLVMPrinter bug（0.5 天）
+   - `src/ir/llvm_backend.py` 第 142/152 行：`Instruction` → `IRInstruction`
+
+2. **阶段 2**: 实现 LLVMBackend 类（3 天）
+   - 创建 `src/backend/llvm_backend.py`
+   - 使用 llvmlite API 生成真正的 LLVM IR
+   - 支持 bitcode 输出和 JIT 执行
+
+3. **阶段 3**: 类型映射（1 天）
+   - ZhC 类型 → LLVM 类型映射表
+   - 整数、浮点、数组、结构体、指针
+
+4. **阶段 4**: 指令生成（2 天）
+   - ZhC IR Opcode → LLVM IR 指令映射
+   - 算术、逻辑、控制流、函数调用
+
+5. **阶段 5**: JIT 执行（2 天）
+   - 实现即时执行引擎
+   - CLI 接口：`zhc --llvm --jit program.zhc`
+
+### 目录结构
+```
+src/backend/
+├── llvm_backend.py      # LLVM 后端主类
+├── llvm_type_mapper.py  # 类型映射
+├── llvm_instruction.py  # 指令生成
+└── llvm_jit.py          # JIT 执行引擎
+```
+
+### WASM 集成方案（阶段 2，3-5 周）
+- 原生 WASM 生成（不依赖 Emscripten）
+- 使用 `wasm-tools` 进行二进制编码
+- 支持 WASM MVP 特性
+
+### 实施计划
+- 阶段 1: LLVM 集成（1-2 周）
+- 阶段 2: WASM 原生生成（3-5 周）
+- 阶段 3: 集成测试（6 周）
+
+### 关键架构认知
+- **C Backend 不是真正的后端**: `c_backend.py` 和 `c_codegen.py` 都是代码生成器，需要 gcc/clang 才能生成机器码
+- **LLVM 后端架构**: 前端 → IR → 中间优化 → 后端（指令选择 → 寄存器分配 → 代码发射）
+- **GCC vs LLVM**: LLVM 模块化、现代架构、活跃社区，更适合新项目集成
 
 ## 测试覆盖 (2026-04-08)
 - **本周新增测试**: 
   - `tests/test_dataflow.py` - 33 passed
   - `tests/test_loop_optimizer.py` - 25 passed
+  - `tests/test_loop_unroller.py` - 20 passed ✅ 新增
   - `tests/test_inline_optimizer.py` - 31 passed
   - `tests/test_utils.py` - 39 passed
   - `tests/test_dominator.py` - 20 passed (Lengauer-Tarjan 算法)
   - `tests/benchmarks/test_dominator_performance.py` - 5 passed (性能对比)
   - `tests/test_alias_analysis.py` - 24 passed (过程间别名分析)
+  - `tests/test_ast_validator.py` - 35 passed (AST 验证器)
+  - `tests/test_memory_safety.py` - 34 passed (内存安全)
 - **CI 覆盖率门禁**: 15% → 25% (本周更新)
+
+## P2 级别任务进度 (2026-04-08)
+- ✅ TASK-P2-001: AST 验证器 - 已完成
+  - 文件: `src/parser/ast_validator.py`, `tests/test_ast_validator.py`
+  - 功能: 结构完整性、类型一致性、语义约束、边界条件检查
+  - 覆盖率: 89.52%
+- ✅ TASK-P2-002: 内存安全检查测试 - 已完成
+  - 文件: `tests/test_memory_safety.py`
+  - 功能: 空指针检查、内存泄漏、缓冲区溢出、释放后使用、所有权追踪、生命周期分析
+  - 测试: 34 passed
+- ✅ TASK-P2-003: 循环展开优化 - 已完成
+  - 文件: `src/ir/loop_unroller.py`, `tests/test_loop_unroller.py`
+  - 功能: 完全展开、部分展开、展开决策分析
+  - 测试: 20 passed
+- ✅ TASK-P2-004: 调试信息生成 - 已完成
+  - 文件: `src/debug/debug_generator.py`, `src/codegen/c_debug_listener.py`, `src/debugger/gdb_zhc.py`
+  - 功能: DWARF 行号/变量/类型信息生成、GDB/LLDB 调试支持
+  - 测试: 40 passed

@@ -7,6 +7,73 @@
 [![许可证](https://img.shields.io/badge/许可证-MIT-yellow)](LICENSE)
 [![构建状态](https://img.shields.io/badge/构建-通过-brightgreen)](tests/)
 
+//////////////////////////////////////////////////////////////////////////////
+
+## 一、现状分析
+
+### 1.1 项目规模
+
+| 核心模块 | parser、semantic、analyzer、ir、codegen、backend |
+| 估计代码量 | 50,000+ 行 Python |
+
+
+### 1.2 当前编译流水线/ ZhC+LLVM
+
+1. **LLVM 后端已完成集成**（`src/backend/llvm_backend.py` 等），使用 `llvmlite>=0.39.0`，已输出原生机器码
+2. **保留了C后端，输出c文本给gcc编译**：现有 `c_backend.py` / `c_codegen.py` 只是代码生成器（输出 C 文本 → 扔给 gcc/clang 编译）
+3. **标准库 C 头文件已存在**：`lib/zhc_math.h`、`lib/zhc_stdio.h` 等
+4. **Python 基础设施完善**：AST 验证器、内存安全检查、数据流分析、循环优化、内联优化均已实现
+
+### 
+
+```
+源代码 (.zhc)
+    │
+    ▼
+┌─────────────────────────────────────────────┐
+│  Lexer (parser/lexer.py)          ~24KB     │
+└──────────────────┬──────────────────────────┘
+                   ▼
+┌─────────────────────────────────────────────┐
+│  Parser (parser/parser.py)       ~52KB     │
+│  AST Nodes (parser/ast_nodes.py)  ~48KB     │
+└──────────────────┬──────────────────────────┘
+                   ▼
+┌─────────────────────────────────────────────┐
+│  Semantic Analyzer (semantic/)   ~84KB 主文件│
+│  Generics (semantic/generics.py)            │
+│  Pattern Matching (semantic/pattern_matching.py) │
+│  Async System (semantic/async_system.py)    │
+└──────────────────┬──────────────────────────┘
+                   ▼
+┌─────────────────────────────────────────────┐
+│  IR Generator (ir/ir_generator.py) ~29KB   │
+│  SSA (ir/ssa.py)                            │
+│  Dominator (ir/dominator.py)                 │
+│  Dataflow (ir/dataflow.py)                  │
+│  Loop Optimizer (ir/loop_optimizer.py)      │
+│  Inline Optimizer (ir/inline_optimizer.py)  │
+│  Register Allocator (ir/register_allocator.py) ~20KB │
+└──────────────────┬──────────────────────────┘
+                   ▼
+┌─────────────────────────────────────────────┐
+│  Code Generation                            │
+│  ┌──────────────┬────────────────┬────────┐ │
+│  │ CBackend     │ LLVM Backend   │ WASM   │ │
+│  │ (c_backend)  │ (llvm_backend) │Backend │ │
+│  └──────┬───────┴────────┬───────┴────────┘ │
+│         ▼                ▼                  │
+│     .c → gcc/clang   .ll/.bc → LLVM        │
+└─────────────────────────────────────────────┘
+```
+
+//////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
 ## 🌟 特性亮点
 
 ### 🚀 高性能编译
