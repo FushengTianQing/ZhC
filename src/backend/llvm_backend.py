@@ -10,14 +10,19 @@
 - 强制内联添加 LLVM alwaysinline 属性
 - 不返回函数添加 LLVM noreturn 属性
 
+架构重构（2026-04-08）：
+- 继承 BackendBase 统一接口
+- 支持 CompileOptions 和 CompileResult
+
 作者：远
 日期：2026-04-08
 重构：2026-04-08（TASK-P3-003：添加优化提示支持）
+重构：2026-04-08（统一后端架构）
 """
 
 import os
 import tempfile
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from pathlib import Path
 
 try:
@@ -34,6 +39,16 @@ from zhc.ir.program import IRProgram, IRFunction, IRGlobalVar
 from zhc.ir.instructions import IRBasicBlock, IRInstruction
 from zhc.ir.opcodes import Opcode
 from zhc.ir.values import IRValue, ValueKind
+
+# 导入基类
+from .base import (
+    BackendBase,
+    BackendCapabilities,
+    CompileOptions,
+    CompileResult,
+    OutputFormat,
+    BackendError,
+)
 
 # 优化提示模块（可选依赖）
 try:
@@ -52,12 +67,12 @@ except ImportError:
     LLVMBackendHintAdapter = None
 
 
-class LLVMBackendError(Exception):
+class LLVMBackendError(BackendError):
     """LLVM 后端错误"""
     pass
 
 
-class LLVMBackend:
+class LLVMBackend(BackendBase):
     """ZhC LLVM 后端 - 使用 llvmlite 生成真正的 LLVM IR
     
     功能：
@@ -88,7 +103,40 @@ class LLVMBackend:
         "i8": ll.IntType(8) if ll else None,
         "i1": ll.IntType(1) if ll else None,
     }
-    
+
+    @property
+    def name(self) -> str:
+        return "llvm"
+
+    @property
+    def description(self) -> str:
+        return "LLVM 后端 (llvmlite)"
+
+    @property
+    def capabilities(self) -> BackendCapabilities:
+        return BackendCapabilities(
+            supports_jit=True,
+            supports_debug=True,
+            supports_optimization=True,
+            supports_cross_compile=True,
+            supports_lto=True,
+            target_platforms=[
+                "x86_64-linux",
+                "x86_64-macos",
+                "x86_64-windows",
+                "aarch64-linux",
+                "aarch64-macos",
+                "arm-linux",
+            ],
+            output_formats=[
+                OutputFormat.LLVM_IR,
+                OutputFormat.LLVM_BC,
+                OutputFormat.OBJECT,
+                OutputFormat.EXECUTABLE,
+            ],
+            required_tools=["llvmlite"],
+        )
+
     def __init__(self, target_triple: Optional[str] = None, enable_optimization_hints: bool = True):
         """初始化 LLVM 后端
         
@@ -120,13 +168,71 @@ class LLVMBackend:
         llvm.initialize_native_target()
         llvm.initialize_native_asmprinter()
     
-    def compile(self, ir: IRProgram, module_name: str = "zhc_module") -> ll.Module:
-        """编译 ZhC IR 到 LLVM Module
-        
+    def compile(
+        self,
+        ir: IRProgram,
+        output_path: Path,
+        options: Optional[CompileOptions] = None,
+    ) -> CompileResult:
+        """
+        编译 IR 到目标文件（BackendBase 接口）
+
+        Args:
+            ir: IR 程序
+            output_path: 输出路径
+            options: 编译选项
+
+        Returns:
+            CompileResult: 编译结果
+        """
+        options = options or CompileOptions()
+
+        try:
+            # 1. 编译到 LLVM Module
+            module = self.compile_to_module(ir, output_path.stem)
+
+            # 2. 根据输出格式选择输出方式
+            if options.output_format == OutputFormat.LLVM_IR:
+                # 输出 LLVM IR 文本
+                ll_file = output_path.with_suffix(".ll")
+                ll_file.write_text(str(module))
+                return CompileResult(
+                    success=True,
+                    output_files=[ll_file],
+                )
+
+            elif options.output_format == OutputFormat.LLVM_BC:
+                # 输出 LLVM bitcode
+                bc_file = output_path.with_suffix(".bc")
+                llvm_bitcode = llvm.parse_assembly(str(module))
+                llvm_bitcode.to_bitcode_file(str(bc_file))
+                return CompileResult(
+                    success=True,
+                    output_files=[bc_file],
+                )
+
+            else:
+                # 默认输出 LLVM IR
+                ll_file = output_path.with_suffix(".ll")
+                ll_file.write_text(str(module))
+                return CompileResult(
+                    success=True,
+                    output_files=[ll_file],
+                )
+
+        except Exception as e:
+            return CompileResult(
+                success=False,
+                errors=[str(e)],
+            )
+
+    def compile_to_module(self, ir: IRProgram, module_name: str = "zhc_module") -> ll.Module:
+        """编译 ZhC IR 到 LLVM Module（原有接口）
+
         Args:
             ir: ZhC IR 程序
             module_name: 模块名称
-            
+
         Returns:
             LLVM Module
         """
@@ -443,7 +549,21 @@ class LLVMBackend:
         
         # 生成 bitcode
         return mod.as_bitcode()
-    
+
+    # ===== BackendBase 接口实现 =====
+
+    def is_available(self) -> bool:
+        """检查 llvmlite 是否可用"""
+        return LLVM_AVAILABLE
+
+    def get_version(self) -> Optional[str]:
+        """获取 llvmlite 版本"""
+        if LLVM_AVAILABLE:
+            return f"llvmlite {llvmlite.__version__}"
+        return None
+
+    # ===== 原有方法 =====
+
     def save_bitcode(self, filepath: str):
         """保存 bitcode 到文件"""
         bitcode = self.to_bitcode()
