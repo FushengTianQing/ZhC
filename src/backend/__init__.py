@@ -27,6 +27,16 @@ from .allocator_interface import (
     Instruction,
 )
 
+# LLVM 后端（可选，需要 llvmlite）
+try:
+    from .llvm_backend import LLVMBackend, LLVMBackendError, compile_to_llvm
+    LLVM_BACKEND_AVAILABLE = True
+except ImportError:
+    LLVMBackend = None
+    LLVMBackendError = None
+    compile_to_llvm = None
+    LLVM_BACKEND_AVAILABLE = False
+
 __all__ = [
     'AllocationStrategy',
     'BackendCapabilities',
@@ -39,4 +49,8 @@ __all__ = [
     'create_allocator',
     'register_for_all_backends',
     'Instruction',
+    'LLVMBackend',
+    'LLVMBackendError',
+    'compile_to_llvm',
+    'LLVM_BACKEND_AVAILABLE',
 ]
