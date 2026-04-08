@@ -1,6 +1,6 @@
 # 中文C编译器 (ZHC Compiler)
 
-**将中文代码编译为C程序的专业工具**
+**开始用中文写C程序吧！🚀**
 
 [![版本](https://img.shields.io/badge/版本-v6.0-blue)](https://github.com/yuan/zhc)
 [![Python版本](https://img.shields.io/badge/Python-3.8+-green)](https://www.python.org/)
