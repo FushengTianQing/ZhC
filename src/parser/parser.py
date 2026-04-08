@@ -152,8 +152,19 @@ class Parser(GenericParserMixin):
         return self.current_token().type == TokenType.EOF
     
     def match(self, *types: TokenType) -> bool:
-        """检查当前Token类型是否匹配"""
+        """检查当前Token类型是否匹配（不消耗Token）"""
         return self.current_token().type in types
+    
+    def check(self, token_type: TokenType) -> bool:
+        """检查当前Token类型是否匹配（不消耗Token）- 单类型版本"""
+        return self.current_token().type == token_type
+    
+    def consume(self, *types: TokenType) -> bool:
+        """检查并消耗Token（如果匹配）"""
+        if self.match(*types):
+            self.advance()
+            return True
+        return False
     
     def expect(self, token_type: TokenType, message: str) -> Token:
         """期望特定类型的Token"""
