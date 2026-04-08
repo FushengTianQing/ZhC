@@ -160,6 +160,38 @@ from .codegen_error import (
     file_write_error,
 )
 
+# 导入 Pipeline 异常
+from .pipeline_error import (
+    PipelineError,
+    ErrorType,  # 向后兼容枚举
+    PIPELINE_FILE_NOT_FOUND,
+    PIPELINE_FILE_READ_ERROR,
+    PIPELINE_FILE_WRITE_ERROR,
+    PIPELINE_SYNTAX_MISSING_BRACE,
+    PIPELINE_SYNTAX_UNEXPECTED_TOKEN,
+    PIPELINE_SYNTAX_INVALID_MODULE_DECL,
+    PIPELINE_SYNTAX_INVALID_IMPORT_STMT,
+    PIPELINE_SYNTAX_INVALID_VISIBILITY,
+    PIPELINE_SEMANTIC_DUPLICATE_SYMBOL,
+    PIPELINE_SEMANTIC_UNDEFINED_SYMBOL,
+    PIPELINE_SEMANTIC_TYPE_MISMATCH,
+    PIPELINE_SEMANTIC_INVALID_RETURN,
+    PIPELINE_SCOPE_VIOLATION,
+    PIPELINE_SCOPE_OUT_OF_SCOPE,
+    PIPELINE_SCOPE_INVALID_ACCESS,
+    PIPELINE_DEPENDENCY_CYCLE,
+    PIPELINE_DEPENDENCY_MISSING_MODULE,
+    PIPELINE_DEPENDENCY_VERSION_CONFLICT,
+    PIPELINE_COMPILE_CONVERSION_FAILED,
+    PIPELINE_COMPILE_UNSUPPORTED_FEATURE,
+    file_not_found,
+    file_read_error,
+    dependency_cycle,
+    missing_module,
+    duplicate_symbol,
+    unsupported_feature,
+)
+
 
 # ============================================================================
 # 版本信息
@@ -292,4 +324,34 @@ __all__ = [
     "ir_conversion_failed",
     "unsupported_platform",
     "file_write_error",
+
+    # Pipeline 异常
+    "PipelineError",
+    "ErrorType",  # 向后兼容枚举
+    "PIPELINE_FILE_NOT_FOUND",
+    "PIPELINE_FILE_READ_ERROR",
+    "PIPELINE_FILE_WRITE_ERROR",
+    "PIPELINE_SYNTAX_MISSING_BRACE",
+    "PIPELINE_SYNTAX_UNEXPECTED_TOKEN",
+    "PIPELINE_SYNTAX_INVALID_MODULE_DECL",
+    "PIPELINE_SYNTAX_INVALID_IMPORT_STMT",
+    "PIPELINE_SYNTAX_INVALID_VISIBILITY",
+    "PIPELINE_SEMANTIC_DUPLICATE_SYMBOL",
+    "PIPELINE_SEMANTIC_UNDEFINED_SYMBOL",
+    "PIPELINE_SEMANTIC_TYPE_MISMATCH",
+    "PIPELINE_SEMANTIC_INVALID_RETURN",
+    "PIPELINE_SCOPE_VIOLATION",
+    "PIPELINE_SCOPE_OUT_OF_SCOPE",
+    "PIPELINE_SCOPE_INVALID_ACCESS",
+    "PIPELINE_DEPENDENCY_CYCLE",
+    "PIPELINE_DEPENDENCY_MISSING_MODULE",
+    "PIPELINE_DEPENDENCY_VERSION_CONFLICT",
+    "PIPELINE_COMPILE_CONVERSION_FAILED",
+    "PIPELINE_COMPILE_UNSUPPORTED_FEATURE",
+    "file_not_found",
+    "file_read_error",
+    "dependency_cycle",
+    "missing_module",
+    "duplicate_symbol",
+    "unsupported_feature",
 ]

@@ -30,7 +30,7 @@ from typing import List, Dict, Tuple, Optional, Set, Any
 
 # 使用绝对导入，清晰的模块路径
 from ..parser.module import ModuleParser
-from ..converter.error import ErrorHandler
+from ..errors.pipeline_error import ErrorHandler, ErrorType
 from ..analyzer.dependency import DependencyResolver, MultiFileIntegrator
 
 logger = logging.getLogger(__name__)
@@ -501,7 +501,6 @@ class CompilationPipeline:
         
         for filepath in source_paths:
             if not filepath.exists():
-                from ..converter.error import ErrorType
                 self.error_handler.add_error(
                     ErrorType.FILE_NOT_FOUND,
                     f"文件不存在: {filepath}",
@@ -525,7 +524,6 @@ class CompilationPipeline:
         if cycles:
             logger.warning("发现循环依赖: %s", cycles)
             for cycle in cycles:
-                from ..converter.error import ErrorType
                 self.error_handler.add_error(
                     ErrorType.DEPENDENCY_CYCLE,
                     f"循环依赖: {' -> '.join(cycle)}",
