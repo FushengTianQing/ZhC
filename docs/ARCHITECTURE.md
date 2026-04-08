@@ -1,6 +1,6 @@
 # ZHC 编译器架构设计文档
 
-**版本**: v10.0  
+**版本**: v11.0  
 **更新日期**: 2026-04-08  
 **架构师**: 远
 
@@ -169,8 +169,18 @@ src/
 │
 ├── typeinfer/               # 类型推导模块（Hindley-Milner）
 │
-├── backend/                 # 后端模块
-├── opt/                     # 优化模块
+├── backend/                 # 后端模块 (11 files)
+│   ├── base.py                # BackendBase 抽象基类
+│   ├── manager.py             # BackendManager 后端管理器
+│   ├── c_backend.py           # C 后端
+│   ├── gcc_backend.py         # GCC 工具链后端
+│   ├── clang_backend.py       # Clang 工具链后端
+│   ├── llvm_backend.py        # LLVM IR 后端
+│   ├── llvm_instruction.py    # LLVM 指令生成器
+│   ├── llvm_jit.py            # LLVM JIT 执行引擎
+│   ├── llvm_type_mapper.py    # LLVM 类型映射器
+│   ├── wasm_backend.py        # WASM 后端
+│   └── allocator_interface.py # 分配器接口
 ├── lsp/                     # Language Server Protocol
 ├── debugger/                # 调试器模块
 ├── debug/                   # 调试工具
@@ -508,20 +518,153 @@ src/ir/
 
 ### 3.9 后端模块 (backend/)
 
-**职责**：多后端代码生成，支持 C、LLVM IR、WASM
+**职责**：统一多后端代码生成架构，支持 GCC、Clang、LLVM、WASM
 
 ```
 src/backend/
-├── __init__.py
-├── allocator_interface.py   # 分配器接口
-├── llvm_backend.py          # LLVM IR 后端
-├── llvm_instruction.py      # LLVM 指令生成器
-├── llvm_jit.py              # LLVM JIT 执行引擎
-├── llvm_type_mapper.py      # LLVM 类型映射器
-└── wasm_backend.py          # WASM 后端（实验性）
+├── __init__.py               # 模块入口，导出 BackendManager 和所有后端
+├── base.py                   # BackendBase 抽象基类 + 统一接口
+├── manager.py                # BackendManager 后端管理器
+├── c_backend.py              # C 后端（基础后端）
+├── gcc_backend.py            # GCC 工具链后端
+├── clang_backend.py          # Clang 工具链后端
+├── llvm_backend.py           # LLVM IR 后端
+├── llvm_instruction.py       # LLVM 指令生成器
+├── llvm_jit.py               # LLVM JIT 执行引擎
+├── llvm_type_mapper.py       # LLVM 类型映射器
+├── wasm_backend.py           # WASM 后端
+└── allocator_interface.py    # 分配器接口
 ```
 
-#### 3.9.1 LLVM 后端
+#### 3.9.1 统一后端架构
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         BackendManager                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────┐│
+│  │ BackendBase │  │ BackendBase │  │ BackendBase │  │BackendBase│
+│  │  (GCC)      │  │  (Clang)    │  │  (LLVM)     │  │  (WASM)  ││
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └────┬────┘│
+│         │                │                │                │    │
+│         ▼                ▼                ▼                ▼    │
+│  ┌────────────┐   ┌───────────┐   ┌───────────┐   ┌──────────┐│
+│  │ GCC工具链   │   │ Clang工具链│   │ LLVM优化器 │   │WASM编译器││
+│  │ gcc/g++    │   │ clang     │   │ llc/opt   │   │ wasm-xxx ││
+│  └────────────┘   └───────────┘   └───────────┘   └──────────┘│
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**BackendBase 抽象基类接口**：
+
+```python
+class BackendBase(ABC):
+    @property
+    @abstractmethod
+    def name(self) -> str:           # 后端名称
+        pass
+    
+    @property
+    @abstractmethod
+    def description(self) -> str:    # 后端描述
+        pass
+    
+    @property
+    @abstractmethod
+    def capabilities(self) -> BackendCapabilities:
+        pass
+    
+    @abstractmethod
+    def compile(self, ir: IRProgram, output_path: Path,
+                options: Optional[CompileOptions] = None) -> CompileResult:
+        pass
+    
+    def is_available(self) -> bool:
+        pass
+    
+    def get_version(self) -> Optional[str]:
+        pass
+```
+
+**BackendManager 后端管理**：
+
+```python
+class BackendManager:
+    @classmethod
+    def register(cls, backend: BackendBase):  # 注册后端
+        pass
+    
+    @classmethod
+    def get(cls, name: str) -> Optional[BackendBase]:
+        pass
+    
+    @classmethod
+    def list_backends(cls) -> List[str]:
+        pass
+    
+    @classmethod
+    def auto_select(cls, target=None, prefer_llvm=True) -> BackendBase:
+        # 自动选择最佳后端：WASM > LLVM > Clang > GCC
+        pass
+```
+
+**统一数据结构**：
+
+```python
+class CompileOptions:
+    output_format: OutputFormat  # EXECUTABLE, OBJECT, LLVM_IR, WASM, C_CODE
+    optimization_level: int     # 0-3
+    target_triple: Optional[str]
+    linker_flags: List[str]
+
+class CompileResult:
+    success: bool
+    output_path: Optional[Path]
+    errors: List[str]
+    warnings: List[str]
+
+class OutputFormat(Enum):
+    EXECUTABLE = "exe"
+    OBJECT = "o"
+    LLVM_IR = "ll"
+    WASM = "wasm"
+    C_CODE = "c"
+
+class BackendCapabilities:
+    supports_jit: bool
+    supports_wasm: bool
+    supports_llvm_ir: bool
+    supports_native_output: bool
+```
+
+#### 3.9.2 GCC 后端
+
+**核心组件**：
+
+| 组件 | 文件 | 职责 |
+|:---|:---|:---|
+| GCCBackend | gcc_backend.py | GCC 工具链编译器 |
+| ToolchainDetector | - | 检测系统 GCC 工具链 |
+
+**特点**：
+- 支持 ARM、RISC-V 等多种架构
+- 跨平台编译
+- 使用 gcc/g++ 编译生成的 C 代码
+
+#### 3.9.3 Clang 后端
+
+**核心组件**：
+
+| 组件 | 文件 | 职责 |
+|:---|:---|:---|
+| ClangBackend | clang_backend.py | Clang 工具链编译器 |
+| LLVMIRGenerator | - | 生成 LLVM IR 输出 |
+
+**特点**：
+- 支持 LLVM IR 输出（.ll）
+- 与 LLVM 工具链集成
+- 更好的错误信息
+
+#### 3.9.4 LLVM 后端
 
 **核心组件**：
 
@@ -560,7 +703,7 @@ ZHCT_TO_LLVM = {
 | 控制流 | JMP, JZ, RET, CALL, PHI | br, br, ret, call, phi |
 | 转换 | ZEXT, SEXT, TRUNC, BITCAST | zext, sext, trunc, bitcast |
 
-#### 3.9.2 LLVM JIT 执行引擎
+#### 3.9.5 LLVM JIT 执行引擎
 
 **功能**：
 - 即时编译 ZHC IR 到原生机器码
@@ -585,15 +728,29 @@ result = func(42)
 llvm_ir = jit.get_llvm_ir()
 ```
 
-#### 3.9.3 编译后端对比
+#### 3.9.6 WASM 后端
+
+**核心组件**：
+
+| 组件 | 文件 | 职责 |
+|:---|:---|:---|
+| WASMBackend | wasm_backend.py | ZHC IR → WebAssembly 编译器 |
+
+**特点**：
+- 输出 .wasm 文件
+- 适用于 Web 部署和浏览器运行
+- 实验性支持
+
+#### 3.9.7 编译后端对比
 
 | 后端 | 输出 | 优化 | JIT | 适用场景 |
 |:---|:---|:---|:---|:---|
-| CBackend | .c 文件 | 中等 | 否 | 跨平台、调试、gcc/clang 工具链 |
+| GCCBackend | 可执行文件 | 中等 | 否 | 跨平台、ARM/RISC-V |
+| ClangBackend | 可执行文件/.ll | 高 | 否 | 高性能、LLVM 生态 |
 | LLVMBackend | .ll/.bc | 高 | 是 | 高性能、原生执行、即时编译 |
 | WASMBackend | .wasm | 中等 | 否 | Web 部署、浏览器运行 |
 
-#### 3.9.4 编译流程对比
+#### 3.9.8 统一编译流程
 
 ```
                     ┌─────────────────┐
@@ -603,20 +760,31 @@ llvm_ir = jit.get_llvm_ir()
               ┌──────────────┼──────────────┐
               ▼              ▼              ▼
         ┌──────────┐  ┌──────────┐  ┌──────────┐
-        │ CBackend │  │   LLVM   │  │   WASM   │
+        │ GCC后端  │  │ Clang后端│  │ LLVM后端 │
         └────┬─────┘  └────┬─────┘  └────┬─────┘
              │             │             │
              ▼             ▼             ▼
-          .c 文件      .ll/.bc       .wasm
+          .c 文件      .c 文件       .ll/.bc
              │             │             │
              ▼             ▼             ▼
-        gcc/clang      llc/opt      浏览器运行
-             │             │
-             ▼             ▼
-        可执行文件    原生机器码
+        gcc/g++       clang        llc/opt
+             │             │             │
+             ▼             ▼             ▼
+        可执行文件    可执行文件    原生机器码
+                             │
+                             ▼
+                        ┌──────────┐
+                        │ WASM后端 │
+                        └────┬─────┘
+                             │
+                             ▼
+                          .wasm
+                             │
+                             ▼
+                       浏览器运行
 ```
 
-#### 3.9.5 后端选择机制
+#### 3.9.9 CLI 参数与后端选择
 
 **CLI 参数**：
 
@@ -628,41 +796,32 @@ zhc hello.zhc --no-optimize        # 禁用 IR 优化
 
 | 参数 | 值 | 说明 |
 |:---|:---|:---|
-| `--backend` | `ast` | 直接 AST → C（默认） |
-| | `ir` | IR → C 后端 |
-| | `llvm` | IR → LLVM 后端 |
-| | `wasm` | IR → WASM 后端（实验性） |
+| `--backend` | `gcc` | IR → C → GCC → 可执行文件 |
+| | `clang` | IR → C → Clang → 可执行文件 |
+| | `llvm` | IR → LLVM → .ll/.bc |
+| | `wasm` | IR → WASM → .wasm（实验性） |
+| | `ir` | IR → C 后端（默认） |
 | `--dump-ir` | - | 打印 IR（仅 ir/llvm 后端） |
 | `--no-optimize` | - | 禁用 IR 优化 |
 
-**选择逻辑**：
+**自动选择逻辑**：
 
 ```python
-# cli.py - _generate_code()
-if backend == "ast":
-    code = self._generate_directly(ast)      # AST → CCodegen → C
-elif backend == "ir":
-    code = self._generate_via_ir(ast, target="c")    # AST → IR → CBackend → C
-elif backend == "llvm":
-    code = self._generate_via_ir(ast, target="llvm") # AST → IR → LLVMBackend → .ll
-elif backend == "wasm":
-    code = self._generate_via_ir(ast, target="wasm") # AST → IR → WASMBackend → .wasm
+# BackendManager.auto_select()
+def auto_select(target=None, prefer_llvm=True) -> BackendBase:
+    # 1. WASM 目标 → WASMBackend
+    # 2. LLVM IR 目标 → LLVMBackend
+    # 3. 原生目标 + LLVM 可用 → LLVMBackend
+    # 4. 原生目标 + Clang 可用 → ClangBackend
+    # 5. 原生目标 + GCC 可用 → GCCBackend
+    # 6. 回退 → CBackend (IR → C)
 ```
 
 **回退机制**：
 
-当 LLVM/WASM 后端不可用时，自动回退到 C 后端：
-
-```python
-# cli.py - _generate_via_ir()
-if target == "llvm":
-    try:
-        from zhc.backend.llvm_backend import LLVMBackend
-        backend = LLVMBackend()
-    except ImportError:
-        print("❌ LLVM 后端不可用，回退到 C 后端")
-        backend = CBackend()  # 自动回退
-```
+当首选后端不可用时，自动回退到备选后端：
+- LLVM 不可用 → Clang → GCC → C
+- GCC/Clang 都不可用 → C 后端（生成 .c 文件）
 
 ---
 
@@ -926,7 +1085,7 @@ tests/
 ---
 
 **文档维护者**: 远  
-**最后更新**: 2026-04-08
+**最后更新**: 2026-04-08 (Phase 12: 统一多后端架构)
 
 ---
 
@@ -1039,3 +1198,21 @@ tests/
   - 添加 Issue/PR 模板
   - 实现自动化发布
   - 添加 CHANGELOG 自动生成
+
+### Phase 12: 统一多后端架构（已完成）
+- **时间**: 2026-04-08
+- **主要变化**:
+  - 创建 BackendBase 抽象基类 (`backend/base.py`)
+  - 创建 BackendManager 后端管理器 (`backend/manager.py`)
+  - 创建 CBackend 基础后端 (`backend/c_backend.py`)
+  - 创建 GCCBackend 工具链后端 (`backend/gcc_backend.py`)
+  - 创建 ClangBackend 工具链后端 (`backend/clang_backend.py`)
+  - 重构 LLVMBackend 继承 BackendBase (`backend/llvm_backend.py`)
+  - 重构 WASMBackend 继承 BackendBase (`backend/wasm_backend.py`)
+  - 删除废弃的 opt/ 目录（与 ir/optimizer 功能重复）
+  - 重构 pipeline_error.py 统一异常架构
+  - **新增数据结构**:
+    - CompileOptions - 统一编译选项
+    - CompileResult - 统一编译结果
+    - OutputFormat - 输出格式枚举
+    - BackendCapabilities - 后端能力描述
