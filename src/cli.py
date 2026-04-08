@@ -497,9 +497,22 @@ class ZHCCompiler:
 
             perf_analyzer = PerformanceAnalyzer()
 
-        if self.config.backend == "ir":
-            code = self._generate_via_ir(ast, perf_analyzer)
+        backend = self.config.backend
+        
+        if backend == "ast":
+            # 直接从 AST 生成 C 代码
+            code = self._generate_directly(ast, perf_analyzer)
+        elif backend == "ir":
+            # 通过 IR → C 后端
+            code = self._generate_via_ir(ast, perf_analyzer, target="c")
+        elif backend == "llvm":
+            # 通过 IR → LLVM 后端
+            code = self._generate_via_ir(ast, perf_analyzer, target="llvm")
+        elif backend == "wasm":
+            # 通过 IR → WASM 后端
+            code = self._generate_via_ir(ast, perf_analyzer, target="wasm")
         else:
+            # 默认使用 AST 模式
             code = self._generate_directly(ast, perf_analyzer)
 
         # 输出性能报告
@@ -545,15 +558,24 @@ class ZHCCompiler:
             return result
         return run_codegen()
 
-    def _generate_via_ir(self, ast, perf_analyzer=None):
-        """通过IR中间表示生成C代码"""
+    def _generate_via_ir(self, ast, perf_analyzer=None, target: str = "c"):
+        """通过IR中间表示生成代码
+        
+        Args:
+            ast: 抽象语法树
+            perf_analyzer: 性能分析器
+            target: 目标后端 ("c", "llvm", "wasm")
+            
+        Returns:
+            生成的代码字符串
+        """
         from zhc.ir.ir_generator import IRGenerator
         from zhc.ir.ir_verifier import IRVerifier
         from zhc.ir.optimizer import PassManager, ConstantFolding, DeadCodeElimination
         from zhc.ir.c_backend import CBackend
 
         def run_ir_gen():
-            """通过 IR 管线生成 C 代码（生成→验证→优化→后端）"""
+            """通过 IR 管线生成代码（生成→验证→优化→后端）"""
             gen = IRGenerator()
             ir = gen.generate(ast)
 
@@ -577,8 +599,35 @@ class ZHCCompiler:
                 pm.register(DeadCodeElimination())
                 ir = pm.run(ir)
 
-            backend = CBackend()
-            return backend.generate(ir)
+            # 根据目标选择后端
+            if target == "llvm":
+                # LLVM 后端
+                try:
+                    from zhc.backend.llvm_backend import LLVMBackend
+                    backend = LLVMBackend()
+                    return backend.generate(ir)
+                except ImportError:
+                    print("❌ LLVM 后端不可用，请安装 llvmlite: pip install llvmlite>=0.39.0")
+                    # 回退到 C 后端
+                    backend = CBackend()
+                    return backend.generate(ir)
+                    
+            elif target == "wasm":
+                # WASM 后端
+                try:
+                    from zhc.backend.wasm_backend import WebAssemblyBackend
+                    backend = WebAssemblyBackend()
+                    return backend.generate(ir)
+                except ImportError:
+                    print("❌ WASM 后端不可用")
+                    # 回退到 C 后端
+                    backend = CBackend()
+                    return backend.generate(ir)
+                    
+            else:
+                # 默认 C 后端
+                backend = CBackend()
+                return backend.generate(ir)
 
         if perf_analyzer:
             result, _ = perf_analyzer.measure_operation("IR代码生成", run_ir_gen)

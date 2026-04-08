@@ -43,7 +43,7 @@ class OutputConfig:
     """输出配置"""
     verbose: bool = False
     warning_level: Literal["none", "normal", "all", "error"] = "normal"
-    backend: Literal["ast", "ir"] = "ast"
+    backend: Literal["ast", "ir", "llvm", "wasm"] = "ast"
     dump_ir: bool = False
     optimize_ir: bool = True
 
@@ -325,6 +325,9 @@ class CompilerConfig:
             output=OutputConfig(
                 verbose=getattr(args, 'verbose', False),
                 warning_level=getattr(args, 'warning_level', 'normal'),
+                backend=getattr(args, 'backend', 'ast'),
+                dump_ir=getattr(args, 'dump_ir', False),
+                optimize_ir=not getattr(args, 'no_optimize', False),
             ),
             semantic=SemanticConfig(
                 enabled=not getattr(args, 'skip_semantic', False),
@@ -370,7 +373,7 @@ class CompilerConfig:
             return False
         
         # 检查后端
-        valid_backends = {"ast", "ir"}
+        valid_backends = {"ast", "ir", "llvm", "wasm"}
         if self.backend not in valid_backends:
             return False
         

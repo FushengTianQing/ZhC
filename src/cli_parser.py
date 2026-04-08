@@ -97,6 +97,22 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="静态分析报告输出文件（默认输出到控制台）"
     )
     parser.add_argument("--clean-cache", action="store_true", help="清理编译缓存")
+    parser.add_argument(
+        "--backend",
+        choices=["ast", "ir", "llvm", "wasm"],
+        default="ast",
+        help="编译后端: ast=直接AST生成C, ir=IR中间表示→C, llvm=LLVM IR, wasm=WebAssembly"
+    )
+    parser.add_argument(
+        "--dump-ir",
+        action="store_true",
+        help="打印 IR 中间表示（仅 --backend ir/llvm 时有效）"
+    )
+    parser.add_argument(
+        "--no-optimize",
+        action="store_true",
+        help="禁用 IR 优化（仅 --backend ir/llvm 时有效）"
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
     parser.add_argument("--version", action="version", version="%(prog)s 3.0.0")
 
