@@ -50,6 +50,17 @@ from .inline_optimizer import (
     InlineOptimizer,
     inline_functions,
 )
+from .register_allocator import (
+    RegisterKind,
+    Register,
+    VirtualRegister,
+    LiveInterval,
+    AllocationResult,
+    TargetArchitecture,
+    LinearScanRegisterAllocator,
+    GraphColorRegisterAllocator,
+    simple_allocate,
+)
 
 __all__ = [
     # Symbol 系统
@@ -117,4 +128,14 @@ __all__ = [
     "FunctionInliner",
     "InlineOptimizer",
     "inline_functions",
+    # 寄存器分配
+    "RegisterKind",
+    "Register",
+    "VirtualRegister",
+    "LiveInterval",
+    "AllocationResult",
+    "TargetArchitecture",
+    "LinearScanRegisterAllocator",
+    "GraphColorRegisterAllocator",
+    "simple_allocate",
 ]

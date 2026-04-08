@@ -1794,7 +1794,7 @@ class SemanticAnalyzer:
 
         try:
             from .cfg_analyzer import find_functions, ast_to_statements
-            from ..analyzer.alias_analysis import AliasAnalyzer
+            from ..analyzer.interprocedural_alias import AliasAnalyzer
 
             analyzer = AliasAnalyzer()
 

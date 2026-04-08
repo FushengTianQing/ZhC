@@ -47,13 +47,27 @@
 - `src/ir/dataflow.py` - 数据流分析
 - `src/ir/loop_optimizer.py` - 循环优化
 - `src/ir/inline_optimizer.py` - 内联优化
-- `src/analyzer/interprocedural_alias.py` - 过程间别名分析
+- `src/ir/register_allocator.py` - 寄存器分配算法（线性扫描、图着色）✅ 已从 codegen 迁移
+- `src/analyzer/interprocedural_alias.py` - 过程间别名分析（已合并 alias_analysis.py）
+- `src/backend/` - 后端模块 ✅ 新建
+  - `__init__.py` - 后端模块初始化
+  - `allocator_interface.py` - 统一寄存器分配接口（支持多后端）
+- `src/codegen/register_allocator.py` - 废弃包装器（向后兼容）
+- `src/codegen/allocator_interface.py` - 废弃包装器（向后兼容）
 - `src/utils/` - 工具模块（file_utils, string_utils, error_utils）
 - `src/semantic/generics.py` - 泛型类型系统
 - `src/semantic/pattern_matching.py` - 模式匹配系统
 - `src/semantic/async_system.py` - 异步编程系统
 - `src/lsp/` - LSP 协议实现
 - `src/debug/` - DWARF 调试信息生成
+
+## 寄存器分配器新架构 (2026-04-08)
+- **IR 层** (`zhc.ir.register_allocator`): 线性扫描、图着色等核心算法
+- **后端层** (`zhc.backend.allocator_interface`): 统一 API，支持 x86-64/ARM64/WASM/LLVM
+- **废弃模块** (`zhc.codegen.*`): 仅用于向后兼容，会触发 DeprecationWarning
+
+## 已删除模块 (2026-04-08)
+- `src/analyzer/alias_analysis.py` - 已合并到 `interprocedural_alias.py`
 
 ## 用户偏好
 - **远**: 项目负责人，关注代码质量和团队技术提升

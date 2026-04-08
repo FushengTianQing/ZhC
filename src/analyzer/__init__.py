@@ -34,7 +34,12 @@ from .memory_safety import (
 )
 # P0级新增模块
 from .interprocedural import InterproceduralAnalyzer, FunctionSummary, CallGraph
-from .alias_analysis import AliasAnalyzer, AliasInfo, AliasSet, AliasKind
+# 别名分析模块已合并到 interprocedural_alias.py
+from .interprocedural_alias import (
+    AliasAnalyzer, AliasInfo, AliasSet, AliasKind,  # 兼容旧版 API
+    InterproceduralAliasAnalyzer, AllocationSite, PointsToSet,  # 新版 API
+    FunctionAliasInfo, CallSite
+)
 from .pointer_analysis import PointerAnalyzer, PointerInfo, PointerState, PointerError
 
 # P1级新增模块：性能优化
@@ -84,11 +89,16 @@ __all__ = [
     'InterproceduralAnalyzer',
     'FunctionSummary',
     'CallGraph',
-    # P0级新增：别名分析
+    # P0级新增：别名分析（已合并到 interprocedural_alias）
     'AliasAnalyzer',
     'AliasInfo',
     'AliasSet',
     'AliasKind',
+    'InterproceduralAliasAnalyzer',
+    'AllocationSite',
+    'PointsToSet',
+    'FunctionAliasInfo',
+    'CallSite',
     # P0级新增：指针分析
     'PointerAnalyzer',
     'PointerInfo',

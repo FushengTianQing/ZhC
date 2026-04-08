@@ -17,6 +17,9 @@
 
 作者：阿福
 日期：2026-04-08
+
+兼容层：
+- AliasAnalyzer: 兼容旧版单函数分析 API
 """
 
 from typing import Dict, List, Optional, Set, Tuple, FrozenSet
@@ -32,6 +35,8 @@ class AliasKind(Enum):
     NO_ALIAS = "非别名"           # 确定非别名
     UNKNOWN = "未知"
 
+
+# ==================== 数据结构 ====================
 
 @dataclass
 class AllocationSite:
@@ -571,6 +576,392 @@ class InterproceduralAliasAnalyzer:
                     kind.append("全局")
                 kind_str = f" ({'+'.join(kind)})" if kind else ""
                 lines.append(f"  site_{site_id}: {site.function}:{site.line} {site.var_name}{kind_str}")
+            lines.append("")
+        
+        lines.append("=" * 70)
+        
+        return "\n".join(lines)
+
+
+# ==================== 兼容层：旧版 API ====================
+
+@dataclass
+class AliasSet:
+    """
+    别名集合（兼容旧版 API）
+    
+    表示一组可能指向同一内存位置的指针。
+    """
+    pointers: Set[str] = field(default_factory=set)
+    allocation_site: Optional[int] = None
+    is_heap: bool = False
+    
+    def add_pointer(self, ptr_name: str):
+        """添加指针到别名集"""
+        self.pointers.add(ptr_name)
+    
+    def merge_with(self, other: 'AliasSet'):
+        """合并另一个别名集"""
+        self.pointers.update(other.pointers)
+        if other.allocation_site:
+            self.allocation_site = other.allocation_site
+        self.is_heap = self.is_heap or other.is_heap
+    
+    def may_alias(self, ptr_name: str) -> bool:
+        """检查指针是否可能在别名集中"""
+        return ptr_name in self.pointers
+    
+    def __str__(self) -> str:
+        ptrs = ", ".join(sorted(self.pointers)) if self.pointers else "空"
+        site = f" (位置{self.allocation_site})" if self.allocation_site else ""
+        return f"{{{ptrs}}}{site}"
+
+
+@dataclass
+class AliasInfo:
+    """
+    别名信息（兼容旧版 API）
+    
+    存储单个指针的别名相关信息。
+    """
+    pointer: str
+    alias_sets: List[AliasSet] = field(default_factory=list)
+    may_point_to: Set[str] = field(default_factory=set)
+    must_point_to: Optional[str] = None
+    
+    def add_target(self, target: str, is_must: bool = False):
+        """添加可能指向的目标"""
+        self.may_point_to.add(target)
+        if is_must:
+            self.must_point_to = target
+    
+    def may_alias(self, other_ptr: str) -> AliasKind:
+        """检查与另一个指针的别名关系"""
+        if self.must_point_to and other_ptr in self.may_point_to:
+            if self.must_point_to == other_ptr:
+                return AliasKind.MUST_ALIAS
+        
+        if other_ptr in self.may_point_to:
+            return AliasKind.MAY_ALIAS
+        
+        return AliasKind.NO_ALIAS
+
+
+class AliasAnalyzer:
+    """
+    别名分析器（兼容旧版 API）
+    
+    提供单函数别名分析接口，内部使用 InterproceduralAliasAnalyzer 实现。
+    此类保持向后兼容，新代码应直接使用 InterproceduralAliasAnalyzer。
+    """
+    
+    def __init__(self):
+        self._analyzer = InterproceduralAliasAnalyzer()
+        self.alias_sets: Dict[str, AliasSet] = {}
+        self.pointer_info: Dict[str, AliasInfo] = {}
+        self.allocations: Dict[str, int] = {}
+        self.pointer_assignments: List[Tuple[str, str, int]] = []
+        self._current_function: str = ""
+        self._alloc_site_counter = 0
+    
+    def analyze_function(self, func_name: str, statements: List[dict]) -> Dict[str, AliasInfo]:
+        """
+        分析函数中的指针别名
+        
+        Args:
+            func_name: 函数名
+            statements: 函数体
+        
+        Returns:
+            指针名到别名信息的映射
+        """
+        self._current_function = func_name
+        self._analyzer.register_function(func_name)
+        
+        # 第一遍：收集分配点
+        self._collect_allocation_sites(statements)
+        
+        # 第二遍：分析指针赋值
+        self._analyze_pointer_assignments(statements)
+        
+        # 第三遍：计算别名集合
+        self._compute_alias_sets()
+        
+        return self.pointer_info
+    
+    def _collect_allocation_sites(self, statements: List[dict]):
+        """收集分配点"""
+        for stmt in statements:
+            stmt_type = stmt.get('type', '')
+            line = stmt.get('line', 0)
+            var_name = stmt.get('name', '')
+            
+            # 指针声明
+            if stmt_type == 'var_decl' and self._is_pointer_type(stmt.get('data_type', '')):
+                if var_name not in self.pointer_info:
+                    self.pointer_info[var_name] = AliasInfo(pointer=var_name)
+            
+            # 地址分配（取地址运算）
+            if stmt_type == 'assign' and '&' in str(stmt.get('value', '')):
+                self._alloc_site_counter += 1
+                self.allocations[var_name] = self._alloc_site_counter
+                
+                alias_set = AliasSet(
+                    pointers={var_name},
+                    allocation_site=self._alloc_site_counter,
+                    is_heap=False
+                )
+                self.alias_sets[f"site_{self._alloc_site_counter}"] = alias_set
+                
+                if var_name not in self.pointer_info:
+                    self.pointer_info[var_name] = AliasInfo(pointer=var_name)
+                self.pointer_info[var_name].alias_sets.append(alias_set)
+            
+            # 动态分配
+            if '新建' in stmt_type or 'alloc' in stmt_type:
+                self._alloc_site_counter += 1
+                self.allocations[var_name] = self._alloc_site_counter
+                
+                alias_set = AliasSet(
+                    pointers={var_name},
+                    allocation_site=self._alloc_site_counter,
+                    is_heap=True
+                )
+                self.alias_sets[f"site_{self._alloc_site_counter}"] = alias_set
+                
+                if var_name not in self.pointer_info:
+                    self.pointer_info[var_name] = AliasInfo(pointer=var_name)
+                self.pointer_info[var_name].alias_sets.append(alias_set)
+            
+            # 递归分析
+            if 'body' in stmt:
+                self._collect_allocation_sites(stmt['body'])
+            if 'then_body' in stmt:
+                self._collect_allocation_sites(stmt['then_body'])
+            if 'else_body' in stmt:
+                self._collect_allocation_sites(stmt['else_body'])
+    
+    def _analyze_pointer_assignments(self, statements: List[dict]):
+        """分析指针赋值"""
+        for stmt in statements:
+            stmt_type = stmt.get('type', '')
+            line = stmt.get('line', 0)
+            
+            if stmt_type == 'assign':
+                target = stmt.get('name', '')
+                value = str(stmt.get('value', ''))
+                
+                is_ptr_assignment = (
+                    self._is_pointer(target) or 
+                    self._is_address_of(value) or
+                    target in self.pointer_info or
+                    value in self.pointer_info
+                )
+                
+                if is_ptr_assignment:
+                    if target not in self.pointer_info:
+                        self.pointer_info[target] = AliasInfo(pointer=target)
+                    self.pointer_assignments.append((target, value, line))
+            
+            if 'body' in stmt:
+                self._analyze_pointer_assignments(stmt['body'])
+            if 'then_body' in stmt:
+                self._analyze_pointer_assignments(stmt['then_body'])
+            if 'else_body' in stmt:
+                self._analyze_pointer_assignments(stmt['else_body'])
+    
+    def _is_pointer(self, var_name: str) -> bool:
+        return var_name in self.pointer_info or var_name in self.allocations
+    
+    def _is_address_of(self, expr: str) -> bool:
+        return '&' in expr
+    
+    def _compute_alias_sets(self):
+        """计算别名集合"""
+        for ptr, target, line in self.pointer_assignments:
+            if ptr not in self.pointer_info:
+                self.pointer_info[ptr] = AliasInfo(pointer=ptr)
+            
+            info = self.pointer_info[ptr]
+            
+            if target.startswith('&'):
+                var_name = target[1:].strip()
+                info.add_target(var_name, is_must=True)
+                
+                if var_name in self.allocations:
+                    site_id = self.allocations[var_name]
+                    alias_set = self.alias_sets.get(f"site_{site_id}")
+                    if alias_set:
+                        alias_set.add_pointer(ptr)
+                        if alias_set not in info.alias_sets:
+                            info.alias_sets.append(alias_set)
+                else:
+                    self._alloc_site_counter += 1
+                    self.allocations[var_name] = self._alloc_site_counter
+                    alias_set = AliasSet(
+                        pointers={var_name, ptr},
+                        allocation_site=self._alloc_site_counter,
+                        is_heap=False
+                    )
+                    self.alias_sets[f"site_{self._alloc_site_counter}"] = alias_set
+                    info.alias_sets.append(alias_set)
+            else:
+                info.add_target(target)
+                
+                if target in self.pointer_info:
+                    target_info = self.pointer_info[target]
+                    for alias_set in target_info.alias_sets:
+                        alias_set.add_pointer(ptr)
+                        if alias_set not in info.alias_sets:
+                            info.alias_sets.append(alias_set)
+                    info.may_point_to.update(target_info.may_point_to)
+                    if target_info.must_point_to:
+                        info.must_point_to = target_info.must_point_to
+                else:
+                    if target.isidentifier() or all(c.isalnum() or '\u4e00' <= c <= '\u9fff' for c in target):
+                        if target not in self.allocations:
+                            self._alloc_site_counter += 1
+                            self.allocations[target] = self._alloc_site_counter
+                        
+                        site_id = self.allocations[target]
+                        alias_set = self.alias_sets.get(f"site_{site_id}")
+                        if alias_set:
+                            alias_set.add_pointer(ptr)
+                            if alias_set not in info.alias_sets:
+                                info.alias_sets.append(alias_set)
+                        else:
+                            self._alloc_site_counter += 1
+                            self.allocations[target] = self._alloc_site_counter
+                            new_alias_set = AliasSet(
+                                pointers={target, ptr},
+                                allocation_site=self._alloc_site_counter,
+                                is_heap=False
+                            )
+                            self.alias_sets[f"site_{self._alloc_site_counter}"] = new_alias_set
+                            info.alias_sets.append(new_alias_set)
+    
+    def _is_pointer_type(self, type_name: str) -> bool:
+        return '指针' in type_name or '*' in type_name or 'Ptr' in type_name
+    
+    def query_alias(self, ptr1: str, ptr2: str) -> AliasKind:
+        """
+        查询两个指针的别名关系
+        
+        Args:
+            ptr1: 指针1
+            ptr2: 指针2
+        
+        Returns:
+            别名类型
+        """
+        info1 = self.pointer_info.get(ptr1)
+        info2 = self.pointer_info.get(ptr2)
+        
+        if not info1 or not info2:
+            return AliasKind.UNKNOWN
+        
+        for alias_set in info1.alias_sets:
+            if alias_set.may_alias(ptr2):
+                if (info1.must_point_to and info2.must_point_to and 
+                    info1.must_point_to == info2.must_point_to):
+                    return AliasKind.MUST_ALIAS
+                return AliasKind.MAY_ALIAS
+        
+        return AliasKind.NO_ALIAS
+    
+    def get_all_aliases(self, ptr_name: str) -> Set[str]:
+        """
+        获取指针的所有可能别名
+        
+        Args:
+            ptr_name: 指针名
+        
+        Returns:
+            别名集合
+        """
+        info = self.pointer_info.get(ptr_name)
+        if not info:
+            return set()
+        
+        aliases = set()
+        for alias_set in info.alias_sets:
+            aliases.update(alias_set.pointers)
+        
+        aliases.discard(ptr_name)
+        return aliases
+    
+    def get_points_to_set(self, ptr_name: str) -> Set[str]:
+        """
+        获取指针可能指向的变量集合
+        
+        Args:
+            ptr_name: 指针名
+        
+        Returns:
+            指向集合
+        """
+        info = self.pointer_info.get(ptr_name)
+        return info.may_point_to if info else set()
+    
+    def propagate_aliases(self, func_name: str, caller_aliases: Dict[str, AliasInfo]) -> Dict[str, AliasInfo]:
+        """
+        传播别名信息到被调用函数
+        
+        Args:
+            func_name: 被调用函数名
+            caller_aliases: 调用者的别名信息
+        
+        Returns:
+            传播后的别名信息
+        """
+        propagated = {}
+        
+        for ptr, info in caller_aliases.items():
+            propagated[ptr] = AliasInfo(
+                pointer=info.pointer,
+                alias_sets=info.alias_sets.copy(),
+                may_point_to=info.may_point_to.copy(),
+                must_point_to=info.must_point_to
+            )
+        
+        return propagated
+    
+    def generate_report(self) -> str:
+        """生成别名分析报告"""
+        lines = [
+            "=" * 70,
+            "别名分析报告",
+            "=" * 70,
+            ""
+        ]
+        
+        lines.append("统计信息：")
+        lines.append(f"  分配点数：{len(self.alias_sets)}")
+        lines.append(f"  指针数：{len(self.pointer_info)}")
+        lines.append("")
+        
+        if self.alias_sets:
+            lines.append("别名集合：")
+            for site_id, alias_set in self.alias_sets.items():
+                lines.append(f"  {site_id}: {alias_set}")
+            lines.append("")
+        
+        if self.pointer_info:
+            lines.append("指针指向：")
+            for ptr_name, info in self.pointer_info.items():
+                must = f" -> {info.must_point_to}" if info.must_point_to else ""
+                may = ", ".join(sorted(info.may_point_to)) if info.may_point_to else "无"
+                lines.append(f"  {ptr_name}: {must} (可能: {may})")
+            lines.append("")
+        
+        if len(self.pointer_info) > 1:
+            lines.append("别名关系：")
+            ptrs = list(self.pointer_info.keys())
+            for i, ptr1 in enumerate(ptrs):
+                for ptr2 in ptrs[i+1:]:
+                    alias_kind = self.query_alias(ptr1, ptr2)
+                    if alias_kind != AliasKind.NO_ALIAS:
+                        lines.append(f"  {ptr1} 和 {ptr2}: {alias_kind.value}")
             lines.append("")
         
         lines.append("=" * 70)

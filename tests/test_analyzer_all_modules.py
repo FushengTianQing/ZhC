@@ -46,7 +46,7 @@ class TestAliasAnalysis(unittest.TestCase):
     """别名分析器"""
 
     def test_analyze_function(self):
-        from zhc.analyzer.alias_analysis import AliasAnalyzer
+        from zhc.analyzer.interprocedural_alias import AliasAnalyzer
         analyzer = AliasAnalyzer()
         stmts = [
             {'type': 'var_decl', 'name': 'x', 'line': 1},
@@ -66,14 +66,14 @@ class TestAliasAnalysis(unittest.TestCase):
         self.assertIn('别名', report)
 
     def test_no_alias(self):
-        from zhc.analyzer.alias_analysis import AliasAnalyzer, AliasKind
+        from zhc.analyzer.interprocedural_alias import AliasAnalyzer, AliasKind
         a = AliasAnalyzer()
         # 无别名关系时返回 UNKNOWN（模块未找到该名称时）
         kind = a.query_alias('a', 'b')
         self.assertIn(kind, [AliasKind.NO_ALIAS, AliasKind.UNKNOWN])
 
     def test_propagate_aliases(self):
-        from zhc.analyzer.alias_analysis import AliasAnalyzer, AliasInfo
+        from zhc.analyzer.interprocedural_alias import AliasAnalyzer, AliasInfo
         a = AliasAnalyzer()
         propagated = a.propagate_aliases('f', {'ptr': AliasInfo('ptr')})
         self.assertIn('ptr', propagated)
