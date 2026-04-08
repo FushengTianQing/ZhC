@@ -178,11 +178,19 @@ class Parser(GenericParserMixin):
             expected=[message],
         )
         self.errors.append(error)
-        
+
         # 错误恢复：尝试跳过当前Token
         self.advance()
         return self.current_token()
-    
+
+    def _create_error(self, message: str) -> ParserError:
+        """创建解析器错误（供 Mixin 使用）"""
+        token = self.current_token()
+        return ParserError(
+            message=message,
+            location=SourceLocation(line=token.line, column=token.column) if token else None,
+        )
+
     def consume_if_match(self, token_type: TokenType) -> bool:
         """如果匹配则消耗Token"""
         if self.current_token().type == token_type:
