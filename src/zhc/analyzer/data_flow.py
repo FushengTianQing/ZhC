@@ -240,7 +240,7 @@ class DataFlowAnalyzer:
         return chains
 
     def _extract_used_vars(self, stmt: dict) -> List[str]:
-        """从语句中提取使用的变量"""
+        """从语句中提取使用的变量（递归处理嵌套语句）"""
         used = []
 
         # 直接使用的变量
@@ -255,6 +255,27 @@ class DataFlowAnalyzer:
         if "args" in stmt:
             for arg in stmt["args"]:
                 used.extend(self._extract_vars_from_expr(str(arg)))
+
+        # 递归处理嵌套语句块
+        nested_blocks = [
+            "then_body",
+            "else_body",
+            "body",
+            "init",
+            "condition",
+            "update",
+        ]
+        for block_key in nested_blocks:
+            if block_key in stmt:
+                block = stmt[block_key]
+                if isinstance(block, list):
+                    for nested_stmt in block:
+                        used.extend(self._extract_used_vars(nested_stmt))
+                elif isinstance(block, dict):
+                    used.extend(self._extract_used_vars(block))
+                elif isinstance(block, str):
+                    # condition 等字符串字段：直接提取变量名
+                    used.extend(self._extract_vars_from_expr(block))
 
         return used
 
@@ -322,6 +343,13 @@ class DataFlowAnalyzer:
                         var_name=var_name, defined_at=line
                     )
                 else:
+                    # 更新最后使用位置
+                    live_vars[var_name].last_used_at = line
+
+            # 提取表达式中使用的变量（包括函数调用参数、算术表达式等）
+            used_vars = self._extract_used_vars(stmt)
+            for var_name in used_vars:
+                if var_name in live_vars:
                     # 更新最后使用位置
                     live_vars[var_name].last_used_at = line
 

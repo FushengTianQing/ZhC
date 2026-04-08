@@ -225,7 +225,9 @@ def _expr_to_str(node: ASTNode) -> str:
         member = getattr(node, "member", "")
         return f"{obj}.{member}"
     elif nt == ASTNodeType.ARRAY_EXPR:
-        obj = _expr_to_str(node.object) if hasattr(node, "object") else ""
+        obj = _expr_to_str(
+            getattr(node, "array", None) or getattr(node, "object", None)
+        )
         index = _expr_to_str(node.index) if hasattr(node, "index") else ""
         return f"{obj}[{index}]"
     elif nt == ASTNodeType.ASSIGN_EXPR:
