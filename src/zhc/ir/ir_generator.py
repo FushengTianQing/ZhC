@@ -671,6 +671,8 @@ class IRGenerator(ASTVisitor):
         数组访问需要两步：
         1. GEP: 获取元素地址 (base + index)
         2. LOAD: 读取元素值 *(base + index)
+
+        Phase 11: 如果启用边界检查，添加边界检查 IR
         """
         # ArrayExprNode 使用 array 属性，不是 object
         array_node = getattr(node, "array", None) or getattr(node, "object", None)
@@ -688,6 +690,9 @@ class IRGenerator(ASTVisitor):
         if not base or not index:
             return None
 
+        # Phase 11: 生成边界检查 IR
+        self._generate_array_bounds_check(array_name, index, node)
+
         # 第一步：获取元素地址
         addr = self._new_temp()
         self._emit(Opcode.GEP, [base, index], [addr])
@@ -697,6 +702,91 @@ class IRGenerator(ASTVisitor):
         self._emit(Opcode.LOAD, [addr], [result])
 
         return result
+
+    def _generate_array_bounds_check(
+        self,
+        array_name: str,
+        index: IRValue,
+        node: ASTNode,
+    ) -> None:
+        """
+        生成数组边界检查 IR
+
+        Phase 11: 生成以下 IR 模式：
+        ```
+        bounds_check:
+            %cond = icmp sge i32 %index, 0
+            br i1 %cond, label %access_ok, label %bounds_error
+
+        bounds_error:
+            call @__zhc_bounds_error(i8* msg)
+            unreachable
+
+        access_ok:
+            ; 继续正常访问
+        ```
+
+        注意：这里生成的是 IR 级别的高层表示，
+        具体的目标代码生成由后端（如 LLVM）负责。
+        """
+        # 检查是否有数组大小信息
+        array_size = self._get_array_size(array_name)
+        if array_size is None:
+            # 无法确定数组大小，跳过静态边界检查
+            return
+
+        # 生成边界检查
+        check_bb_label = self._new_bb_label("bounds_check")
+        error_bb_label = self._new_bb_label("bounds_error")
+        ok_bb_label = self._new_bb_label("access_ok")
+
+        # 创建基本块
+        check_bb = IRBasicBlock(check_bb_label)
+        error_bb = IRBasicBlock(error_bb_label)
+        ok_bb = IRBasicBlock(ok_bb_label)
+
+        self.current_function.basic_blocks.append(check_bb)
+        self.current_function.basic_blocks.append(error_bb)
+        self.current_function.basic_blocks.append(ok_bb)
+
+        # 切换到检查块
+        self._switch_block(check_bb)
+
+        # 比较: index >= 0
+        zero = IRValue("0", "整数型", ValueKind.CONST, const_value=0)
+        gep_result = self._new_temp("布尔型")
+        self._emit(Opcode.ICMP, [index, zero], [gep_result])
+        self._emit(Opcode.JZ, [gep_result, error_bb_label, ok_bb_label])
+
+        # 错误块：调用错误处理函数
+        self._switch_block(error_bb)
+        self._emit(Opcode.CALL, [], [])  # 错误处理调用
+        self._emit(Opcode.UNREACHABLE, [], [])
+
+        # 正常访问块
+        self._switch_block(ok_bb)
+
+    def _get_array_size(self, array_name: str) -> Optional[int]:
+        """
+        获取数组大小
+
+        如果无法确定数组大小，返回 None。
+        """
+        # 检查是否是局部变量
+        if array_name in self.var_ptr_map:
+            # 尝试从符号表获取类型信息
+            if self.symbol_table:
+                symbol = self.symbol_table.lookup(array_name)
+                if symbol and symbol.data_type:
+                    # 解析类型字符串中的数组大小
+                    type_str = symbol.data_type
+                    if "[" in type_str and "]" in type_str:
+                        import re
+
+                        match = re.search(r"\[(\d+)\]", type_str)
+                        if match:
+                            return int(match.group(1))
+        return None
 
     def _eval_ternary(self, node: ASTNode) -> Optional[IRValue]:
         """求值三元表达式（条件 ? then : else）"""

@@ -564,7 +564,7 @@ class ZHCCompiler:
         from zhc.ir.ir_generator import IRGenerator
         from zhc.ir.ir_verifier import IRVerifier
         from zhc.ir.optimizer import PassManager, ConstantFolding, DeadCodeElimination
-        from zhc.ir.c_backend import CBackend
+        from zhc.backend.c_backend import CBackend
 
         def run_ir_gen():
             """通过 IR 管线生成代码（生成→验证→优化→后端）"""

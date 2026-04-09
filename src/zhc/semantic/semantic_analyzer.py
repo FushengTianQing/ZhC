@@ -302,6 +302,9 @@ class SemanticAnalyzer:
         self._recovery_context = RecoveryContext()
         self._error_recovery_count = 0  # 错误恢复次数统计
 
+        # Phase 11: 数组语义分析器
+        self._array_analyzer = None  # 延迟初始化
+
         self.stats = {
             "nodes_visited": 0,
             "symbols_added": 0,
@@ -354,6 +357,15 @@ class SemanticAnalyzer:
 
             self._type_inference_engine = TypeInferenceEngine()
         return self._type_inference_engine
+
+    @property
+    def array_analyzer(self):
+        """延迟获取数组语义分析器实例（Phase 11）"""
+        if self._array_analyzer is None:
+            from .array_analyzer import ArraySemanticAnalyzer
+
+            self._array_analyzer = ArraySemanticAnalyzer()
+        return self._array_analyzer
 
     @property
     def instantiator(self):
@@ -672,6 +684,30 @@ class SemanticAnalyzer:
             return
 
         self.stats["symbols_added"] += 1
+
+        # Phase 11: 数组类型分析
+        type_name = inferred_type_name
+        if type_name and ("[" in type_name or "数组" in type_name):
+            # 使用数组语义分析器分析数组声明
+            result = self.array_analyzer.analyze_array_declaration(
+                name=node.name,
+                declared_type_str=type_name,
+                initializer=node.init,
+                source_location=(node.line, node.column)
+                if hasattr(node, "line")
+                else None,
+            )
+            # 处理分析结果
+            if not result.success:
+                for error in result.errors:
+                    self._add_error(
+                        error.message,
+                        error.message,
+                        loc,
+                        suggestions=[error.suggestion] if error.suggestion else [],
+                    )
+            for warning in result.warnings:
+                self._add_warning("数组分析", warning, loc)
 
         # Phase 5 T2.2: 类型检查初始化表达式
         if node.init:
@@ -1634,6 +1670,31 @@ class SemanticAnalyzer:
                 from .type_utils import ast_type_to_typeinfo
 
                 return ast_type_to_typeinfo(node.target_type)
+            return None
+
+        # Phase 11: 数组访问表达式
+        elif nt == ASTNodeType.ARRAY_EXPR:
+            # 数组访问：返回元素类型
+            if hasattr(node, "array"):
+                array_type_name = None
+                if hasattr(node.array, "name") and node.array.name:
+                    # 查找数组变量
+                    symbol = self.symbol_table.lookup(node.array.name)
+                    if symbol and symbol.data_type:
+                        array_type_name = symbol.data_type
+                elif hasattr(node.array, "inferred_type") and node.array.inferred_type:
+                    array_type_name = node.array.inferred_type
+
+                if array_type_name and "[" in array_type_name:
+                    # 使用数组类型推导器推导下标访问后的类型
+                    from ..type_system import ArrayTypeFactory, ArrayTypeInferrer
+
+                    array_type = ArrayTypeFactory.parse_from_string(array_type_name)
+                    if array_type:
+                        inferrer = ArrayTypeInferrer()
+                        # 单维下标访问
+                        result_type = inferrer.infer_subscript_type(array_type, 1)
+                        return self.type_checker.get_type(result_type)
             return None
 
         # Phase 8: 后备 — 使用 Hindley-Milner 类型推导引擎

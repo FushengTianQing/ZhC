@@ -196,7 +196,7 @@ class CBackend(BackendBase):
             lines.append("")
 
         # 生成主函数（如果有）
-        if ir.has_main:
+        if ir.find_function("主函数") or ir.find_function("main"):
             lines.append(self._generate_main_function(ir))
 
         # 完成调试信息
@@ -249,7 +249,7 @@ class CBackend(BackendBase):
         )
 
         # 函数体 - 生成基本块
-        for block in func.blocks:
+        for block in func.basic_blocks:
             for inst in block.instructions:
                 inst_code = self._generate_instruction(inst, debug_manager)
                 if inst_code:
