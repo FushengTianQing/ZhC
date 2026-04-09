@@ -27,7 +27,6 @@ from zhc.optimization.pass_registry import PassRegistry
 from zhc.optimization.optimization_levels import OptimizationLevel
 from zhc.optimization.pass_config import StandardPassConfig
 from zhc.optimization.optimization_observer import (
-    OptimizationObserver,
     StatsObserver,
     LoggingObserver,
 )

@@ -353,8 +353,8 @@ class TripleParser:
             if os_str.startswith(key) or os_str == key:
                 return value
 
-        # 未知 OS
-        if os_str in ("none", "unknown"):
+        # 未知 OS（嵌入式目标）
+        if os_str in ("none", "unknown", "eabi", "elf"):
             return OperatingSystem.UNKNOWN
 
         raise TripleParseError(f"Unknown operating system: {os_str}")

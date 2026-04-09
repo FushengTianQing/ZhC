@@ -145,7 +145,7 @@ class HostDetector:
         os_type = cls._detect_os()
         vendor = cls._detect_vendor()
         cpu = cls._detect_cpu()
-        features = cls._detect_features()
+        features = cls._detect_cpu_features()
         triple = cls._build_triple(arch, os_type)
 
         # 确定指针大小
