@@ -73,6 +73,7 @@ from .ast_nodes import (
     ArrayTypeNode,
     FunctionTypeNode,
     StructTypeNode,
+    AutoTypeNode,
     # 工具
     ASTPrinter,
 )
@@ -144,6 +145,7 @@ __all__ = [
     "ArrayTypeNode",
     "FunctionTypeNode",
     "StructTypeNode",
+    "AutoTypeNode",
     "ASTPrinter",
     # Parser Mixins (重构新增)
     "DeclarationParserMixin",

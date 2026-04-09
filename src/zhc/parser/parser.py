@@ -377,6 +377,7 @@ class Parser(GenericParserMixin):
             TokenType.SHORT,
             TokenType.UNSIGNED,
             TokenType.SIGNED,
+            TokenType.AUTO,  # 自动类型推导
         ):
             return self._dispatch_func_or_var()
 
@@ -1210,6 +1211,10 @@ class Parser(GenericParserMixin):
         ):
             token = self.advance()
             type_node = PrimitiveTypeNode(token.value, token.line, token.column)
+        elif self.match(TokenType.AUTO):
+            # 自动类型推导
+            token = self.advance()
+            type_node = AutoTypeNode(token.line, token.column)
         elif self.match(TokenType.STRUCT):
             self.advance()
             name = self.current_token().value
