@@ -691,7 +691,7 @@ zhc_http_response_t* zhc_http_get(const char* url) {
         /* 解析 Content-Length */
         char* cl = strstr(response, "Content-Length:");
         if (cl) {
-            cl += 14;
+            cl += 15;  /* "Content-Length:" 是 15 个字符 */
             while (*cl == ' ' || *cl == '\t') cl++;
             char* cl_end = strchr(cl, '\r');
             if (cl_end) *cl_end = '\0';
@@ -840,7 +840,7 @@ zhc_http_response_t* zhc_http_post(const char* url, const char* data,
 
         char* cl = strstr(response, "Content-Length:");
         if (cl) {
-            cl += 14;
+            cl += 15;  /* "Content-Length:" 是 15 个字符 */
             while (*cl == ' ' || *cl == '\t') cl++;
             char* cl_end = strchr(cl, '\r');
             if (cl_end) *cl_end = '\0';
