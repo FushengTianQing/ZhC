@@ -30,6 +30,27 @@ from .error_utils import (
     log_error,
 )
 
+from .utf8_utils import (
+    utf8_char_length,
+    utf8_encode,
+    utf8_decode,
+    utf8_char_count,
+    utf8_byte_length,
+    utf8_chars,
+    utf8_substring,
+    utf8_slice,
+    utf8_index_to_byte,
+    utf8_byte_to_index,
+    utf8_char_at,
+    utf8_char_bytes,
+    utf8_validate,
+    utf8_truncate,
+    utf8_reverse,
+    utf8_ljust,
+    utf8_rjust,
+    utf8_center,
+)
+
 __all__ = [
     # 文件工具
     "read_file",
@@ -47,4 +68,23 @@ __all__ = [
     "safe_execute",
     "format_error_message",
     "log_error",
+    # UTF-8 工具
+    "utf8_char_length",
+    "utf8_encode",
+    "utf8_decode",
+    "utf8_char_count",
+    "utf8_byte_length",
+    "utf8_chars",
+    "utf8_substring",
+    "utf8_slice",
+    "utf8_index_to_byte",
+    "utf8_byte_to_index",
+    "utf8_char_at",
+    "utf8_char_bytes",
+    "utf8_validate",
+    "utf8_truncate",
+    "utf8_reverse",
+    "utf8_ljust",
+    "utf8_rjust",
+    "utf8_center",
 ]

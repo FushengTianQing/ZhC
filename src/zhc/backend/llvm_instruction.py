@@ -565,12 +565,15 @@ class LLVMInstructionGenerator:
         # 创建唯一的全局变量名
         global_name = f".str.{len(self._string_constants)}"
 
+        # 将字符串编码为 UTF-8 字节
+        utf8_bytes = content.encode("utf-8")
+
         # 创建字符数组类型 [n x i8]
-        byte_count = len(content) + 1  # +1 for null terminator
+        byte_count = len(utf8_bytes) + 1  # +1 for null terminator
         char_array_type = ll.ArrayType(ll.IntType(8), byte_count)
 
         # 创建字节串（包含 null 终止符）
-        byte_data = [ll.Constant(ll.IntType(8), ord(b)) for b in content]
+        byte_data = [ll.Constant(ll.IntType(8), b) for b in utf8_bytes]
         byte_data.append(ll.Constant(ll.IntType(8), 0))  # null terminator
 
         # 创建全局变量

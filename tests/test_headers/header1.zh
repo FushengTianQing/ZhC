@@ -1,0 +1,9 @@
+# -*- coding: utf-8 -*-
+"""
+测试头文件 1
+"""
+
+#define HEADER1_VALUE 100
+#define HEADER1_FUNC(x) ((x) * 2)
+
+整数型 header1_var = HEADER1_VALUE;

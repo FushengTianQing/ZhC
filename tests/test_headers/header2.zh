@@ -1,0 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+测试头文件 2 - 包含另一个头文件
+"""
+
+#include "header1.zh"
+
+#define HEADER2_VALUE 200
+
+整数型 header2_var = HEADER2_VALUE;

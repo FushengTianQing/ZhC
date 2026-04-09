@@ -376,7 +376,25 @@ class Lexer:
             return Token(TokenType.INT_LITERAL, value, start_line, start_column)
 
     def read_string(self) -> Token:
-        """读取字符串字面量或字符字面量"""
+        """读取字符串字面量或字符字面量
+
+        支持的转义序列:
+        - \\n: 换行符
+        - \\t: 制表符
+        - \\\\ : 反斜杠
+        - \\0: 空字符
+        - \\' / \\": 引号
+        - \\xNN: 十六进制转义 (0x00-0xFF)
+        - \\NNN: 八进制转义 (0-377)
+        - \\e: ESC 字符 (ANSI 转义序列开始)
+        - \\a: 响铃
+        - \\b: 退格
+        - \\f: 换页
+        - \\v: 垂直制表符
+        - \\r: 回车
+        - \\uNNNN: Unicode 转义 (4位十六进制)
+        - \\UNNNNNNNN: Unicode 转义 (8位十六进制)
+        """
         start_line = self.line
         start_column = self.column
         quote = self.advance()  # ' 或 "
@@ -387,19 +405,123 @@ class Lexer:
             if self.current_char() == "\\":
                 self.advance()  # \
                 char = self.current_char()
-                if char == "n":
+
+                # 十六进制转义: \xNN (1-2个十六进制数字)
+                if char == "x":
+                    hex_value = ""
+                    for _ in range(2):  # 最多2个十六进制数字
+                        next_char = self.peek_char()
+                        if next_char and next_char in "0123456789abcdefABCDEF":
+                            hex_value += next_char
+                            self.advance()
+                        else:
+                            break
+
+                    if hex_value:
+                        try:
+                            byte_val = int(hex_value, 16)
+                            # 检查是否超出有效范围 (0x00-0xFF)
+                            if byte_val > 0xFF:
+                                # 截断到有效范围并警告
+                                byte_val = 0xFF
+                            value += chr(byte_val)
+                        except ValueError:
+                            value += "\\x" + hex_value
+                    else:
+                        value += "\\x"
+                    self.advance()
+
+                # 八进制转义: \NNN (1-3个八进制数字, 0-377)
+                elif char and char.isdigit():
+                    octal_value = ""
+                    for _ in range(3):  # 最多3个八进制数字
+                        if char and char in "01234567":
+                            octal_value += char
+                            self.advance()
+                            char = self.current_char()
+                        else:
+                            break
+
+                    if octal_value:
+                        try:
+                            byte_val = int(octal_value, 8)
+                            # 八进制最大值是 377 (十进制 255)
+                            if byte_val > 255:
+                                byte_val = 255
+                            value += chr(byte_val)
+                        except ValueError:
+                            value += "\\" + octal_value
+                    else:
+                        value += "\\"
+                        if char:
+                            value += char
+                            self.advance()
+
+                # ESC 转义序列开始字符 (ANSI 支持)
+                elif char == "e" or char == "E":
+                    value += "\x1b"  # ESC 字符
+                    self.advance()
+
+                elif char == "n":
                     value += "\n"
+                    self.advance()
                 elif char == "t":
                     value += "\t"
+                    self.advance()
                 elif char == "\\":
                     value += "\\"
+                    self.advance()
                 elif char == "0":
                     value += "\0"
+                    self.advance()
+                elif char == "a":
+                    value += "\a"
+                    self.advance()
+                elif char == "b":
+                    value += "\b"
+                    self.advance()
+                elif char == "f":
+                    value += "\f"
+                    self.advance()
+                elif char == "v":
+                    value += "\v"
+                    self.advance()
+                elif char == "r":
+                    value += "\r"
+                    self.advance()
                 elif char == quote:
                     value += quote
+                    self.advance()
+                elif char == "u" or char == "U":
+                    # Unicode 转义
+                    # \\uNNNN 或 \\UNNNNNNNN
+                    unicode_val = ""
+                    max_len = 4 if char == "u" else 8
+                    for _ in range(max_len):
+                        next_char = self.peek_char()
+                        if next_char and next_char in "0123456789abcdefABCDEF":
+                            unicode_val += next_char
+                            self.advance()
+                        else:
+                            break
+                    if unicode_val:
+                        try:
+                            code_point = int(unicode_val, 16)
+                            if code_point <= 0x10FFFF:
+                                value += chr(code_point)
+                            else:
+                                value += "\\" + char + unicode_val
+                        except ValueError:
+                            value += "\\" + char + unicode_val
+                    else:
+                        value += "\\" + char
+                    self.advance()
                 else:
-                    value += char
-                self.advance()
+                    # 未知转义序列，保留原样
+                    value += "\\"
+                    if char:
+                        value += char
+                        self.advance()
             else:
                 value += self.advance()
 

@@ -1,0 +1,13 @@
+# -*- coding: utf-8 -*-
+"""
+测试头文件保护
+"""
+
+#ifndef HEADER_GUARD_ZH
+#define HEADER_GUARD_ZH
+
+#define GUARD_VALUE 300
+
+整数型 guard_var = GUARD_VALUE;
+
+#endif
