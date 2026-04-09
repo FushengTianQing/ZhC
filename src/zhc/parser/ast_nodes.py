@@ -84,6 +84,12 @@ class ASTNodeType(Enum):
     FUNCTION_TYPE = auto()  # 函数类型
     STRUCT_TYPE = auto()  # 结构体类型
     AUTO_TYPE = auto()  # 自动类型（自动推导）
+    WIDE_CHAR_TYPE = auto()  # 宽字符类型
+    WIDE_STRING_TYPE = auto()  # 宽字符串类型
+
+    # 宽字符字面量
+    WIDE_CHAR_LITERAL = auto()  # 宽字符字面量
+    WIDE_STRING_LITERAL = auto()  # 宽字符串字面量
 
     # 错误恢复
     ERROR_NODE = auto()  # 错误节点（用于错误恢复）
@@ -1128,6 +1134,60 @@ class CharLiteralNode(ASTNode):
         return hashlib.md5(content.encode("utf-8")).hexdigest()
 
 
+class WideCharLiteralNode(ASTNode):
+    """宽字符字面量节点
+
+    语法：L'字符' 或 宽'字符'
+
+    例如：
+        L'中'  -> Unicode 码点 20013
+        宽'汉' -> Unicode 码点 27721
+    """
+
+    def __init__(
+        self, char_value: str, unicode_codepoint: int, line: int = 0, column: int = 0
+    ):
+        super().__init__(ASTNodeType.WIDE_CHAR_LITERAL, line, column)
+        self.char_value = char_value  # 字符内容
+        self.unicode_codepoint = unicode_codepoint  # Unicode 码点
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_wide_char_literal(self)
+
+    def get_hash(self) -> str:
+        content = f"{self.node_type.name}:codepoint:{self.unicode_codepoint}"
+        return hashlib.md5(content.encode("utf-8")).hexdigest()
+
+
+class WideStringLiteralNode(ASTNode):
+    """宽字符串字面量节点
+
+    语法：L"字符串" 或 宽"字符串"
+
+    例如：
+        L"你好" -> [20320, 22909]
+        宽"中文" -> [20013, 25991]
+    """
+
+    def __init__(
+        self,
+        string_value: str,
+        unicode_codepoints: List[int],
+        line: int = 0,
+        column: int = 0,
+    ):
+        super().__init__(ASTNodeType.WIDE_STRING_LITERAL, line, column)
+        self.string_value = string_value  # 字符串内容
+        self.unicode_codepoints = unicode_codepoints  # Unicode 码点列表
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_wide_string_literal(self)
+
+    def get_hash(self) -> str:
+        content = f"{self.node_type.name}:codepoints:{','.join(str(cp) for cp in self.unicode_codepoints)}"
+        return hashlib.md5(content.encode("utf-8")).hexdigest()
+
+
 class BoolLiteralNode(ASTNode):
     """布尔字面量节点"""
 
@@ -1364,6 +1424,44 @@ class AutoTypeNode(ASTNode):
         return hashlib.md5(content.encode("utf-8")).hexdigest()
 
 
+class WideCharTypeNode(ASTNode):
+    """宽字符类型节点
+
+    语法：宽字符型
+    对应 C 的 wchar_t 类型
+    """
+
+    def __init__(self, line: int = 0, column: int = 0):
+        super().__init__(ASTNodeType.WIDE_CHAR_TYPE, line, column)
+        self.type_name: str = "宽字符型"
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_wide_char_type(self)
+
+    def get_hash(self) -> str:
+        content = f"{self.node_type.name}:type:{self.type_name}"
+        return hashlib.md5(content.encode("utf-8")).hexdigest()
+
+
+class WideStringTypeNode(ASTNode):
+    """宽字符串类型节点
+
+    语法：宽字符串型
+    对应 C 的 wchar_t* 类型
+    """
+
+    def __init__(self, line: int = 0, column: int = 0):
+        super().__init__(ASTNodeType.WIDE_STRING_TYPE, line, column)
+        self.type_name: str = "宽字符串型"
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_wide_string_type(self)
+
+    def get_hash(self) -> str:
+        content = f"{self.node_type.name}:type:{self.type_name}"
+        return hashlib.md5(content.encode("utf-8")).hexdigest()
+
+
 # ============================================================================
 # AST访问者
 # ============================================================================
@@ -1477,6 +1575,14 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visit_wide_char_literal(self, node: "WideCharLiteralNode") -> Any:
+        pass
+
+    @abstractmethod
+    def visit_wide_string_literal(self, node: "WideStringLiteralNode") -> Any:
+        pass
+
+    @abstractmethod
     def visit_bool_literal(self, node: BoolLiteralNode) -> Any:
         pass
 
@@ -1506,6 +1612,14 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visit_auto_type(self, node: "AutoTypeNode") -> Any:
+        pass
+
+    @abstractmethod
+    def visit_wide_char_type(self, node: "WideCharTypeNode") -> Any:
+        pass
+
+    @abstractmethod
+    def visit_wide_string_type(self, node: "WideStringTypeNode") -> Any:
         pass
 
     @abstractmethod
@@ -1692,6 +1806,16 @@ class ASTPrinter(ASTVisitor):
     def visit_char_literal(self, node: CharLiteralNode) -> Any:
         self._print(f"CharLiteral: '{node.value}'")
 
+    def visit_wide_char_literal(self, node: "WideCharLiteralNode") -> Any:
+        self._print(
+            f"WideCharLiteral: L'{node.char_value}' (U+{node.unicode_codepoint:04X})"
+        )
+
+    def visit_wide_string_literal(self, node: "WideStringLiteralNode") -> Any:
+        self._print(
+            f'WideStringLiteral: L"{node.string_value}" (len={len(node.unicode_codepoints)})'
+        )
+
     def visit_bool_literal(self, node: BoolLiteralNode) -> Any:
         self._print(f"BoolLiteral: {node.value}")
 
@@ -1713,6 +1837,12 @@ class ASTPrinter(ASTVisitor):
     def visit_auto_type(self, node: "AutoTypeNode") -> Any:
         resolved = f" -> {node.resolved_type}" if node.resolved_type else ""
         self._print(f"AutoType{resolved}")
+
+    def visit_wide_char_type(self, node: "WideCharTypeNode") -> Any:
+        self._print(f"WideCharType: {node.type_name}")
+
+    def visit_wide_string_type(self, node: "WideStringTypeNode") -> Any:
+        self._print(f"WideStringType: {node.type_name}")
 
     def visit_do_while_stmt(self, node: "DoWhileStmtNode") -> Any:
         self._print("DoWhileStmt")

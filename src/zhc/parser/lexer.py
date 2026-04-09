@@ -95,6 +95,8 @@ class TokenType(Enum):
     FLOAT_LITERAL = auto()  # 浮点字面量
     STRING_LITERAL = auto()  # 字符串字面量
     CHAR_LITERAL = auto()  # 字符字面量
+    WIDE_CHAR_LITERAL = auto()  # 宽字符字面量
+    WIDE_STRING_LITERAL = auto()  # 宽字符串字面量
 
     # 运算符
     PLUS = auto()  # +
@@ -796,6 +798,167 @@ class Lexer:
             end_column=self.column,
         )
 
+    def read_wide_literal(self) -> Token:
+        """读取宽字符或宽字符串字面量
+
+        支持的语法:
+        - L'字符' - 宽字符常量
+        - L"字符串" - 宽字符串常量
+        - 宽'字符' - 宽字符常量（中文前缀）
+        - 宽"字符串" - 宽字符串常量（中文前缀）
+
+        宽字符/字符串返回 Unicode 码点列表作为值，
+        用于后续生成 LLVM 宽字符类型。
+        """
+        start_line = self.line
+        start_column = self.column
+
+        # 检查前缀
+        is_wide_prefix = False
+        if self.current_char() == "L":
+            self.advance()  # 消费 L
+            is_wide_prefix = True
+        elif self.current_char() == "宽":
+            self.advance()  # 消费 宽
+            is_wide_prefix = True
+
+        if not is_wide_prefix:
+            # 如果没有 L 或 宽 前缀，调用 read_string
+            return self.read_string()
+
+        # 读取引号
+        quote = self.current_char()
+        if quote not in ("'", '"', "『", "「"):
+            # 不是有效的字面量，调用 read_string
+            return self.read_string()
+
+        is_char = quote == "'"
+        close_quote = quote
+        if quote == "「":
+            close_quote = "」"
+        elif quote == "『":
+            close_quote = "』"
+
+        self.advance()  # 消费开引号
+
+        # 读取内容并转换为 Unicode 码点列表
+        codepoints = []
+        char_value = ""
+
+        while self.current_char() and self.current_char() != close_quote:
+            if self.current_char() == "\\":
+                self.advance()  # \
+                char = self.current_char()
+
+                if char == "n":
+                    codepoints.append(ord("\n"))
+                    char_value += "\\n"
+                    self.advance()
+                elif char == "t":
+                    codepoints.append(ord("\t"))
+                    char_value += "\\t"
+                    self.advance()
+                elif char == "\\":
+                    codepoints.append(ord("\\"))
+                    char_value += "\\\\"
+                    self.advance()
+                elif char == "0":
+                    codepoints.append(0)  # null 字符
+                    char_value += "\\0"
+                    self.advance()
+                elif char == "'":
+                    codepoints.append(ord("'"))
+                    char_value += "\\'"
+                    self.advance()
+                elif char == '"':
+                    codepoints.append(ord('"'))
+                    char_value += '\\"'
+                    self.advance()
+                elif char == "u" or char == "U":
+                    # Unicode 转义
+                    unicode_val = ""
+                    max_len = 4 if char == "u" else 8
+                    for _ in range(max_len):
+                        next_char = self.peek_char()
+                        if next_char and next_char in "0123456789abcdefABCDEF":
+                            unicode_val += next_char
+                            self.advance()
+                        else:
+                            break
+                    if unicode_val:
+                        try:
+                            code_point = int(unicode_val, 16)
+                            if code_point <= 0x10FFFF:
+                                codepoints.append(code_point)
+                                char_value += chr(code_point)
+                            else:
+                                char_value += "\\" + char + unicode_val
+                        except ValueError:
+                            char_value += "\\" + char + unicode_val
+                    self.advance()
+                else:
+                    char_value += "\\"
+                    if char:
+                        char_value += char
+                        self.advance()
+            else:
+                char = self.current_char()
+                codepoints.append(ord(char))
+                char_value += char
+                self.advance()
+
+        # 检查是否闭合
+        if not self.current_char():
+            if is_char:
+                error = unterminated_char(
+                    location=SourceLocation(line=start_line, column=start_column)
+                )
+                self.errors.append(error)
+                return Token(
+                    TokenType.WIDE_CHAR_LITERAL,
+                    char_value,
+                    start_line,
+                    start_column,
+                    end_line=self.line,
+                    end_column=self.column,
+                )
+            else:
+                error = unterminated_string(
+                    location=SourceLocation(line=start_line, column=start_column)
+                )
+                self.errors.append(error)
+                return Token(
+                    TokenType.WIDE_STRING_LITERAL,
+                    codepoints,
+                    start_line,
+                    start_column,
+                    end_line=self.line,
+                    end_column=self.column,
+                )
+
+        self.advance()  # 消费闭引号
+
+        if is_char:
+            # 宽字符：返回第一个码点
+            return Token(
+                TokenType.WIDE_CHAR_LITERAL,
+                codepoints[0] if codepoints else 0,
+                start_line,
+                start_column,
+                end_line=self.line,
+                end_column=self.column,
+            )
+        else:
+            # 宽字符串：返回码点列表
+            return Token(
+                TokenType.WIDE_STRING_LITERAL,
+                codepoints,
+                start_line,
+                start_column,
+                end_line=self.line,
+                end_column=self.column,
+            )
+
     def read_identifier(self) -> Token:
         """读取标识符"""
         start_line = self.line
@@ -959,6 +1122,16 @@ class Lexer:
                 and self.peek_char(2) == '"'
             ):
                 self.tokens.append(self.read_multiline_string())
+                continue
+
+            # 宽字符字面量 L'...' 或 L"..." 或 宽'...' 或 宽"..."
+            if self.current_char() == "L" and self.peek_char() in "\"'":
+                self.tokens.append(self.read_wide_literal())
+                continue
+
+            # 宽字符字面量（中文前缀 "宽"）
+            if self.current_char() == "宽" and self.peek_char() in "\"'「『":
+                self.tokens.append(self.read_wide_literal())
                 continue
 
             # 字符串（支持全角引号）

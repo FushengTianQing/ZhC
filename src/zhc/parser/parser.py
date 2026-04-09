@@ -1647,6 +1647,23 @@ class Parser(GenericParserMixin):
             self.advance()
             return StringLiteralNode(token.value, token.line, token.column)
 
+        # 宽字符字面量
+        if self.match(TokenType.WIDE_CHAR_LITERAL):
+            self.advance()
+            return WideCharLiteralNode(
+                chr(token.value), token.value, token.line, token.column
+            )
+
+        # 宽字符串字面量
+        if self.match(TokenType.WIDE_STRING_LITERAL):
+            self.advance()
+            return WideStringLiteralNode(
+                "".join(chr(cp) for cp in token.value),
+                token.value,
+                token.line,
+                token.column,
+            )
+
         # 布尔字面量
         if self.match(TokenType.TRUE, TokenType.FALSE):
             self.advance()

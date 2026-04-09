@@ -70,6 +70,9 @@ class TypeMapper:
         # 浮点类型
         "浮点型": "float",
         "双精度浮点型": "double",
+        # 宽字符类型
+        "宽字符型": "wchar_t",
+        "宽字符串型": "wchar_t*",
         # 其他类型
         "布尔型": "int",  # C 没有 bool，用 int
         "空类型": "void",
@@ -143,6 +146,9 @@ class TypeMapper:
                 "双精度浮点型": ll.DoubleType(),
                 "布尔型": ll.IntType(1),
                 "空类型": ll.VoidType(),
+                # 宽字符类型（Linux/macOS 使用 UTF-32）
+                "宽字符型": ll.IntType(32),
+                "宽字符串型": ll.PointerType(ll.IntType(32)),
                 "i8": ll.IntType(8),
                 "i16": ll.IntType(16),
                 "i32": ll.IntType(32),
