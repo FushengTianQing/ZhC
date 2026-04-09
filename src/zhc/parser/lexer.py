@@ -178,15 +178,57 @@ class TokenType(Enum):
 
 @dataclass
 class Token:
-    """Token类"""
+    """Token类 - 增强位置信息
+
+    Attributes:
+        type: Token 类型
+        value: Token 值
+        line: 行号（从1开始）
+        column: 列号（从1开始）
+        end_line: 结束行号（多行 Token 如字符串）
+        end_column: 结束列号
+    """
 
     type: TokenType
     value: str
     line: int
     column: int
+    end_line: Optional[int] = None
+    end_column: Optional[int] = None
+
+    def __post_init__(self):
+        """初始化后处理：自动计算 end_column"""
+        if self.end_column is None:
+            # 默认 end_column = column + len(value)
+            self.end_column = self.column + len(str(self.value))
+        if self.end_line is None:
+            self.end_line = self.line
 
     def __repr__(self):
-        return f"Token({self.type.name}, '{self.value}', {self.line}:{self.column})"
+        if self.end_line != self.line:
+            return f"Token({self.type.name}, '{self.value}', {self.line}:{self.column}-{self.end_line}:{self.end_column})"
+        return f"Token({self.type.name}, '{self.value}', {self.line}:{self.column}-{self.end_column})"
+
+    def is_multiline(self) -> bool:
+        """判断是否为多行 Token"""
+        return self.end_line is not None and self.end_line != self.line
+
+    def get_length(self) -> int:
+        """获取 Token 长度（单行时）"""
+        if self.is_multiline():
+            return -1
+        return (self.end_column or self.column) - self.column
+
+    def to_source_location(self, file_path: str = "") -> "SourceLocation":
+        """转换为 SourceLocation 对象"""
+        return SourceLocation(
+            file_path=file_path,
+            line=self.line,
+            column=self.column,
+            end_line=self.end_line,
+            end_column=self.end_column,
+            token_text=str(self.value),
+        )
 
 
 class Lexer:
@@ -590,20 +632,48 @@ class Lexer:
                     location=SourceLocation(line=start_line, column=start_column)
                 )
                 self.errors.append(error)
-                return Token(TokenType.CHAR_LITERAL, value, start_line, start_column)
+                return Token(
+                    TokenType.CHAR_LITERAL,
+                    value,
+                    start_line,
+                    start_column,
+                    end_line=self.line,
+                    end_column=self.column,
+                )
             else:
                 error = unterminated_string(
                     location=SourceLocation(line=start_line, column=start_column)
                 )
                 self.errors.append(error)
-                return Token(TokenType.STRING_LITERAL, value, start_line, start_column)
+                return Token(
+                    TokenType.STRING_LITERAL,
+                    value,
+                    start_line,
+                    start_column,
+                    end_line=self.line,
+                    end_column=self.column,
+                )
 
         self.advance()  # 闭合引号
 
         if is_char:
-            return Token(TokenType.CHAR_LITERAL, value, start_line, start_column)
+            return Token(
+                TokenType.CHAR_LITERAL,
+                value,
+                start_line,
+                start_column,
+                end_line=self.line,
+                end_column=self.column,
+            )
         else:
-            return Token(TokenType.STRING_LITERAL, value, start_line, start_column)
+            return Token(
+                TokenType.STRING_LITERAL,
+                value,
+                start_line,
+                start_column,
+                end_line=self.line,
+                end_column=self.column,
+            )
 
     def read_multiline_string(self) -> Token:
         """读取多行字符串字面量
@@ -637,7 +707,14 @@ class Lexer:
                 self.advance()  # 第一个 "
                 self.advance()  # 第二个 "
                 self.advance()  # 第三个 "
-                return Token(TokenType.STRING_LITERAL, value, start_line, start_column)
+                return Token(
+                    TokenType.STRING_LITERAL,
+                    value,
+                    start_line,
+                    start_column,
+                    end_line=self.line,
+                    end_column=self.column,
+                )
 
             # 处理换行
             if self.current_char() == "\n":
@@ -710,7 +787,14 @@ class Lexer:
             location=SourceLocation(line=start_line, column=start_column)
         )
         self.errors.append(error)
-        return Token(TokenType.STRING_LITERAL, value, start_line, start_column)
+        return Token(
+            TokenType.STRING_LITERAL,
+            value,
+            start_line,
+            start_column,
+            end_line=self.line,
+            end_column=self.column,
+        )
 
     def read_identifier(self) -> Token:
         """读取标识符"""

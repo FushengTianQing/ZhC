@@ -92,12 +92,22 @@ class ASTNode(ABC):
     - parent: 父节点引用，用于路径追溯
     - get_children(): 获取子节点列表，用于统一遍历
     - get_hash(): 计算节点内容哈希，用于增量比较
+    - end_line, end_column: 结束位置，用于精确错误定位
     """
 
-    def __init__(self, node_type: ASTNodeType, line: int = 0, column: int = 0):
+    def __init__(
+        self,
+        node_type: ASTNodeType,
+        line: int = 0,
+        column: int = 0,
+        end_line: Optional[int] = None,
+        end_column: Optional[int] = None,
+    ):
         self.node_type = node_type
         self.line = line
         self.column = column
+        self.end_line = end_line  # 结束行号（可选，用于多行错误）
+        self.end_column = end_column  # 结束列号（可选，用于多列错误）
         self.node_id: str = uuid.uuid4().hex[:8]  # 节点唯一标识
         self.parent: Optional["ASTNode"] = None  # 父节点引用
         self.attributes: Dict[str, Any] = {}
@@ -170,6 +180,10 @@ class ASTNode(ABC):
             "line": self.line,
             "column": self.column,
         }
+        if self.end_line is not None:
+            result["end_line"] = self.end_line
+        if self.end_column is not None:
+            result["end_column"] = self.end_column
         if self.inferred_type is not None:
             result["inferred_type"] = self.inferred_type
         if self.attributes:
@@ -179,7 +193,21 @@ class ASTNode(ABC):
             result["children"] = [child.to_dict() for child in children]
         return result
 
+    def get_location_range(self) -> tuple[int, int, Optional[int], Optional[int]]:
+        """获取位置范围
+
+        Returns:
+            (line, column, end_line, end_column) 元组
+        """
+        return (self.line, self.column, self.end_line, self.end_column)
+
+    def is_multiline(self) -> bool:
+        """判断是否为多行节点"""
+        return self.end_line is not None and self.end_line != self.line
+
     def __repr__(self):
+        if self.end_line is not None and self.end_column is not None:
+            return f"{self.node_type.name}(line={self.line}:{self.column}-{self.end_line}:{self.end_column})"
         return f"{self.node_type.name}(line={self.line}, col={self.column})"
 
 

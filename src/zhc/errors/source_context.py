@@ -103,6 +103,90 @@ class LineInfo:
     content: str
 
 
+@dataclass
+class MultilineSourceContext:
+    """多行源码上下文
+
+    用于显示跨越多行的错误范围（如未闭合的括号、多行字符串等）
+    """
+
+    file_path: str
+    start_line: int
+    start_column: int
+    end_line: int
+    end_column: int
+    lines: list = None
+
+    def __post_init__(self):
+        if self.lines is None:
+            self.lines = []
+
+    def get_formatted_context(self) -> str:
+        """
+        获取格式化的多行上下文
+
+        Returns:
+            格式化后的多行上下文字符串（类似 Rust/Clang 风格）
+
+        Example:
+            = help: Some help message
+              |
+            10 |     整数型 x = (
+            11 |         1 + 2;
+            12 |     )  // 错误：括号未闭合
+              |     ^ 多行错误范围
+        """
+        if not self.lines:
+            return ""
+
+        lines = []
+        line_num_width = len(str(self.end_line))
+
+        for line_info in self.lines:
+            line_num = line_info.line_num
+            content = line_info.content
+
+            # 判断是否为高亮行
+            is_start = line_num == self.start_line
+            is_end = line_num == self.end_line
+            is_between = self.start_line < line_num < self.end_line
+
+            # 构建行号和内容
+            prefix = f"{line_num:>{line_num_width}} | "
+
+            if is_start and is_end:
+                # 单行内的范围
+                indicator = " " * len(prefix)
+                indicator += " " * (self.start_column - 1)
+                indicator += "^" * max(1, self.end_column - self.start_column)
+                lines.append(f"{prefix}{content}")
+                lines.append(indicator)
+            elif is_start:
+                # 范围的开始行
+                indicator = " " * len(prefix)
+                indicator += " " * (self.start_column - 1)
+                indicator += "^" * (len(content) - self.start_column + 1)
+                lines.append(f"{prefix}{content}")
+                lines.append(indicator)
+            elif is_end:
+                # 范围的结束行
+                indicator = " " * len(prefix)
+                indicator += "^" * self.end_column
+                lines.append(f"{prefix}{content}")
+                lines.append(indicator)
+            elif is_between:
+                # 范围中间的整行
+                indicator = " " * len(prefix)
+                indicator += "|" * len(content)
+                lines.append(f"{prefix}{content}")
+                lines.append(indicator)
+            else:
+                # 普通上下文行
+                lines.append(f"{prefix}{content}")
+
+        return "\n".join(lines)
+
+
 class SourceContextExtractor:
     """
     源码上下文提取器
@@ -237,6 +321,55 @@ class SourceContextExtractor:
             highlight_end=highlight_end,
         )
 
+    def get_multiline_context(
+        self, location: SourceLocation, context_lines: int = 2
+    ) -> "MultilineSourceContext":
+        """
+        获取多行错误上下文
+
+        用于显示跨越多行的错误范围（如未闭合的括号、多行字符串等）
+
+        Args:
+            location: 错误位置（包含 end_line）
+            context_lines: 上下文行数
+
+        Returns:
+            多行源码上下文对象
+        """
+        file_path = location.file_path or ""
+
+        if file_path not in self.sources:
+            return MultilineSourceContext(
+                file_path=file_path,
+                start_line=location.line,
+                start_column=location.column,
+                end_line=location.end_line or location.line,
+                end_column=location.end_column or location.column,
+                lines=[],
+            )
+
+        lines = self._get_lines(file_path)
+        total_lines = len(lines)
+
+        # 确定显示范围
+        start = max(1, location.line - context_lines)
+        end = min(total_lines, (location.end_line or location.line) + context_lines)
+
+        # 收集所有行
+        context_lines_list = []
+        for i in range(start, end + 1):
+            if 1 <= i <= total_lines:
+                context_lines_list.append(LineInfo(i, lines[i - 1]))
+
+        return MultilineSourceContext(
+            file_path=file_path,
+            start_line=location.line,
+            start_column=location.column,
+            end_line=location.end_line or location.line,
+            end_column=location.end_column or location.column,
+            lines=context_lines_list,
+        )
+
     def highlight_range(self, line: str, start_col: int, end_col: int) -> str:
         """
         高亮指定范围
@@ -314,5 +447,6 @@ class SourceContextExtractor:
 __all__ = [
     "SourceContext",
     "LineInfo",
+    "MultilineSourceContext",
     "SourceContextExtractor",
 ]

@@ -115,6 +115,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="禁用 IR 优化（仅 --backend ir/llvm 时有效）",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
+    parser.add_argument(
+        "--explain",
+        metavar="CODE",
+        help="显示错误代码的详细解释（如 --explain E001）",
+    )
     parser.add_argument("--version", action="version", version="%(prog)s 3.0.0")
 
     return parser

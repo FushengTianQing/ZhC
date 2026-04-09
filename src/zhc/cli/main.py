@@ -905,6 +905,31 @@ class DownloadCommand(CommandHandler):
             return 1
 
 
+class ExplainCommand(CommandHandler):
+    """explain 命令处理器 - 显示错误代码的详细说明"""
+
+    def execute(self, args: argparse.Namespace, cli: "CommandLineInterface") -> int:
+        from zhc.errors import ErrorExplainer, ErrorCodeRegistry
+
+        error_code = args.error_code
+        explainer = ErrorExplainer()
+        explanation = explainer.explain_code(error_code)
+
+        if explanation is None:
+            print(f"❌ 错误: 未知的错误代码 '{error_code}'")
+            print(f"\n📋 可用的错误代码:")
+            for code in sorted(explainer.get_all_error_codes()):
+                defn = ErrorCodeRegistry.get(code)
+                if defn:
+                    print(f"  {code}: {defn.brief_message}")
+            return 1
+
+        # 格式化并输出解释
+        formatted = explainer.format_explanation(explanation, style="detailed")
+        print(formatted)
+        return 0
+
+
 class CommandLineInterface:
     """统一的命令行接口 - 使用命令模式"""
 

@@ -4,12 +4,17 @@
 提供多种格式的错误输出，支持现代编译器风格的错误展示。
 
 创建日期: 2026-04-09
-最后更新: 2026-04-09
+最后更新: 2026-04-10
 """
 
-from typing import Optional
+from typing import Optional, List
 from .base import ZHCError, ErrorCollection
-from .source_context import SourceContextExtractor, SourceContext
+from .source_context import (
+    SourceContextExtractor,
+    SourceContext,
+    MultilineSourceContext,
+)
+from .suggestions import SuggestionGenerator
 
 
 class ErrorFormatter:
@@ -47,6 +52,7 @@ class ErrorFormatter:
         color_output: bool = True,
         context_lines: int = 2,
         show_suggestions: bool = True,
+        suggestion_generator: Optional[SuggestionGenerator] = None,
     ):
         """
         初始化错误格式化器
@@ -55,10 +61,12 @@ class ErrorFormatter:
             color_output: 是否启用彩色输出
             context_lines: 上下文行数
             show_suggestions: 是否显示修复建议
+            suggestion_generator: 智能提示生成器（可选）
         """
         self.color_output = color_output
         self.context_lines = context_lines
         self.show_suggestions = show_suggestions
+        self.suggestion_generator = suggestion_generator or SuggestionGenerator()
 
     def format_error(
         self, error: ZHCError, context: Optional[SourceContext] = None
@@ -94,12 +102,185 @@ class ErrorFormatter:
         if error.context:
             lines.append(f"   = 上下文: {error.context}")
 
-        # 修复建议
-        if self.show_suggestions and error.suggestion:
+        # 智能提示
+        if self.show_suggestions:
+            suggestion_lines = self._format_smart_suggestions(error)
+            lines.extend(suggestion_lines)
+
+        # 原有修复建议
+        if error.suggestion:
             suggestion = self._colorize("建议", "cyan")
             lines.append(f"   = {suggestion}: {error.suggestion}")
 
+        # 帮助信息
+        if error.error_code:
+            help_text = self._colorize("帮助", "blue")
+            lines.append(
+                f"   = {help_text}: 使用 'zhc --explain {error.error_code}' 查看详细说明"
+            )
+
         return "\n".join(lines)
+
+    def format_multiline_error(
+        self,
+        error: ZHCError,
+        multiline_context: Optional[MultilineSourceContext] = None,
+    ) -> str:
+        """
+        格式化多行错误
+
+        用于显示跨越多行的错误范围（如未闭合的括号、多行字符串等）
+
+        Args:
+            error: 错误对象
+            multiline_context: 多行源码上下文（可选）
+
+        Returns:
+            格式化后的错误字符串
+        """
+        lines = []
+
+        # 错误头部
+        header = self._format_header(error)
+        lines.append(header)
+
+        # 位置信息
+        if error.location:
+            location_line = self._format_multiline_location(error.location)
+            lines.append(f"   --> {location_line}")
+
+        # 多行源码上下文
+        if multiline_context:
+            context_str = self._format_multiline_context(multiline_context)
+            if context_str:
+                lines.append(context_str)
+
+        # 错误详情
+        if error.context:
+            lines.append(f"   = 上下文: {error.context}")
+
+        # 智能提示
+        if self.show_suggestions:
+            suggestion_lines = self._format_smart_suggestions(error)
+            lines.extend(suggestion_lines)
+
+        # 原有修复建议
+        if error.suggestion:
+            suggestion = self._colorize("建议", "cyan")
+            lines.append(f"   = {suggestion}: {error.suggestion}")
+
+        # 帮助信息
+        if error.error_code:
+            help_text = self._colorize("帮助", "blue")
+            lines.append(
+                f"   = {help_text}: 使用 'zhc --explain {error.error_code}' 查看详细说明"
+            )
+
+        return "\n".join(lines)
+
+    def _format_multiline_location(self, location) -> str:
+        """格式化多行位置信息"""
+        if location.file_path:
+            if location.end_line and location.end_line != location.line:
+                return f"{location.file_path}:{location.line}:{location.column}-{location.end_line}:{location.end_column}"
+            return f"{location.file_path}:{location.line}:{location.column}"
+        if location.end_line and location.end_line != location.line:
+            return f"行 {location.line}:{location.column}-{location.end_line}:{location.end_column}"
+        return f"行 {location.line}, 列 {location.column}"
+
+    def _format_multiline_context(self, context: MultilineSourceContext) -> str:
+        """格式化多行源码上下文"""
+        lines = []
+
+        # 分隔线
+        lines.append("   |")
+
+        # 多行上下文
+        for line_info in context.lines:
+            line_num = line_info.line_num
+            content = line_info.content
+
+            # 判断是否为高亮行
+            is_start = line_num == context.start_line
+            is_end = line_num == context.end_line
+            is_between = context.start_line < line_num < context.end_line
+
+            # 构建行号和内容
+            prefix = f"{line_num:3} | "
+
+            if is_start and is_end:
+                # 单行内的范围
+                indicator = " " * len(prefix)
+                indicator += " " * (context.start_column - 1)
+                indicator += "^" * max(1, context.end_column - context.start_column)
+                lines.append(f"{prefix}{content}")
+                lines.append(indicator)
+            elif is_start:
+                # 范围的开始行
+                indicator = " " * len(prefix)
+                indicator += " " * (context.start_column - 1)
+                indicator += "^" * (len(content) - context.start_column + 1)
+                lines.append(f"{prefix}{content}")
+                lines.append(indicator)
+            elif is_end:
+                # 范围的结束行
+                indicator = " " * len(prefix)
+                indicator += "^" * context.end_column
+                lines.append(f"{prefix}{content}")
+                lines.append(indicator)
+            elif is_between:
+                # 范围中间的整行
+                indicator = " " * len(prefix)
+                indicator += "|" * len(content)
+                lines.append(f"{prefix}{content}")
+                lines.append(indicator)
+            else:
+                # 普通上下文行
+                lines.append(f"{prefix}{content}")
+
+        lines.append("   |")
+
+        return "\n".join(lines)
+
+    def _format_smart_suggestions(self, error: ZHCError) -> List[str]:
+        """
+        格式化智能提示
+
+        Args:
+            error: 错误对象
+
+        Returns:
+            格式化后的提示行列表
+        """
+        if not self.suggestion_generator:
+            return []
+
+        result = self.suggestion_generator.generate_suggestions(error)
+        lines = []
+
+        # 添加期望/实际类型对比
+        if result.suggestions:
+            for suggestion in result.suggestions[:3]:  # 最多显示3个建议
+                if suggestion.kind == "fix":
+                    hint = self._colorize("提示", "green")
+                    lines.append(f"   = {hint}: {suggestion.message}")
+                    if suggestion.replacement:
+                        lines.append(f"   |   建议替换为: {suggestion.replacement}")
+                elif suggestion.kind == "hint":
+                    hint = self._colorize("信息", "cyan")
+                    lines.append(f"   = {hint}: {suggestion.message}")
+
+        # 添加相似符号提示
+        if result.similar_symbols:
+            similar = self._colorize("相似符号", "yellow")
+            lines.append(f"   = {similar}: {', '.join(result.similar_symbols[:3])}")
+
+        # 添加文档链接
+        if result.documentation_links:
+            doc = self._colorize("文档", "blue")
+            lines.append(f"   = {doc}: {result.documentation_links[0]}")
+
+        return lines
 
     def format_error_collection(
         self,

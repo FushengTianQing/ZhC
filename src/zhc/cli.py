@@ -680,6 +680,34 @@ class ZHCCompiler:
 # ------------------------------------------------------------------
 
 
+def handle_explain(error_code: str) -> int:
+    """
+    处理 --explain 命令
+
+    Args:
+        error_code: 错误代码（如 E001）
+
+    Returns:
+        退出码
+    """
+    from zhc.errors import ErrorExplainer
+
+    explainer = ErrorExplainer()
+    explanation = explainer.explain_code(error_code)
+
+    if explanation is None:
+        print(f"错误: 未知的错误代码 '{error_code}'")
+        print(f"\n可用的错误代码:")
+        for code in sorted(explainer.get_all_error_codes()):
+            print(f"  {code}")
+        return 1
+
+    # 格式化并输出解释
+    formatted = explainer.format_explanation(explanation, style="detailed")
+    print(formatted)
+    return 0
+
+
 def main() -> int:
     """命令行入口函数
 
@@ -688,6 +716,10 @@ def main() -> int:
     """
     parser = build_arg_parser()
     args = parser.parse_args()
+
+    # 处理 --explain 命令
+    if args.explain:
+        return handle_explain(args.explain)
 
     # 从参数构建配置
     config = CompilerConfig.from_args(args)

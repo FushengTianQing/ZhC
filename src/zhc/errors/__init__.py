@@ -54,6 +54,7 @@ from .base import (
 from .source_context import (
     SourceContext,
     LineInfo,
+    MultilineSourceContext,
     SourceContextExtractor,
 )
 
@@ -249,6 +250,12 @@ from .suggestions import (
     ErrorEnhancer,
 )
 
+# 导入错误解释器
+from .error_explainer import (
+    Explanation,
+    ErrorExplainer,
+)
+
 
 # ============================================================================
 # 版本信息
@@ -270,6 +277,7 @@ __all__ = [
     # 源码上下文
     "SourceContext",
     "LineInfo",
+    "MultilineSourceContext",
     "SourceContextExtractor",
     # 错误格式化
     "ErrorFormatter",
@@ -434,4 +442,7 @@ __all__ = [
     "SuggestionResult",
     "SuggestionGenerator",
     "ErrorEnhancer",
+    # 错误解释器
+    "Explanation",
+    "ErrorExplainer",
 ]

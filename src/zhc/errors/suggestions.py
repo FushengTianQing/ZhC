@@ -205,20 +205,32 @@ class SuggestionGenerator:
         """
         result = SuggestionResult(error=error)
         error_code = error.error_code or ""
+        message = error.message
 
         # 根据错误代码生成建议
-        if "UNDEFINED" in error_code:
+        if "UNDEFINED" in error_code or error_code == "E002":
             self._generate_undefined_suggestions(error, result)
-        elif "TYPE_MISMATCH" in error_code or "INCOMPATIBLE" in error_code:
+        elif (
+            "TYPE_MISMATCH" in error_code
+            or "INCOMPATIBLE" in error_code
+            or error_code == "E001"
+        ):
             self._generate_type_mismatch_suggestions(error, result)
-        elif "DUPLICATE" in error_code:
+        elif "DUPLICATE" in error_code or error_code == "E003" or error_code == "S004":
             self._generate_duplicate_suggestions(error, result)
-        elif "MISSING" in error_code:
+        elif "MISSING" in error_code or error_code == "P001" or error_code == "S005":
             self._generate_missing_suggestions(error, result)
-        elif "INVALID" in error_code:
+        elif "INVALID" in error_code or error_code == "E004" or error_code == "P002":
             self._generate_invalid_suggestions(error, result)
-        elif "OUT_OF_SCOPE" in error_code:
+        elif "OUT_OF_SCOPE" in error_code or "SCOPE" in error_code:
             self._generate_scope_suggestions(error, result)
+
+        # 检查消息内容中的关键词
+        if not result.has_suggestions():
+            if "未定义" in message:
+                self._generate_undefined_suggestions(error, result)
+            elif "类型" in message and ("不匹配" in message or "错误" in message):
+                self._generate_type_mismatch_suggestions(error, result)
 
         # 添加文档链接
         result.documentation_links = self._get_documentation_links(error)
