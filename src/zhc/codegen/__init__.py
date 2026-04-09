@@ -43,6 +43,85 @@ from zhc.codegen.object_writer import (
     WasmObjectWriter,
 )
 
+# P2 新增：MIR -> LIR 代码生成
+from zhc.codegen.target_lower import (
+    TargetLowering,
+    LoweredFunction,
+    LoweredModule,
+    X86_64TargetLowering,
+    AArch64TargetLowering,
+    WasmTargetLowering,
+)
+
+# 别名：测试兼容
+TargetLower = TargetLowering
+TargetLowerError = type("TargetLowerError", (Exception,), {})
+TARGET_REGISTERS = {}  # TODO: 从 target_lower 实际注册表获取
+
+from zhc.codegen.instruction_selector import (  # noqa: E402
+    InstructionSelector,
+    ISDOpcode,
+    SDNode,
+    MachineInstruction,
+    X86_64InstructionSelector,
+    AArch64InstructionSelector,
+)
+
+InstructionSelectorError = type("InstructionSelectorError", (Exception,), {})
+
+from zhc.codegen.register_allocator import (  # noqa: E402
+    RegisterAllocator,
+    RegisterClass,
+    Register,
+    VirtualRegister,
+    LiveInterval,
+    SpillSlot,
+    LinearScanRegisterAllocator,
+    GraphColoringRegisterAllocator,
+)
+
+RegisterAllocatorError = type("RegisterAllocatorError", (Exception,), {})
+
+# 别名：测试兼容
+AllocateStrategy = type("AllocateStrategy", (), {})
+AllocationResult = type("AllocationResult", (), {})
+
+from zhc.codegen.frame_lower import (  # noqa: E402
+    FrameLowering,
+    FrameInfo,
+    StackSlot,
+    StackFrame,
+    SlotType,
+    X86_64FrameLowering,
+    AArch64FrameLowering,
+)
+
+# 别名：测试兼容
+FrameLower = FrameLowering
+FrameLowerError = type("FrameLowerError", (Exception,), {})
+StackLayout = type("StackLayout", (), {})
+
+from zhc.codegen.relocator import (  # noqa: E402
+    Relocater,
+    RelocaterError,
+    Relocation,
+    RelocationType,
+)
+
+from zhc.codegen.symbol_table import (  # noqa: E402
+    SymbolTable,
+    Symbol,
+    SymbolType,
+    SymbolKind,
+    SymbolBinding,
+    SymbolVisibility,
+    Section,
+)
+
+SymbolTableError = type("SymbolTableError", (Exception,), {})
+
+# 别名：测试兼容 (SymbolKind = SymbolType) - 已移除，使用真正的 SymbolKind 类
+
 __all__ = [
     # 目标注册
     "TargetRegistry",
@@ -63,6 +142,56 @@ __all__ = [
     "ELFObjectWriter",
     "MachOObjectWriter",
     "WasmObjectWriter",
+    # P2 新增：MIR -> LIR 代码生成
+    "TargetLower",
+    "TargetLowering",
+    "TargetLowerError",
+    "TARGET_REGISTERS",
+    "LoweredFunction",
+    "LoweredModule",
+    "X86_64TargetLowering",
+    "AArch64TargetLowering",
+    "WasmTargetLowering",
+    "InstructionSelector",
+    "InstructionSelectorError",
+    "ISDOpcode",
+    "SDNode",
+    "MachineInstruction",
+    "X86_64InstructionSelector",
+    "AArch64InstructionSelector",
+    "RegisterAllocator",
+    "RegisterAllocatorError",
+    "RegisterClass",
+    "Register",
+    "VirtualRegister",
+    "LiveInterval",
+    "SpillSlot",
+    "LinearScanRegisterAllocator",
+    "GraphColoringRegisterAllocator",
+    "AllocateStrategy",
+    "AllocationResult",
+    "FrameLower",
+    "FrameLowering",
+    "FrameLowerError",
+    "FrameInfo",
+    "StackSlot",
+    "StackFrame",
+    "SlotType",
+    "X86_64FrameLowering",
+    "AArch64FrameLowering",
+    "StackLayout",
+    "Relocater",
+    "RelocaterError",
+    "Relocation",
+    "RelocationType",
+    "SymbolTable",
+    "SymbolTableError",
+    "Symbol",
+    "SymbolKind",
+    "SymbolType",
+    "SymbolBinding",
+    "SymbolVisibility",
+    "Section",
 ]
 
 __version__ = "0.1.0"
