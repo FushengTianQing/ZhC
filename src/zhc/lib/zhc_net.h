@@ -4,12 +4,13 @@
  * 提供 Socket 编程和 HTTP 客户端功能：
  * - TCP Socket 客户端/服务器
  * - UDP Socket
- * - HTTP GET/POST 客户端
+ * - HTTP GET/POST 客户端（支持 HTTP/HTTPS）
  * - URL 解析
  * - DNS 解析
  *
- * 版本: 1.0
+ * 版本: 2.0
  * 依赖: <sys/socket.h>, <netinet/in.h>, <arpa/inet.h>, <netdb.h>, <unistd.h>
+ * HTTPS 支持: libcurl (可选，自动检测)
  */
 
 #ifndef ZHC_NET_H
@@ -17,6 +18,20 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+
+/* 自动检测 libcurl 支持 HTTPS */
+#ifdef ZHC_USE_LIBCURL
+#include <curl/curl.h>
+#define ZHC_HAVE_LIBCURL 1
+#else
+/* 尝试包含 libcurl，如果失败则禁用 */
+#if defined(__APPLE__) || defined(__linux__) || defined(_WIN32)
+#include <curl/curl.h>
+#define ZHC_HAVE_LIBCURL 1
+#else
+#define ZHC_HAVE_LIBCURL 0
+#endif
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -241,16 +256,16 @@ int zhc_udp_recvfrom(int sock, char* buffer, size_t size,
 int zhc_udp_close(int sock);
 
 /* ================================================================
- * HTTP 函数
+ * HTTP 函数 (支持 HTTP/HTTPS)
  * ================================================================ */
 
 /**
  * zhc_http_get - HTTP GET 请求
  *
- * 注意: 仅支持 HTTP，不支持 HTTPS
+ * 支持 HTTP 和 HTTPS 协议
  *
  * 参数:
- *   url - 请求 URL
+ *   url - 请求 URL (http:// 或 https:// 开头)
  *
  * 返回: HTTP 响应结构（使用后需调用 zhc_http_response_free 释放）
  *       NULL 表示失败
@@ -260,11 +275,11 @@ zhc_http_response_t* zhc_http_get(const char* url);
 /**
  * zhc_http_post - HTTP POST 请求
  *
- * 注意: 仅支持 HTTP，不支持 HTTPS
+ * 支持 HTTP 和 HTTPS 协议
  *
  * 参数:
- *   url          - 请求 URL
- *   data         - POST 数据
+ *   url - 请求 URL
+ *   data - POST 数据
  *   content_type - 内容类型（如 "application/json"）
  *
  * 返回: HTTP 响应结构（使用后需调用 zhc_http_response_free 释放）
@@ -587,6 +602,255 @@ int zhc_url_parse(const char* url, zhc_url_t* result) {
     return 0;
 }
 
+/* ================================================================
+ * libcurl HTTP 实现 (支持 HTTPS)
+ * ================================================================ */
+
+#if ZHC_HAVE_LIBCURL
+
+/* libcurl 回调函数 */
+static size_t zhc_curl_write_callback(void* contents, size_t size, size_t nmemb, void* userp) {
+    size_t realsize = size * nmemb;
+    char** dest = (char**)userp;
+    size_t current_len = *dest ? strlen(*dest) : 0;
+    char* new_data = realloc(*dest, current_len + realsize + 1);
+    if (!new_data) return 0;
+    *dest = new_data;
+    memcpy(*dest + current_len, contents, realsize);
+    (*dest)[current_len + realsize] = '\0';
+    return realsize;
+}
+
+/**
+ * 使用 libcurl 的 HTTP GET 实现
+ * 支持 HTTP 和 HTTPS
+ */
+zhc_http_response_t* zhc_http_get(const char* url) {
+    CURL* curl = curl_easy_init();
+    if (!curl) return NULL;
+
+    /* 分配响应结构 */
+    zhc_http_response_t* resp = calloc(1, sizeof(zhc_http_response_t));
+    if (!resp) {
+        curl_easy_cleanup(curl);
+        return NULL;
+    }
+
+    /* 分配 body 缓冲区 */
+    char* body_data = calloc(1, 1);
+    if (!body_data) {
+        free(resp);
+        curl_easy_cleanup(curl);
+        return NULL;
+    }
+
+    /* header 缓冲区（暂不使用，留作扩展） */
+    char* header_data = NULL;
+
+    /* 设置 URL */
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+
+    /* 设置 SSL 选项 */
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+
+    /* 设置超时 */
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+
+    /* 设置 User-Agent */
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "ZHC-NET/2.0");
+
+    /* 不使用自定义 header */
+    struct curl_slist* headers = NULL;
+    headers = curl_slist_append(headers, "Connection: close");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+    /* 只收集 body */
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, zhc_curl_write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, body_data);
+
+    /* 执行请求 */
+    CURLcode res = curl_easy_perform(curl);
+
+    if (res != CURLE_OK) {
+        free(resp);
+        if (header_data) free(header_data);
+        free(body_data);
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+        return NULL;
+    }
+
+    /* 获取响应信息 */
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    resp->status_code = (int)http_code;
+
+    /* 获取 Content-Type */
+    char* content_type = NULL;
+    curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &content_type);
+    if (content_type) {
+        resp->content_type = strdup(content_type);
+    }
+
+    /* 获取 Content-Length */
+    double content_length = 0;
+    curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &content_length);
+    resp->content_length = (int)content_length;
+
+    /* 设置响应数据 */
+    resp->headers = header_data;
+    resp->content = body_data;
+    if (resp->content_length <= 0) {
+        resp->content_length = (int)strlen(body_data);
+    }
+
+    /* 生成状态文本 */
+    if (http_code == 200) resp->status_text = strdup("OK");
+    else if (http_code == 201) resp->status_text = strdup("Created");
+    else if (http_code == 204) resp->status_text = strdup("No Content");
+    else if (http_code == 301) resp->status_text = strdup("Moved Permanently");
+    else if (http_code == 302) resp->status_text = strdup("Found");
+    else if (http_code == 400) resp->status_text = strdup("Bad Request");
+    else if (http_code == 401) resp->status_text = strdup("Unauthorized");
+    else if (http_code == 403) resp->status_text = strdup("Forbidden");
+    else if (http_code == 404) resp->status_text = strdup("Not Found");
+    else if (http_code == 500) resp->status_text = strdup("Internal Server Error");
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+
+    (void)headers; /* silence unused warning */
+    return resp;
+}
+
+zhc_http_response_t* zhc_http_post(const char* url, const char* data,
+                                    const char* content_type) {
+    CURL* curl = curl_easy_init();
+    if (!curl) return NULL;
+
+    /* 分配响应结构 */
+    zhc_http_response_t* resp = calloc(1, sizeof(zhc_http_response_t));
+    if (!resp) {
+        curl_easy_cleanup(curl);
+        return NULL;
+    }
+
+    /* 分配缓冲区 */
+    char* header_data = calloc(1, 1);
+    char* body_data = calloc(1, 1);
+    if (!header_data || !body_data) {
+        free(resp);
+        free(header_data);
+        free(body_data);
+        curl_easy_cleanup(curl);
+        return NULL;
+    }
+
+    /* 设置 URL */
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+
+    /* 设置 SSL 选项 */
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+
+    /* 设置超时 */
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+
+    /* 设置 User-Agent */
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "ZHC-NET/2.0");
+
+    /* POST 请求 */
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    if (data) {
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
+    }
+
+    /* 设置 Content-Type */
+    struct curl_slist* headers = NULL;
+    headers = curl_slist_append(headers, "Connection: close");
+    if (content_type) {
+        size_t header_len = strlen("Content-Type: ") + strlen(content_type) + 1;
+        char* ct_header = malloc(header_len);
+        if (ct_header) {
+            snprintf(ct_header, header_len, "Content-Type: %s", content_type);
+            headers = curl_slist_append(headers, ct_header);
+            free(ct_header);
+        }
+    }
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+    /* 设置回调 */
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, header_data);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, zhc_curl_write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, body_data);
+
+    /* 执行请求 */
+    CURLcode res = curl_easy_perform(curl);
+
+    if (res != CURLE_OK) {
+        free(resp);
+        free(header_data);
+        free(body_data);
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+        return NULL;
+    }
+
+    /* 获取响应信息 */
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    resp->status_code = (int)http_code;
+
+    /* 获取 Content-Type */
+    char* ct = NULL;
+    curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &ct);
+    if (ct) {
+        resp->content_type = strdup(ct);
+    }
+
+    /* 获取 Content-Length */
+    double content_length = 0;
+    curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &content_length);
+    resp->content_length = (int)content_length;
+
+    /* 设置响应数据 */
+    resp->headers = header_data;
+    resp->content = body_data;
+    if (resp->content_length <= 0) {
+        resp->content_length = (int)strlen(body_data);
+    }
+
+    /* 生成状态文本 */
+    if (http_code == 200) resp->status_text = strdup("OK");
+    else if (http_code == 201) resp->status_text = strdup("Created");
+    else if (http_code == 204) resp->status_text = strdup("No Content");
+    else if (http_code == 400) resp->status_text = strdup("Bad Request");
+    else if (http_code == 401) resp->status_text = strdup("Unauthorized");
+    else if (http_code == 403) resp->status_text = strdup("Forbidden");
+    else if (http_code == 404) resp->status_text = strdup("Not Found");
+    else if (http_code == 500) resp->status_text = strdup("Internal Server Error");
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+
+    (void)headers;
+    return resp;
+}
+
+#else /* !ZHC_HAVE_LIBCURL - 回退到纯 socket 实现 */
+
+/* ================================================================
+ * 纯 Socket HTTP 实现 (仅支持 HTTP)
+ * ================================================================ */
+
+/**
+ * 使用纯 socket 的 HTTP GET 实现（仅 HTTP）
+ */
 zhc_http_response_t* zhc_http_get(const char* url) {
     zhc_url_t parsed;
     if (zhc_url_parse(url, &parsed) != 0) {
@@ -594,7 +858,7 @@ zhc_http_response_t* zhc_http_get(const char* url) {
     }
 
     if (strcmp(parsed.protocol, "https") == 0) {
-        /* 不支持 HTTPS */
+        /* 不支持 HTTPS，请使用 -DZHC_USE_LIBCURL 编译 */
         return NULL;
     }
 
@@ -691,7 +955,7 @@ zhc_http_response_t* zhc_http_get(const char* url) {
         /* 解析 Content-Length */
         char* cl = strstr(response, "Content-Length:");
         if (cl) {
-            cl += 15;  /* "Content-Length:" 是 15 个字符 */
+            cl += 15;
             while (*cl == ' ' || *cl == '\t') cl++;
             char* cl_end = strchr(cl, '\r');
             if (cl_end) *cl_end = '\0';
@@ -709,14 +973,12 @@ zhc_http_response_t* zhc_http_get(const char* url) {
             while (*ct == ' ' || *ct == '\t') ct++;
             char* ct_end = strchr(ct, '\r');
             if (ct_end) *ct_end = '\0';
-            /* 去掉分号后面的内容 */
             char* semi = strchr(ct, ';');
             if (semi) *semi = '\0';
             while (ct[strlen(ct) - 1] == ' ') ct[strlen(ct) - 1] = '\0';
             resp->content_type = strdup(ct);
         }
     } else {
-        /* 无法解析响应格式 */
         resp->status_code = 0;
         resp->content = strdup(response);
         resp->content_length = (int)strlen(response);
@@ -734,6 +996,7 @@ zhc_http_response_t* zhc_http_post(const char* url, const char* data,
     }
 
     if (strcmp(parsed.protocol, "https") == 0) {
+        /* 不支持 HTTPS，请使用 -DZHC_USE_LIBCURL 编译 */
         return NULL;
     }
 
@@ -840,7 +1103,7 @@ zhc_http_response_t* zhc_http_post(const char* url, const char* data,
 
         char* cl = strstr(response, "Content-Length:");
         if (cl) {
-            cl += 15;  /* "Content-Length:" 是 15 个字符 */
+            cl += 15;
             while (*cl == ' ' || *cl == '\t') cl++;
             char* cl_end = strchr(cl, '\r');
             if (cl_end) *cl_end = '\0';
@@ -872,6 +1135,11 @@ zhc_http_response_t* zhc_http_post(const char* url, const char* data,
     return resp;
 }
 
+#endif /* ZHC_HAVE_LIBCURL */
+
+/**
+ * zhc_http_response_free - 释放 HTTP 响应
+ */
 void zhc_http_response_free(zhc_http_response_t* resp) {
     if (resp) {
         if (resp->status_text) free(resp->status_text);
@@ -880,54 +1148,6 @@ void zhc_http_response_free(zhc_http_response_t* resp) {
         if (resp->content) free(resp->content);
         free(resp);
     }
-}
-
-/* ---------- DNS 实现 ---------- */
-
-static char g_local_ip[64] = {0};
-static char g_resolved_ip[256] = {0};
-
-const char* zhc_get_local_ip(void) {
-    int sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        return NULL;
-    }
-
-    struct sockaddr_in google_dns;
-    memset(&google_dns, 0, sizeof(google_dns));
-    google_dns.sin_family = AF_INET;
-    google_dns.sin_port = htons(53);
-    inet_pton(AF_INET, "8.8.8.8", &google_dns.sin_addr);
-
-    if (connect(sock, (struct sockaddr*)&google_dns, sizeof(google_dns)) == 0) {
-        struct sockaddr_in local_addr;
-        socklen_t addr_len = sizeof(local_addr);
-        if (getsockname(sock, (struct sockaddr*)&local_addr, &addr_len) == 0) {
-            inet_ntop(AF_INET, &local_addr.sin_addr, g_local_ip, sizeof(g_local_ip));
-        }
-    }
-
-    close(sock);
-
-    if (g_local_ip[0] == '\0') {
-        strcpy(g_local_ip, "127.0.0.1");
-    }
-
-    return g_local_ip;
-}
-
-const char* zhc_resolve_host(const char* hostname) {
-    struct hostent* he = gethostbyname(hostname);
-    if (he == NULL) {
-        return NULL;
-    }
-
-    if (he->h_addr_list[0] != NULL) {
-        inet_ntop(he->h_addrtype, he->h_addr_list[0], g_resolved_ip, sizeof(g_resolved_ip));
-        return g_resolved_ip;
-    }
-
-    return NULL;
 }
 
 #endif /* ZHC_NET_IMPLEMENTATION */
