@@ -751,3 +751,106 @@ class CompilationContext:
                 optimized_indices.append(idx)
 
         return ptr, optimized_indices
+
+    def generate_bounds_check(
+        self,
+        builder: "ll.IRBuilder",
+        index: "ll.Value",
+        array_size: int,
+        context: "CompilationContext",
+    ) -> "ll.Value":
+        """【GEP-003】生成数组边界检查代码
+
+        生成伪代码：
+            if (index >= array_size || index < 0) {
+                __zhc_panic("array index out of bounds");
+            }
+
+        Args:
+            builder: IRBuilder
+            index: 索引值
+            array_size: 数组大小
+            context: 编译上下文
+
+        Returns:
+            ll.Value: 检查后的索引值（如果通过检查）
+        """
+        import llvmlite.ir as ll
+
+        # 创建基本块
+        current_block = builder.block
+        check_block = current_block.function.append_basic_block("bounds_check")
+        ok_block = current_block.function.append_basic_block("bounds_ok")
+        panic_block = current_block.function.append_basic_block("bounds_panic")
+
+        # 跳转到检查块
+        builder.branch(check_block)
+        builder.position_at_end(check_block)
+
+        # 检查条件：index < 0 OR index >= array_size
+        zero = ll.Constant(ll.IntType(32), 0)
+        size_const = ll.Constant(ll.IntType(32), array_size)
+
+        # index < 0
+        is_negative = builder.icmp_signed("<", index, zero, name="is_negative")
+
+        # index >= array_size
+        is_overflow = builder.icmp_signed(">=", index, size_const, name="is_overflow")
+
+        # OR 条件
+        is_out_of_bounds = builder.or_(
+            is_negative, is_overflow, name="is_out_of_bounds"
+        )
+
+        # 条件分支
+        builder.cbranch(is_out_of_bounds, panic_block, ok_block)
+
+        # Panic 块：调用运行时错误函数
+        builder.position_at_end(panic_block)
+
+        # 声明 panic 函数
+        panic_func = self._get_or_declare_panic_function(builder.module)
+        if panic_func:
+            # 创建错误消息字符串（使用全局变量指针）
+            global_str = self._create_global_string("array index out of bounds")
+            # 获取 i8* 指针
+            i8_ptr_type = ll.PointerType(ll.IntType(8))
+            if isinstance(global_str.type.pointee, ll.ArrayType):
+                zero = ll.Constant(ll.IntType(32), 0)
+                msg_ptr = builder.gep(global_str, [zero, zero], name="msg_ptr")
+            else:
+                msg_ptr = builder.bitcast(global_str, i8_ptr_type, name="msg_ptr")
+            builder.call(panic_func, [msg_ptr], name="panic_call")
+
+        builder.unreachable()
+
+        # OK 块：继续执行
+        builder.position_at_end(ok_block)
+
+        return index
+
+    def _get_or_declare_panic_function(
+        self, module: "ll.Module"
+    ) -> Optional["ll.Function"]:
+        """获取或声明 panic 函数
+
+        Args:
+            module: LLVM 模块
+
+        Returns:
+            Optional[ll.Function]: panic 函数
+        """
+        import llvmlite.ir as ll
+
+        func_name = "__zhc_panic"
+
+        # 检查是否已声明
+        for func in module.functions:
+            if func.name == func_name:
+                return func
+
+        # 声明外部函数
+        i8_ptr = ll.PointerType(ll.IntType(8))
+        func_type = ll.FunctionType(ll.VoidType(), [i8_ptr])
+        func = ll.Function(module, func_type, func_name)
+        return func

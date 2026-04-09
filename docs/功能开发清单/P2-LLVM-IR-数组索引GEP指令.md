@@ -442,7 +442,45 @@ def test_array_of_structs():
 
 ---
 
-**文档版本**: 1.0
+**文档版本**: 1.1
 **创建日期**: 2026-04-09
+**最后更新**: 2026-04-09
 **负责人**: AI Compiler Expert
-**状态**: 待执行
+**状态**: ✅ 已完成
+
+---
+
+## 9. 变更记录
+
+### 2026-04-09 v1.1 - 实现完成
+
+#### 完成的修复
+
+| 问题 ID | 描述 | 状态 |
+|---------|------|------|
+| GEP-001 | 多维数组索引不正确 - 自动插入首元素索引 0 | ✅ 已修复 |
+| GEP-002 | 结构体字段访问未考虑嵌套结构体 | ✅ 已修复 |
+| GEP-003 | 负数索引未进行边界检查 | ✅ 已实现可选边界检查 |
+
+#### 代码变更
+
+1. **`src/zhc/backend/llvm_instruction_strategy.py`**:
+   - `GepStrategy._ensure_first_index()` - 新增方法，确保首元素索引为 0
+   - `AdvancedGEPInstruction` - 增强支持嵌套结构体字段访问
+   - 新增 `_resolve_nested_field_index()` 方法
+   - 新增 `_resolve_single_index_with_type()` 方法
+   - 新增 `_get_field_index_for_type()` 方法
+   - 新增 `_get_field_type()` 方法
+   - 新增 `_ensure_first_index_gep()` 方法
+
+2. **`src/zhc/backend/compilation_context.py`**:
+   - `generate_bounds_check()` - 新增可选的运行时边界检查方法
+   - `_get_or_declare_panic_function()` - 辅助方法
+
+3. **`tests/test_llvm_gep_enhanced.py`** - 新增测试文件
+
+#### 测试覆盖
+
+- 14 个新测试用例全部通过
+- 15 个原有测试用例全部通过
+- 29 个相关 LLVM 后端测试全部通过

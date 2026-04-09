@@ -14,7 +14,7 @@ ZhC LLVM 后端指令编译策略 - 使用策略模式
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, TYPE_CHECKING, Any
+from typing import Dict, List, Optional, TYPE_CHECKING, Any, Tuple
 import logging
 
 from zhc.ir.opcodes import Opcode
@@ -584,9 +584,10 @@ class GepStrategy(InstructionStrategy):
     - 索引类型验证
     - 负数索引检测与警告
     - 数组边界检查（调试模式）
-    - 多维数组支持
+    - 多维数组支持（自动插入首元素索引 0）
     - 结构体字段访问支持
     - 常量索引优化
+    - 首元素索引自动补全（GEP-001 修复）
     """
 
     opcode = Opcode.GEP
@@ -632,8 +633,8 @@ class GepStrategy(InstructionStrategy):
                     # 所有索引都是常量，直接使用合并结果
                     indices = [ll.Constant(ll.IntType(32), merged_offset)]
 
-            # 4. 移除不必要的零索引（首元素指针优化）
-            ptr, indices = context.optimize_gep_indices(ptr, indices)
+            # 4. 【GEP-001 修复】确保首元素索引存在（多维数组必需）
+            indices = self._ensure_first_index(indices, builder, context)
 
             # 5. 生成 GEP 指令
             result = builder.gep(ptr, indices, name=context.get_result_name(instr))
@@ -661,6 +662,47 @@ class GepStrategy(InstructionStrategy):
                         stacklevel=3,
                     )
 
+    def _ensure_first_index(
+        self, indices: List["ll.Value"], builder, context
+    ) -> List["ll.Value"]:
+        """
+        【GEP-001 修复】确保索引列表以首元素索引 0 开头。
+
+        根据 LLVM GEP 规范，对于数组访问：
+            %ptr = gep %arr, i32 0, i32 %i, i32 %j  ; 访问 arr[i][j]
+
+        如果索引列表不以零开头，会导致不正确的代码生成。
+
+        Args:
+            indices: 原始索引列表
+            builder: IRBuilder
+            context: 编译上下文
+
+        Returns:
+            List[ll.Value]: 确保以零索引开头的索引列表
+        """
+        import llvmlite.ir as ll
+
+        if not indices:
+            return indices
+
+        # 检查第一个索引是否是零
+        first_idx = indices[0]
+        is_zero = False
+
+        if isinstance(first_idx, ll.Constant) and isinstance(
+            first_idx.type, ll.IntType
+        ):
+            if first_idx.constant == 0:
+                is_zero = True
+
+        # 如果第一个索引不是零，需要插入零索引
+        if not is_zero:
+            zero_idx = ll.Constant(ll.IntType(32), 0)
+            return [zero_idx] + indices
+
+        return indices
+
 
 class AdvancedGEPInstruction(InstructionStrategy):
     """
@@ -668,13 +710,16 @@ class AdvancedGEPInstruction(InstructionStrategy):
 
     相比基础 GepStrategy，本类提供：
     - 结构体字段名称解析（支持 "field_name" 形式的索引）
+    - 嵌套结构体字段访问支持（支持 "outer.inner.field" 形式）
     - 多维数组类型推断
     - 数组边界运行时检查（可选）
     - 指针算术优化
+    - 首元素索引自动补全
 
     使用方式：
         %ptr = agep %base, "field_name", %idx, ...  # 结构体字段 + 数组索引
         %ptr = agep %base, %i, %j, %k               # 多维数组索引
+        %ptr = agep %base, "outer", "inner", "field" # 嵌套结构体访问
 
     示例 IR：
         ; 访问二维数组元素 arr[i][j]
@@ -682,6 +727,9 @@ class AdvancedGEPInstruction(InstructionStrategy):
 
         ; 访问结构体字段
         %ptr = agep %struct_ptr, "age"
+
+        ; 访问嵌套结构体字段 obj.inner.x
+        %ptr = agep %obj, "inner", "x"
     """
 
     opcode = Opcode.GEP  # 复用 GEP opcode
@@ -705,12 +753,36 @@ class AdvancedGEPInstruction(InstructionStrategy):
 
         ptr = context.get_value(instr.operands[0])
 
-        # 解析索引（支持结构体字段名）
+        # 解析索引（支持结构体字段名和嵌套访问）
         indices = []
-        for i in range(1, len(instr.operands)):
+        current_type = context.infer_gep_base_type(ptr)
+        i = 1
+        while i < len(instr.operands):
             operand = instr.operands[i]
-            idx = self._resolve_index(operand, context)
-            indices.append(idx)
+
+            # 检查是否是嵌套字段访问（如 "outer.inner"）
+            if isinstance(operand, str) and operand.startswith('"'):
+                # 提取字段名
+                field_expr = operand.strip('"')
+                # 如果是嵌套字段名，展开为多个索引
+                if "." in field_expr:
+                    field_indices = self._resolve_nested_field_index(
+                        field_expr, current_type, context
+                    )
+                    indices.extend(field_indices)
+                    i += 1
+                else:
+                    idx, new_type = self._resolve_single_index_with_type(
+                        operand, current_type, context
+                    )
+                    indices.append(idx)
+                    current_type = new_type
+                    i += 1
+            else:
+                # 标准索引
+                idx = self._resolve_single_index(operand, context)
+                indices.append(idx)
+                i += 1
 
         if not indices:
             return ptr
@@ -721,19 +793,154 @@ class AdvancedGEPInstruction(InstructionStrategy):
             # 类型推断优化
             indices = self._optimize_indices_for_type(base_type, indices, context)
 
+        # 【GEP-001】确保首元素索引存在
+        indices = self._ensure_first_index_gep(indices, context)
+
         # 生成优化的 GEP
         result = builder.gep(ptr, indices, name=context.get_result_name(instr))
 
         context.store_result(instr, result)
         return result
 
-    def _resolve_index(self, operand, context) -> "ll.Value":
+    def _resolve_nested_field_index(
+        self, field_expr: str, base_type: Optional["ll.Type"], context
+    ) -> List["ll.Value"]:
         """
-        解析索引操作数
+        【GEP-002 增强】解析嵌套结构体字段访问。
 
-        支持两种形式：
-        - 数值索引：整数常量或变量
-        - 字段名索引：字符串（如 "name", "age"）
+        例如：
+            "inner.x" -> [inner_index, x_index]
+            "outer.middle.value" -> [outer_index, middle_index, value_index]
+
+        Args:
+            field_expr: 字段表达式（如 "inner.x"）
+            base_type: 基类型（结构体类型）
+            context: 编译上下文
+
+        Returns:
+            List[ll.Value]: 索引列表
+        """
+        import llvmlite.ir as ll
+
+        fields = field_expr.split(".")
+        indices = []
+
+        # 获取当前类型
+        current_type = base_type
+
+        for field_name in fields:
+            if current_type is None:
+                logger.warning(f"无法推断类型，使用索引 0")
+                indices.append(ll.Constant(ll.IntType(32), 0))
+                continue
+
+            # 获取字段索引
+            field_idx = self._get_field_index_for_type(
+                current_type, field_name, context
+            )
+            indices.append(ll.Constant(ll.IntType(32), field_idx))
+
+            # 更新当前类型为字段类型（用于下一次查找）
+            current_type = self._get_field_type(current_type, field_idx)
+
+        return indices
+
+    def _resolve_single_index_with_type(
+        self, operand, current_type: Optional["ll.Type"], context
+    ) -> Tuple["ll.Value", Optional["ll.Type"]]:
+        """
+        解析单个索引操作数，并返回新类型
+
+        Args:
+            operand: 操作数
+            current_type: 当前类型
+            context: 编译上下文
+
+        Returns:
+            Tuple[ll.Value, Optional[ll.Type]]: (索引值, 新类型)
+        """
+        import llvmlite.ir as ll
+
+        # 如果是字符串（字段名）
+        if isinstance(operand, str):
+            if operand.startswith('"') and operand.endswith('"'):
+                field_name = operand[1:-1]
+                # 在注册表中查找字段索引
+                if hasattr(context, "current_struct_info"):
+                    field_idx = context.current_struct_info.get_field_index(field_name)
+                    if field_idx is not None:
+                        idx = ll.Constant(ll.IntType(32), field_idx)
+                        new_type = self._get_field_type(current_type, field_idx)
+                        return idx, new_type
+
+                logger.warning(f"无法解析结构体字段名：{field_name}，使用索引 0")
+                return ll.Constant(ll.IntType(32), 0), None
+
+        # 其他情况使用标准解析
+        return context.get_value(operand), None
+
+    def _get_field_index_for_type(
+        self, struct_type: "ll.Type", field_name: str, context
+    ) -> int:
+        """
+        从结构体类型获取字段索引
+
+        Args:
+            struct_type: 结构体类型
+            field_name: 字段名
+            context: 编译上下文
+
+        Returns:
+            int: 字段索引，如果未找到返回 0
+        """
+        import llvmlite.ir as ll
+
+        # 尝试从类型注册表获取
+        if isinstance(struct_type, ll.LiteralStructType):
+            # 检查命名字段
+            if hasattr(struct_type, "element_names"):
+                try:
+                    return struct_type.element_names.index(field_name)
+                except ValueError:
+                    pass
+
+        # 尝试从上下文注册表获取
+        struct_info = context.type_registry.get_struct_info("")
+        if struct_info:
+            field_idx = struct_info.get_field_index(field_name)
+            if field_idx is not None:
+                return field_idx
+
+        # 无法确定，返回 0（保守策略）
+        logger.warning(f"无法解析嵌套字段 {field_name}，使用索引 0")
+        return 0
+
+    def _get_field_type(
+        self, struct_type: "ll.Type", field_idx: int
+    ) -> Optional["ll.Type"]:
+        """
+        获取结构体字段的类型
+
+        Args:
+            struct_type: 结构体类型
+            field_idx: 字段索引
+
+        Returns:
+            Optional[ll.Type]: 字段类型
+        """
+        import llvmlite.ir as ll
+
+        if isinstance(struct_type, ll.LiteralStructType):
+            if hasattr(struct_type, "elements") and field_idx < len(
+                struct_type.elements
+            ):
+                return struct_type.elements[field_idx]
+
+        return None
+
+    def _resolve_single_index(self, operand, context) -> "ll.Value":
+        """
+        解析单个索引操作数
 
         Args:
             operand: 操作数
@@ -749,8 +956,6 @@ class AdvancedGEPInstruction(InstructionStrategy):
             if operand.startswith('"') and operand.endswith('"'):
                 field_name = operand[1:-1]
                 # 在注册表中查找字段索引
-                # 这里需要知道结构体类型，暂时返回常量 0
-                # 实际实现需要从上下文获取结构体类型信息
                 if hasattr(context, "current_struct_info"):
                     field_idx = context.current_struct_info.get_field_index(field_name)
                     if field_idx is not None:
@@ -761,6 +966,41 @@ class AdvancedGEPInstruction(InstructionStrategy):
 
         # 其他情况使用标准解析
         return context.get_value(operand)
+
+    def _ensure_first_index_gep(
+        self, indices: List["ll.Value"], context
+    ) -> List["ll.Value"]:
+        """
+        【GEP-001】确保索引列表以首元素索引 0 开头
+
+        Args:
+            indices: 索引列表
+            context: 编译上下文
+
+        Returns:
+            List[ll.Value]: 确保以零索引开头的索引列表
+        """
+        import llvmlite.ir as ll
+
+        if not indices:
+            return indices
+
+        # 检查第一个索引是否是零
+        first_idx = indices[0]
+        is_zero = False
+
+        if isinstance(first_idx, ll.Constant) and isinstance(
+            first_idx.type, ll.IntType
+        ):
+            if first_idx.constant == 0:
+                is_zero = True
+
+        # 如果第一个索引不是零，需要插入零索引
+        if not is_zero:
+            zero_idx = ll.Constant(ll.IntType(32), 0)
+            return [zero_idx] + indices
+
+        return indices
 
     def _optimize_indices_for_type(
         self, base_type: "ll.Type", indices: List["ll.Value"], context
