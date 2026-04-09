@@ -44,6 +44,9 @@ from ..errors.recovery import ErrorRecoveryStrategy
 # 导入文件工具
 from ..utils.file_utils import read_source_file
 
+# 导入预处理器
+from .preprocessor import Preprocessor, PreprocessorConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -113,6 +116,10 @@ class CompilationPipeline:
 
         # 源文件内容缓存（用于错误上下文提取）
         self._source_contents: Dict[str, str] = {}
+
+        # 预处理器配置和实例
+        self.preprocessor_config = PreprocessorConfig()
+        self._preprocessor: Optional[Preprocessor] = None
 
         # 缓存系统
         self.file_hash_cache: Dict[str, str] = {}
@@ -458,12 +465,27 @@ class CompilationPipeline:
                 "semantic_warnings": cached_result.get("semantic_warnings", 0),
             }
 
-        # 2. AST 解析 (Lexer → Parser → AST)
+        # 2. 预处理阶段 (#define, #include, #ifdef 等)
         from ..parser import parse as parse_source
 
         # 使用 read_source_file 自动处理 UTF-8 编码和 BOM
         content = read_source_file(filepath)
-        ast, parse_errors = parse_source(content)
+
+        # 初始化预处理器（如果需要）
+        if self._preprocessor is None:
+            self._preprocessor = Preprocessor(self.preprocessor_config)
+
+        # 执行预处理
+        try:
+            preprocessed_content = self._preprocessor.process(content, str(filepath))
+        except Exception as e:
+            logger.error("预处理错误 %s: %s", filepath.name, e)
+            self.error_handler.report_error(f"预处理错误: {e}")
+            self.stats["total_files"] -= 1  # 回退计数
+            return None
+
+        # 3. AST 解析 (Lexer → Parser → AST)
+        ast, parse_errors = parse_source(preprocessed_content)
 
         if parse_errors:
             for err in parse_errors[:10]:
@@ -473,7 +495,7 @@ class CompilationPipeline:
 
         self.stats["parsed_files"] += 1
 
-        # 3. 语义验证（可选）
+        # 4. 语义验证（可选）
         semantic_errors = 0
         semantic_warnings = 0
 
@@ -521,7 +543,7 @@ class CompilationPipeline:
             self.stats["total_files"] -= 1
             return None
 
-        # 4. IR 代码生成 (AST → IR → C)
+        # 5. IR 代码生成 (AST → IR → C)
         from zhc.ir.ir_generator import IRGenerator
         from zhc.backend.c_backend import CBackend
 
@@ -533,14 +555,14 @@ class CompilationPipeline:
 
         self.stats["converted_files"] += 1
 
-        # 5. 写入 C 文件
+        # 6. 写入 C 文件
         c_filepath = filepath.with_suffix(".c")
         h_filepath = filepath.with_suffix(".h")
 
         with open(c_filepath, "w", encoding="utf-8") as f:
             f.write(c_code)
 
-        # 6. 模块依赖分析
+        # 7. 模块依赖分析
         module_declarations: List[Dict[str, Any]] = []
         first_module_name: Optional[str] = None
         all_imports: List[str] = []
@@ -574,7 +596,7 @@ class CompilationPipeline:
             self.dependency_resolver.add_module(module_decl)
             self.stats["dependency_analyzed"] += 1
 
-        # 7. 保存到缓存
+        # 8. 保存到缓存
         cache_data = {
             "c_code": c_code,
             "h_code": "",  # AST 模式暂不生成独立头文件
