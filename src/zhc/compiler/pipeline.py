@@ -41,6 +41,9 @@ from ..errors.source_context import SourceContextExtractor
 from ..errors.suggestions import SuggestionGenerator
 from ..errors.recovery import ErrorRecoveryStrategy
 
+# 导入文件工具
+from ..utils.file_utils import read_source_file
+
 logger = logging.getLogger(__name__)
 
 
@@ -136,11 +139,11 @@ class CompilationPipeline:
         if filepath_key in self.file_hash_cache:
             return self.file_hash_cache[filepath_key]
 
-        with open(filepath, "r", encoding="utf-8") as f:
-            content = f.read()
-            file_hash = hashlib.md5(content.encode()).hexdigest()
-            self.file_hash_cache[filepath_key] = file_hash
-            return file_hash
+        # 使用 read_source_file 自动处理 UTF-8 编码和 BOM
+        content = read_source_file(filepath)
+        file_hash = hashlib.md5(content.encode()).hexdigest()
+        self.file_hash_cache[filepath_key] = file_hash
+        return file_hash
 
     def _get_cache_key(self, filepath: Path, stage: str) -> str:
         """获取缓存键"""
@@ -458,7 +461,8 @@ class CompilationPipeline:
         # 2. AST 解析 (Lexer → Parser → AST)
         from ..parser import parse as parse_source
 
-        content = filepath.read_text(encoding="utf-8")
+        # 使用 read_source_file 自动处理 UTF-8 编码和 BOM
+        content = read_source_file(filepath)
         ast, parse_errors = parse_source(content)
 
         if parse_errors:

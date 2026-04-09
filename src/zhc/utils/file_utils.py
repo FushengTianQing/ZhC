@@ -40,6 +40,45 @@ def read_file(filepath: Union[str, Path], encoding: str = "utf-8") -> str:
         raise IOError(f"无法读取文件 {filepath}: {e}")
 
 
+class SourceFileError(Exception):
+    """源文件错误"""
+
+    pass
+
+
+def read_source_file(filepath: Union[str, Path]) -> str:
+    """
+    读取源代码文件，自动处理 UTF-8 编码和 BOM
+
+    Args:
+        filepath: 源文件路径
+
+    Returns:
+        源代码字符串
+
+    Raises:
+        SourceFileError: 文件编码错误或读取失败
+
+    Example:
+        >>> source = read_source_file('main.zhc')
+    """
+    filepath = Path(filepath)
+
+    try:
+        # 使用 utf-8-sig 自动处理 BOM
+        with open(filepath, "r", encoding="utf-8-sig") as f:
+            source = f.read()
+        return source
+    except UnicodeDecodeError as e:
+        raise SourceFileError(
+            f"源文件编码错误: {filepath}\n"
+            f"详细信息: {e}\n"
+            f"请确保文件使用 UTF-8 编码保存"
+        )
+    except IOError as e:
+        raise SourceFileError(f"无法读取源文件 {filepath}: {e}")
+
+
 def write_file(
     filepath: Union[str, Path], content: str, encoding: str = "utf-8"
 ) -> None:

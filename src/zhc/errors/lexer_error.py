@@ -101,6 +101,7 @@ LEXER_RESERVED_KEYWORD = "L022"  # 保留关键字误用
 # L031-L040: 编码相关错误
 LEXER_INVALID_ENCODING = "L031"  # 无效的编码
 LEXER_BOM_ERROR = "L032"  # BOM标记错误
+LEXER_INVALID_UNICODE_CHARACTER = "L033"  # 无效Unicode字符
 
 
 # ============================================================================
@@ -232,6 +233,31 @@ def invalid_escape_sequence(
     )
 
 
+def invalid_unicode_character(
+    character: str,
+    location: Optional[SourceLocation] = None,
+    context: Optional[str] = None,
+) -> LexerError:
+    """
+    创建无效 Unicode 字符错误
+
+    Args:
+        character: 无效的字符
+        location: 错误位置
+        context: 错误上下文
+
+    Returns:
+        LexerError 实例
+    """
+    return LexerError(
+        message=f"无效的 Unicode 字符 '{character}'",
+        location=location,
+        error_code=LEXER_INVALID_UNICODE_CHARACTER,
+        context=context,
+        suggestion="请检查字符是否为有效的 UTF-8 编码",
+    )
+
+
 def unterminated_comment(
     location: Optional[SourceLocation] = None,
     context: Optional[str] = None,
@@ -302,4 +328,5 @@ __all__ = [
     "invalid_number_format",
     "invalid_identifier",
     "invalid_escape_sequence",
+    "invalid_unicode_character",
 ]

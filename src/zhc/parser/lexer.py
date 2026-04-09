@@ -21,6 +21,7 @@ from zhc.errors import (
     unterminated_comment,
     unterminated_char,
     invalid_escape_sequence,
+    invalid_unicode_character,
 )
 
 
@@ -317,6 +318,21 @@ class Lexer:
                 self.column += 1
         return char
 
+    def _is_valid_unicode(self, char: str) -> bool:
+        """检查字符是否是有效的 Unicode 字符
+
+        Args:
+            char: 单个字符
+
+        Returns:
+            是否有效
+        """
+        try:
+            char.encode("utf-8")
+            return True
+        except UnicodeEncodeError:
+            return False
+
     def skip_whitespace(self):
         """跳过空白字符"""
         while self.current_char() and self.current_char().isspace():
@@ -539,7 +555,15 @@ class Lexer:
                         value += char
                         self.advance()
             else:
-                value += self.advance()
+                # 验证字符是否为有效的 Unicode
+                char = self.advance()
+                if char and not self._is_valid_unicode(char):
+                    error = invalid_unicode_character(
+                        character=char,
+                        location=SourceLocation(line=self.line, column=self.column - 1),
+                    )
+                    self.errors.append(error)
+                value += char or ""
 
         if not self.current_char():
             if is_char:

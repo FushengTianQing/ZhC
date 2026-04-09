@@ -93,6 +93,7 @@ from .lexer_error import (
     invalid_number_format,
     invalid_identifier,
     invalid_escape_sequence,
+    invalid_unicode_character,
 )
 
 # 导入语法分析异常
@@ -299,6 +300,8 @@ __all__ = [
     "invalid_number_format",
     "invalid_identifier",
     "invalid_escape_sequence",
+    "invalid_unicode_character",
+    "LEXER_INVALID_UNICODE_CHARACTER",
     # 语法分析异常
     "ParserError",
     "PARSER_MISSING_TOKEN",
