@@ -38,6 +38,34 @@ from .simd_intrinsics import (
     get_intrinsic,
 )
 
+from .width_selector import (
+    WidthSelector,
+    WidthSelectionResult,
+    TargetVectorInfo,
+)
+
+from .mask_handler import (
+    MaskHandler,
+    MaskStrategy,
+    MaskInfo,
+    TailHandlingResult,
+)
+
+from .instruction_selector import (
+    InstructionSelector,
+    SIMDOpType,
+    InstructionInfo,
+    ISelResult,
+)
+
+from .targets import (
+    X86SIMDTarget,
+    ARMNeonTarget,
+    RiscVRVVTarget,
+    WasmSIMDTarget,
+    get_simd_target,
+)
+
 __all__ = [
     # 向量化 Pass
     "VectorizationPass",
@@ -59,4 +87,24 @@ __all__ = [
     "SIMDIntrinsic",
     "SIMDIntrinsicRegistry",
     "get_intrinsic",
+    # 向量宽度选择
+    "WidthSelector",
+    "WidthSelectionResult",
+    "TargetVectorInfo",
+    # 掩码处理
+    "MaskHandler",
+    "MaskStrategy",
+    "MaskInfo",
+    "TailHandlingResult",
+    # 指令选择
+    "InstructionSelector",
+    "SIMDOpType",
+    "InstructionInfo",
+    "ISelResult",
+    # 目标平台
+    "X86SIMDTarget",
+    "ARMNeonTarget",
+    "RiscVRVVTarget",
+    "WasmSIMDTarget",
+    "get_simd_target",
 ]

@@ -79,7 +79,6 @@ class VectorizationResult:
         )
 
 
-@dataclass
 class VectorizationPass:
     """
     向量化优化 Pass
@@ -87,16 +86,12 @@ class VectorizationPass:
     分析循环并尝试向量化，以生成 SIMD 指令。
     """
 
-    config: VectorizationConfig = field(default_factory=VectorizationConfig)
-    target_arch: str = "generic"  # 目标架构
-
     def __init__(
         self,
         config: Optional[VectorizationConfig] = None,
         target_arch: str = "generic",
     ):
-        if config:
-            self.config = config
+        self.config = config if config else VectorizationConfig()
         self.target_arch = target_arch
         self.cost_model = CostModel(target_arch)
         self.result = VectorizationResult(changed=False)

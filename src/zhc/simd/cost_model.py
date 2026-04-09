@@ -61,6 +61,8 @@ class CostModel:
         "mul": 1,
         "div": 3,
         "cmp": 0.5,
+        "br": 1,  # 分支开销
+        "phi": 0.5,  # phi 节点
     }
 
     # 向量化开销
