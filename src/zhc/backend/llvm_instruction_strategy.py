@@ -427,7 +427,11 @@ class SwitchStrategy(InstructionStrategy):
             return None
 
         # 6. 创建 switch 指令
-        builder.switch(val, default_block, cases)
+        # llvmlite API: switch(val, default) 返回 SwitchInstr 对象
+        # 然后需要调用 add_case(val, block) 添加各个 case
+        sw = builder.switch(val, default_block)
+        for case_val, case_block in cases:
+            sw.add_case(case_val, case_block)
         return None
 
     def _resolve_case_value(self, operand, cond_type, context, builder):

@@ -353,6 +353,8 @@ class Parser(GenericParserMixin):
             return self.parse_typedef_decl()
         if self.match(TokenType.CONST):
             return self.parse_const_decl()
+        if self.match(TokenType.FUNCTION):
+            return self.parse_function_decl()
 
         # --- 需要 lookahead 的 token ---
         if self.match(TokenType.STRUCT):
@@ -1110,12 +1112,23 @@ class Parser(GenericParserMixin):
         return SwitchStmtNode(expr, cases, switch_token.line, switch_token.column)
 
     def parse_case_stmt(self) -> CaseStmtNode:
-        """解析情况语句"""
+        """解析情况语句
+
+        支持两种语法：
+        1. 单值 case: 分支 1:
+        2. 范围 case: 分支 1...5:
+        """
         case_token = self.current_token()
         self.advance()  # 消耗 '情况'
 
         # 期望常量表达式
         value = self.parse_expression()
+
+        # 检查是否为范围 case
+        end_value = None
+        if self.match(TokenType.ELLIPSIS):
+            self.advance()  # 消耗 '...'
+            end_value = self.parse_expression()
 
         # 期望 ':'
         self.expect(TokenType.COLON, "期望 ':'")
@@ -1132,7 +1145,9 @@ class Parser(GenericParserMixin):
             if stmt:
                 statements.append(stmt)
 
-        return CaseStmtNode(value, statements, case_token.line, case_token.column)
+        return CaseStmtNode(
+            value, statements, case_token.line, case_token.column, end_value
+        )
 
     def parse_default_stmt(self) -> DefaultStmtNode:
         """解析默认语句"""

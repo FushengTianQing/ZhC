@@ -1043,11 +1043,44 @@ class IRGenerator(ASTVisitor):
                     case_label = self._new_bb_label("default")
                     default_label = case_label
                 else:
-                    # 正常 case
+                    # 正常 case 或范围 case
                     case_val = self._get_case_value(case_node.value)
-                    case_label = self._new_bb_label(f"case_{case_val}")
-                    # 记录 case 分支信息
-                    self._switch_cases.append((case_val, case_label))
+
+                    if case_node.is_range:
+                        # 【SW-005】范围 case：展开成多个 case 值，共享同一个基本块
+                        end_val = self._get_case_value(case_node.end_value)
+                        case_label = self._new_bb_label(
+                            f"case_range_{case_val}_{end_val}"
+                        )
+
+                        # 展开范围值
+                        try:
+                            start_int = (
+                                int(case_val)
+                                if not isinstance(case_val, str)
+                                else case_val
+                            )
+                            end_int = (
+                                int(end_val)
+                                if not isinstance(end_val, str)
+                                else end_val
+                            )
+                            # 必须是整数才能展开范围
+                            if isinstance(start_int, int) and isinstance(end_int, int):
+                                for v in range(start_int, end_int + 1):
+                                    self._switch_cases.append((v, case_label))
+                            else:
+                                # 非整数范围，只记录起止值
+                                self._switch_cases.append((case_val, case_label))
+                                self._switch_cases.append((end_val, case_label))
+                        except (TypeError, ValueError):
+                            # 无法展开，记录起止值
+                            self._switch_cases.append((case_val, case_label))
+                            self._switch_cases.append((end_val, case_label))
+                    else:
+                        # 单值 case
+                        case_label = self._new_bb_label(f"case_{case_val}")
+                        self._switch_cases.append((case_val, case_label))
 
                 case_bb = IRBasicBlock(case_label)
                 self.current_function.basic_blocks.append(case_bb)

@@ -158,6 +158,7 @@ class TokenType(Enum):
     MATCH = auto()  # 匹配
     UNDERSCORE = auto()  # _ (通配符)
     DOTDOT = auto()  # .. (范围操作符)
+    ELLIPSIS = auto()  # ... (范围 case 操作符)
     FAT_ARROW = auto()  # => (匹配分支箭头)
 
     # 异步编程关键字
@@ -591,6 +592,15 @@ class Lexer:
         if self.peek_char():
             two_char = char + self.peek_char()
 
+            # 三字符运算符 - 必须在双字符运算符之前检查，以免 "..." 被 ".." 提前匹配
+            if self.peek_char(2):
+                three_char = char + self.peek_char() + self.peek_char(2)
+                if three_char == "...":
+                    self.advance()
+                    self.advance()
+                    self.advance()
+                    return Token(TokenType.ELLIPSIS, "...", start_line, start_column)
+
             # 特殊处理：嵌套泛型类型中的 >> 拆分为两个 GT
             if two_char == ">>" and self.generic_angle_count >= 2:
                 # 拆分为两个 GT
@@ -622,6 +632,7 @@ class Lexer:
                 "=>": TokenType.FAT_ARROW,  # 匹配分支箭头
             }
 
+            # 双字符运算符
             if two_char in operators:
                 self.advance()
                 self.advance()

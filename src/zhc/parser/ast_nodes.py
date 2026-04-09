@@ -681,7 +681,12 @@ class SwitchStmtNode(ASTNode):
 
 
 class CaseStmtNode(ASTNode):
-    """情况语句节点"""
+    """情况语句节点
+
+    支持范围语法：
+        分支 1...5:  # 范围 case，从 1 到 5
+            statements
+    """
 
     def __init__(
         self,
@@ -689,12 +694,29 @@ class CaseStmtNode(ASTNode):
         statements: List[ASTNode],
         line: int = 0,
         column: int = 0,
+        end_value: Optional[ASTNode] = None,
     ):
         super().__init__(ASTNodeType.CASE_STMT, line, column)
         self.value = value  # None 表示 default
         self.statements = statements
+        self.end_value = end_value  # 范围 case 的结束值，None 表示单值
         self._set_parent(value)
         self._set_parent_list(statements)
+        if end_value:
+            self._set_parent(end_value)
+
+    @property
+    def is_range(self) -> bool:
+        """判断是否为范围 case"""
+        return self.end_value is not None
+
+    @property
+    def case_values(self) -> List[Any]:
+        """获取展开后的所有 case 值"""
+
+        if not self.is_range:
+            return [self.value]
+        return [self.value, self.end_value]
 
     def accept(self, visitor: "ASTVisitor") -> Any:
         return visitor.visit_case_stmt(self)
@@ -703,6 +725,8 @@ class CaseStmtNode(ASTNode):
         children: List["ASTNode"] = []
         if self.value is not None:
             children.append(self.value)
+        if self.end_value is not None:
+            children.append(self.end_value)
         children.extend(self.statements)
         return children
 
