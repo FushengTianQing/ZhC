@@ -5,14 +5,18 @@ ZHC 编译器统一异常处理模块
 
 模块结构:
 - base.py: 异常基类和错误集合管理器
+- error_codes.py: 错误代码注册表
 - lexer_error.py: 词法分析异常
 - parser_error.py: 语法分析异常
 - semantic_error.py: 语义分析异常
 - codegen_error.py: 代码生成异常
+- source_context.py: 源码上下文提取器
+- error_formatter.py: 错误格式化器
 
 使用示例:
     >>> from zhc.errors import LexerError, ParserError, SemanticError
     >>> from zhc.errors import SourceLocation, ErrorCollection
+    >>> from zhc.errors import SourceContextExtractor, ErrorFormatter
     >>>
     >>> # 创建错误
     >>> error = LexerError(
@@ -26,8 +30,16 @@ ZHC 编译器统一异常处理模块
     >>> errors.add(error)
     >>> print(errors.summary())
 
+    >>> # 使用上下文提取器
+    >>> extractor = SourceContextExtractor({"test.zhc": "整数型 x = 1;"})
+    >>> context = extractor.get_context(error.location)
+    >>>
+    >>> # 格式化错误
+    >>> formatter = ErrorFormatter()
+    >>> print(formatter.format_error(error, context))
+
 创建日期: 2026-04-07
-最后更新: 2026-04-07
+最后更新: 2026-04-09
 维护者: ZHC开发团队
 """
 
@@ -36,6 +48,25 @@ from .base import (
     SourceLocation,
     ZHCError,
     ErrorCollection,
+)
+
+# 导入源码上下文
+from .source_context import (
+    SourceContext,
+    LineInfo,
+    SourceContextExtractor,
+)
+
+# 导入错误格式化器
+from .error_formatter import (
+    ErrorFormatter,
+    ErrorPrinter,
+)
+
+# 导入错误代码注册表
+from .error_codes import (
+    ErrorCodeDefinition,
+    ErrorCodeRegistry,
 )
 
 # 导入词法分析异常
@@ -210,6 +241,16 @@ __all__ = [
     "SourceLocation",
     "ZHCError",
     "ErrorCollection",
+    # 源码上下文
+    "SourceContext",
+    "LineInfo",
+    "SourceContextExtractor",
+    # 错误格式化
+    "ErrorFormatter",
+    "ErrorPrinter",
+    # 错误代码注册表
+    "ErrorCodeDefinition",
+    "ErrorCodeRegistry",
     # 词法分析异常
     "LexerError",
     "LEXER_ILLEGAL_CHARACTER",
