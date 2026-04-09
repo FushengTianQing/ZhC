@@ -17,7 +17,7 @@ from .values import IRValue, ValueKind
 from .instructions import IRInstruction, IRBasicBlock
 from .program import IRProgram, IRFunction, IRGlobalVar, IRStructDef
 from .ir_generator import IRGenerator
-from .c_backend import CBackend
+from zhc.backend.c_backend import CBackend
 from .printer import IRPrinter
 from .optimizer import (
     ConstantFolding,

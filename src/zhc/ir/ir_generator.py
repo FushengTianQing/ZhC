@@ -1007,38 +1007,208 @@ class IRGenerator(ASTVisitor):
             self._emit(Opcode.JMP, [target])
 
     def visit_switch_stmt(self, node: SwitchStmtNode):
-        """switch 语句"""
+        """switch 语句 - 完整实现
+
+        生成结构：
+        1. 评估 switch 表达式
+        2. 为每个 case/default 创建基本块
+        3. 发射 switch IR 指令
+        4. 处理每个 case 的语句体
+        5. 跳转到 end_bb
+        """
         self._ensure_block()
+
+        # 保存上下文
         old_switch = self._in_switch
+        old_switch_cases = self._switch_cases
         self._in_switch = True
+        self._switch_cases = []
 
-        self._eval_expr(node.expr)
+        # 1. 评估 switch 表达式
+        cond_value = self._eval_expr(node.expr)
 
+        # 2. 创建 end_bb（合并块）
         end_bb = IRBasicBlock(self._new_bb_label("switch_end"))
         self.current_function.basic_blocks.append(end_bb)
+
+        # 3. 为每个 case/default 创建基本块并收集信息
+        case_blocks = {}  # label -> basic_block
+        default_label = None
+
+        for case_node in node.cases:
+            if isinstance(case_node, CaseStmtNode):
+                # case 语句
+                if case_node.value is None:
+                    # value=None 表示 default（兼容旧设计）
+                    case_label = self._new_bb_label("default")
+                    default_label = case_label
+                else:
+                    # 正常 case
+                    case_val = self._get_case_value(case_node.value)
+                    case_label = self._new_bb_label(f"case_{case_val}")
+                    # 记录 case 分支信息
+                    self._switch_cases.append((case_val, case_label))
+
+                case_bb = IRBasicBlock(case_label)
+                self.current_function.basic_blocks.append(case_bb)
+                case_blocks[case_label] = case_bb
+                # 将标签附加到节点，供 visit_case_stmt 使用
+                case_node._target_label = case_label
+
+            elif isinstance(case_node, DefaultStmtNode):
+                # default 语句
+                default_label = self._new_bb_label("default")
+                default_bb = IRBasicBlock(default_label)
+                self.current_function.basic_blocks.append(default_bb)
+                case_blocks[default_label] = default_bb
+                case_node._target_label = default_label
+
+        # 4. 确定 default 标签
+        if default_label is None:
+            default_label = end_bb.label
+
+        # 5. 发射 switch 指令
+        # 格式: SWITCH cond, default_label, [case_val1, case_label1, case_val2, case_label2, ...]
+        switch_operands = [cond_value, default_label]
+        for case_val, case_label in self._switch_cases:
+            switch_operands.extend([case_val, case_label])
+
+        self._emit(Opcode.SWITCH, switch_operands)
+
+        # 6. 设置 break 目标
         self._push_break_target(end_bb.label)
 
-        # 处理 case
-        if node.cases:
-            for case in node.cases:
-                case.accept(self)
+        # 7. 处理每个 case/default 的语句体
+        for case_node in node.cases:
+            case_node.accept(self)
 
+        # 8. 恢复上下文
         self._pop_break_target()
         self._in_switch = old_switch
+        self._switch_cases = old_switch_cases
 
+        # 9. 确保当前块有终结指令
         if self.current_block and not self.current_block.is_terminated():
             self._emit(Opcode.JMP, [end_bb.label])
 
+        # 10. 切换到 end_bb
         self._switch_block(end_bb)
 
+    def _get_case_value(self, value_node: ASTNode) -> Any:
+        """从 AST 节点获取 case 值"""
+        from zhc.parser.ast_nodes import (
+            IntLiteralNode,
+            FloatLiteralNode,
+            CharLiteralNode,
+            StringLiteralNode,
+            IdentifierExprNode,
+        )
+
+        if isinstance(value_node, IntLiteralNode):
+            # 整数字面量
+            return value_node.value
+        elif isinstance(value_node, FloatLiteralNode):
+            # 浮点字面量
+            return int(value_node.value)
+        elif isinstance(value_node, CharLiteralNode):
+            # 字符字面量
+            return ord(value_node.value)
+        elif isinstance(value_node, StringLiteralNode):
+            # 字符串字面量（应该是字符）
+            return ord(value_node.value[0]) if value_node.value else 0
+        elif isinstance(value_node, IdentifierExprNode):
+            # 标识符（可能是枚举值）
+            return value_node.name
+        else:
+            # 其他情况，尝试获取值属性
+            return getattr(value_node, "value", str(value_node))
+
     def visit_case_stmt(self, node: CaseStmtNode):
-        """case 语句"""
-        # case 不生成独立基本块，由 switch_stmt 处理
-        pass
+        """case 语句 - 生成 case 基本块的代码
+
+        处理流程：
+        1. 切换到 case 基本块
+        2. 生成 case 体的代码
+        3. 检查是否有 break（fall-through 处理）
+        """
+        # 获取目标标签
+        target_label = getattr(node, "_target_label", None)
+        if not target_label:
+            # 如果没有预设标签，创建一个
+            case_val = self._get_case_value(node.value) if node.value else "default"
+            target_label = self._new_bb_label(f"case_{case_val}")
+            case_bb = IRBasicBlock(target_label)
+            self.current_function.basic_blocks.append(case_bb)
+
+        # 切换到 case 基本块
+        case_bb = None
+        for bb in self.current_function.basic_blocks:
+            if bb.label == target_label:
+                case_bb = bb
+                break
+
+        if case_bb is None:
+            case_bb = IRBasicBlock(target_label)
+            self.current_function.basic_blocks.append(case_bb)
+
+        self._switch_block(case_bb)
+
+        # 生成 case 体的代码
+        for stmt in node.statements:
+            stmt.accept(self)
+
+        # 检查是否需要 fall-through（没有 break 的情况下跳转到 end）
+        has_break = any(
+            self._has_break(stmt) for stmt in node.statements
+        )
+        if not has_break and self.current_block and not self.current_block.is_terminated():
+            # fall-through: 跳转到 switch_end
+            if self._break_targets:
+                self._emit(Opcode.JMP, [self._break_targets[-1]])
 
     def visit_default_stmt(self, node: DefaultStmtNode):
-        """default 语句"""
-        pass
+        """default 语句 - 生成 default 基本块的代码"""
+        # 获取目标标签
+        target_label = getattr(node, "_target_label", None)
+        if not target_label:
+            target_label = self._new_bb_label("default")
+            default_bb = IRBasicBlock(target_label)
+            self.current_function.basic_blocks.append(default_bb)
+
+        # 切换到 default 基本块
+        default_bb = None
+        for bb in self.current_function.basic_blocks:
+            if bb.label == target_label:
+                default_bb = bb
+                break
+
+        if default_bb is None:
+            default_bb = IRBasicBlock(target_label)
+            self.current_function.basic_blocks.append(default_bb)
+
+        self._switch_block(default_bb)
+
+        # 生成 default 体的代码
+        for stmt in node.statements:
+            stmt.accept(self)
+
+        # 检查是否需要 break
+        has_break = any(
+            self._has_break(stmt) for stmt in node.statements
+        )
+        if not has_break and self.current_block and not self.current_block.is_terminated():
+            if self._break_targets:
+                self._emit(Opcode.JMP, [self._break_targets[-1]])
+
+    def _has_break(self, stmt: ASTNode) -> bool:
+        """检查语句是否包含 break"""
+        from zhc.parser.ast_nodes import BreakStmtNode, BlockStmtNode
+
+        if isinstance(stmt, BreakStmtNode):
+            return True
+        elif isinstance(stmt, BlockStmtNode):
+            return any(self._has_break(s) for s in stmt.statements)
+        return False
 
     def visit_goto_stmt(self, node: GotoStmtNode):
         """goto 语句"""
@@ -1088,6 +1258,11 @@ class IRGenerator(ASTVisitor):
     def visit_typedef_decl(self, node: TypedefDeclNode):
         """类型别名"""
         # typedef 不生成 IR 指令
+        pass
+
+    def visit_auto_type(self, node):
+        """自动类型节点 - 类型推导在语义分析阶段完成"""
+        # 自动类型节点不生成 IR 指令
         pass
 
     def visit_member_expr(self, node: MemberExprNode):

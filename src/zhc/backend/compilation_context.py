@@ -8,13 +8,217 @@ ZhC 后端编译上下文 - 共享编译状态
 日期：2026-04-09
 """
 
-from typing import Dict, Optional, TYPE_CHECKING
+from typing import Dict, Optional, List, Tuple, TYPE_CHECKING
 from dataclasses import dataclass, field
+from functools import reduce
 
 if TYPE_CHECKING:
     import llvmlite.ir as ll
     from zhc.ir.instructions import IRInstruction
     from zhc.ir.program import IRFunction
+
+
+@dataclass
+class ArrayTypeInfo:
+    """数组类型信息"""
+    element_type: "ll.Type"  # 元素类型
+    dimensions: List[int]    # 各维度大小 [N, M, K] 表示 [N][M][K]
+    total_size: int          # 总元素数
+
+    @property
+    def ndim(self) -> int:
+        """数组维度数"""
+        return len(self.dimensions)
+
+    @property
+    def element_stride(self) -> int:
+        """元素步长（最后一个维度的大小）"""
+        return self.dimensions[-1] if self.dimensions else 1
+
+
+@dataclass
+class StructFieldInfo:
+    """结构体字段信息"""
+    name: str                # 字段名
+    field_type: "ll.Type"    # 字段类型
+    index: int               # 字段索引
+    offset: int              # 字段偏移（字节）
+
+
+@dataclass
+class StructTypeInfo:
+    """结构体类型信息"""
+    name: str                                    # 结构体名称
+    llvm_type: "ll.Type"                         # LLVM 类型
+    fields: Dict[str, StructFieldInfo]           # 字段名 -> 字段信息
+    field_names: List[str]                       # 字段名列表（保持顺序）
+
+    def get_field(self, field_name: str) -> Optional[StructFieldInfo]:
+        """获取字段信息"""
+        return self.fields.get(field_name)
+
+    def get_field_index(self, field_name: str) -> Optional[int]:
+        """获取字段索引"""
+        field_info = self.get_field(field_name)
+        return field_info.index if field_info else None
+
+
+class TypeInfoRegistry:
+    """全局类型信息注册表
+
+    记录数组和结构体的类型信息，用于 GEP 指令生成。
+    """
+
+    def __init__(self):
+        self._array_info: Dict[str, ArrayTypeInfo] = {}
+        self._struct_info: Dict[str, StructTypeInfo] = {}
+        self._value_types: Dict[str, "ll.Type"] = {}  # 值 -> 类型映射
+
+    def register_array(self, name: str, element_type: "ll.Type",
+                       dimensions: List[int]) -> ArrayTypeInfo:
+        """注册数组类型信息
+
+        Args:
+            name: 数组名称
+            element_type: 元素 LLVM 类型
+            dimensions: 各维度大小
+
+        Returns:
+            ArrayTypeInfo: 注册的数组类型信息
+        """
+        total_size = reduce(lambda a, b: a * b, dimensions, 1)
+        info = ArrayTypeInfo(
+            element_type=element_type,
+            dimensions=dimensions,
+            total_size=total_size
+        )
+        self._array_info[name] = info
+        return info
+
+    def register_struct(self, name: str, llvm_type: "ll.Type",
+                        fields: List[Tuple[str, "ll.Type"]]) -> StructTypeInfo:
+        """注册结构体类型信息
+
+        Args:
+            name: 结构体名称
+            llvm_type: LLVM 结构体类型
+            fields: 字段列表 [(字段名, 类型), ...]
+
+        Returns:
+            StructTypeInfo: 注册的结构体类型信息
+        """
+        field_dict: Dict[str, StructFieldInfo] = {}
+        field_names = []
+
+        for idx, (field_name, field_type) in enumerate(fields):
+            field_info = StructFieldInfo(
+                name=field_name,
+                field_type=field_type,
+                index=idx,
+                offset=0  # 简化处理，实际计算需要考虑对齐
+            )
+            field_dict[field_name] = field_info
+            field_names.append(field_name)
+
+        info = StructTypeInfo(
+            name=name,
+            llvm_type=llvm_type,
+            fields=field_dict,
+            field_names=field_names
+        )
+        self._struct_info[name] = info
+        return info
+
+    def get_array_info(self, name: str) -> Optional[ArrayTypeInfo]:
+        """获取数组类型信息"""
+        return self._array_info.get(name)
+
+    def get_struct_info(self, name: str) -> Optional[StructTypeInfo]:
+        """获取结构体类型信息"""
+        return self._struct_info.get(name)
+
+    def get_struct_field_offset(self, struct_type: str,
+                                field_name: str) -> Optional[int]:
+        """获取结构体字段偏移量
+
+        Args:
+            struct_type: 结构体类型名
+            field_name: 字段名
+
+        Returns:
+            Optional[int]: 字段偏移量（字节），如果不存在返回 None
+        """
+        info = self._struct_info.get(struct_type)
+        if info:
+            field_info = info.get_field(field_name)
+            return field_info.offset if field_info else None
+        return None
+
+    def get_array_element_stride(self, array_type: str) -> Optional[int]:
+        """获取数组元素步长
+
+        Args:
+            array_type: 数组类型名
+
+        Returns:
+            Optional[int]: 元素步长，如果不存在返回 None
+        """
+        info = self._array_info.get(array_type)
+        return info.element_stride if info else None
+
+    def register_value_type(self, value_name: str, value_type: "ll.Type"):
+        """注册值的类型
+
+        Args:
+            value_name: 值名称（如 %arr）
+            value_type: LLVM 类型
+        """
+        self._value_types[value_name] = value_type
+
+    def get_value_type(self, value_name: str) -> Optional["ll.Type"]:
+        """获取值的类型
+
+        Args:
+            value_name: 值名称
+
+        Returns:
+            Optional[ll.Type]: LLVM 类型，如果不存在返回 None
+        """
+        return self._value_types.get(value_name)
+
+    def infer_gep_result_type(self, base_type: "ll.Type",
+                               indices: List["ll.Type"]) -> Optional["ll.Type"]:
+        """推断 GEP 指令结果类型
+
+        Args:
+            base_type: 基指针类型
+            indices: 索引类型列表
+
+        Returns:
+            Optional[ll.Type]: GEP 结果类型
+        """
+        import llvmlite.ir as ll
+
+        current_type = base_type
+
+        for idx_type in indices:
+            # 解引用指针
+            if isinstance(current_type, ll.PointerType):
+                current_type = current_type.pointee
+
+            # 如果是数组类型，获取元素类型
+            if isinstance(current_type, ll.ArrayType):
+                current_type = current_type.element
+
+            # 如果是结构体类型，需要知道字段索引
+            elif isinstance(current_type, ll.LiteralStructType):
+                # 这里需要更多信息来确定字段类型
+                # 简化处理：返回第一个字段类型
+                if hasattr(current_type, 'elements') and current_type.elements:
+                    # 索引应该是常量
+                    pass
+
+        return current_type
 
 
 @dataclass
@@ -31,6 +235,7 @@ class CompilationContext:
     - current_function: 当前编译的函数
     - current_block: 当前编译的基本块
     - type_mapper: 类型映射器
+    - type_registry: 类型信息注册表（用于 GEP 等指令）
     """
 
     module: "ll.Module" = None
@@ -40,6 +245,7 @@ class CompilationContext:
     string_constants: Dict[str, "ll.GlobalVariable"] = field(default_factory=dict)
     current_function: Optional["IRFunction"] = None
     current_block: Optional["ll.Block"] = None
+    type_registry: TypeInfoRegistry = field(default_factory=TypeInfoRegistry)
 
     def get_value(self, operand) -> "ll.Value":
         """
@@ -305,3 +511,231 @@ class CompilationContext:
         self.blocks.clear()
         self.current_function = None
         self.current_block = None
+
+    # ============ 类型信息注册表相关方法 ============
+
+    def register_array_type(self, name: str, element_type: "ll.Type",
+                           dimensions: List[int]) -> ArrayTypeInfo:
+        """注册数组类型信息
+
+        Args:
+            name: 数组名称
+            element_type: 元素 LLVM 类型
+            dimensions: 各维度大小
+
+        Returns:
+            ArrayTypeInfo: 注册的数组类型信息
+        """
+        return self.type_registry.register_array(name, element_type, dimensions)
+
+    def register_struct_type(self, name: str, llvm_type: "ll.Type",
+                           fields: List[Tuple[str, "ll.Type"]]) -> StructTypeInfo:
+        """注册结构体类型信息
+
+        Args:
+            name: 结构体名称
+            llvm_type: LLVM 结构体类型
+            fields: 字段列表
+
+        Returns:
+            StructTypeInfo: 注册的结构体类型信息
+        """
+        return self.type_registry.register_struct(name, llvm_type, fields)
+
+    def get_array_type_info(self, name: str) -> Optional[ArrayTypeInfo]:
+        """获取数组类型信息"""
+        return self.type_registry.get_array_info(name)
+
+    def get_struct_type_info(self, name: str) -> Optional[StructTypeInfo]:
+        """获取结构体类型信息"""
+        return self.type_registry.get_struct_info(name)
+
+    def register_value_type(self, value_name: str, value_type: "ll.Type"):
+        """注册值的类型"""
+        self.type_registry.register_value_type(value_name, value_type)
+
+    def get_value_type(self, value_name: str) -> Optional["ll.Type"]:
+        """获取值的类型"""
+        return self.type_registry.get_value_type(value_name)
+
+    def infer_gep_base_type(self, base_value: "ll.Value") -> Optional["ll.Type"]:
+        """从基指针值推断其指向的类型
+
+        Args:
+            base_value: 基指针值
+
+        Returns:
+            Optional[ll.Type]: 指向的类型
+        """
+        import llvmlite.ir as ll
+
+        if hasattr(base_value, 'type'):
+            ptr_type = base_value.type
+            if isinstance(ptr_type, ll.PointerType):
+                return ptr_type.pointee
+        return None
+
+    def create_gep_constant_index(self, value: int) -> "ll.Value":
+        """创建 GEP 指令使用的常量索引
+
+        Args:
+            value: 索引值
+
+        Returns:
+            ll.Value: i32 常量
+        """
+        import llvmlite.ir as ll
+        return ll.Constant(ll.IntType(32), value)
+
+    # ============ GEP 指令辅助方法 ============
+
+    def _fold_constant_indices(self, indices: List["ll.Value"]) -> Tuple[List["ll.Value"], int]:
+        """常量折叠：尝试将多个连续索引合并
+
+        Args:
+            indices: 索引列表
+
+        Returns:
+            Tuple[List[ll.Value], int]: (处理后的索引, 合并的偏移量)
+        """
+        import llvmlite.ir as ll
+
+        merged_offset = 0
+        result_indices = []
+
+        for idx in indices:
+            if isinstance(idx, ll.Constant) and isinstance(idx.type, ll.IntType):
+                # 如果是常量整数，直接累加到偏移量
+                merged_offset += idx.constant
+            else:
+                # 非常量索引，需要保留
+                if merged_offset > 0:
+                    # 插入合并后的偏移常量
+                    result_indices.append(
+                        ll.Constant(ll.IntType(32), merged_offset)
+                    )
+                    merged_offset = 0
+                result_indices.append(idx)
+
+        return result_indices, merged_offset
+
+    def _compute_array_element_offset(self, array_info: ArrayTypeInfo,
+                                      indices: List["ll.Value"]) -> Optional[int]:
+        """计算数组成员偏移量（用于常量索引情况）
+
+        Args:
+            array_info: 数组类型信息
+            indices: 索引列表
+
+        Returns:
+            Optional[int]: 元素偏移量（元素个数），如果无法计算返回 None
+        """
+        import llvmlite.ir as ll
+
+        # 所有索引必须是常量
+        const_indices = []
+        for idx in indices:
+            if isinstance(idx, ll.Constant) and isinstance(idx.type, ll.IntType):
+                const_indices.append(idx.constant)
+            else:
+                return None  # 包含非常量索引，无法预计算
+
+        # 计算偏移量
+        # 例如 [3][4][5] 数组，索引 [i, j, k] 的偏移量是 i*4*5 + j*5 + k
+        offset = 0
+        stride = 1
+        dimensions = array_info.dimensions
+
+        for i, idx in enumerate(const_indices):
+            # 验证边界
+            if i < len(dimensions):
+                if idx < 0 or idx >= dimensions[i]:
+                    return None  # 越界
+            offset += idx * stride
+            if i < len(dimensions) - 1:
+                stride *= dimensions[i]
+
+        return offset
+
+    def validate_gep_indices(self, ptr_type: "ll.Type",
+                           indices: List["ll.Value"]) -> Tuple[bool, str]:
+        """验证 GEP 索引有效性
+
+        Args:
+            ptr_type: 指针类型（指向数组/结构体）
+            indices: 索引列表
+
+        Returns:
+            Tuple[bool, str]: (是否有效, 错误消息)
+        """
+        import llvmlite.ir as ll
+
+        current_type = ptr_type
+
+        # 第一个索引通常用于基地址
+        indices_to_check = indices[1:] if len(indices) > 1 else []
+
+        for i, idx in enumerate(indices_to_check):
+            # 检查索引类型
+            if isinstance(idx, ll.Constant):
+                # 常量索引：检查是否越界
+                if hasattr(idx, 'constant') and isinstance(idx.constant, int):
+                    if idx.constant < 0:
+                        return False, f"索引 {i} 不能为负数"
+
+            # 解引用当前类型
+            if isinstance(current_type, ll.PointerType):
+                current_type = current_type.pointee
+            elif isinstance(current_type, ll.ArrayType):
+                # 检查索引是否超过数组大小
+                if isinstance(idx, ll.Constant) and hasattr(idx, 'constant'):
+                    if idx.constant >= current_type.count:
+                        return False, f"索引 {i} 超出数组边界 ({current_type.count})"
+                current_type = current_type.element
+            elif isinstance(current_type, ll.LiteralStructType):
+                # 结构体字段索引必须是常量
+                if not isinstance(idx, ll.Constant):
+                    return False, f"结构体字段索引必须是常量"
+                field_idx = idx.constant
+                if field_idx >= len(current_type.elements):
+                    return False, f"结构体字段索引 {field_idx} 超出范围"
+                if hasattr(current_type, 'elements'):
+                    current_type = current_type.elements[field_idx]
+            else:
+                return False, f"无法对基本类型进行索引"
+
+        return True, ""
+
+    def optimize_gep_indices(self, ptr: "ll.Value",
+                            indices: List["ll.Value"]) -> Tuple["ll.Value", List["ll.Value"]]:
+        """优化 GEP 索引
+
+        移除不必要的零索引，合并常量索引。
+
+        Args:
+            ptr: 基指针
+            indices: 索引列表
+
+        Returns:
+            Tuple[ll.Value, List[ll.Value]]: (优化后的基指针, 索引列表)
+        """
+        import llvmlite.ir as ll
+
+        optimized_indices = []
+        zero_count = 0
+
+        for idx in indices:
+            # 移除开头的零索引
+            if (isinstance(idx, ll.Constant) and
+                isinstance(idx.type, ll.IntType) and
+                idx.constant == 0):
+                zero_count += 1
+            else:
+                # 遇到非零索引，停止移除
+                if zero_count > 0:
+                    # 重新添加被移除的零索引（除非后续有更多优化）
+                    optimized_indices.extend([ll.Constant(ll.IntType(32), 0)] * zero_count)
+                    zero_count = 0
+                optimized_indices.append(idx)
+
+        return ptr, optimized_indices
