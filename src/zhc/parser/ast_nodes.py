@@ -83,6 +83,9 @@ class ASTNodeType(Enum):
     STRUCT_TYPE = auto()  # 结构体类型
     AUTO_TYPE = auto()  # 自动类型（自动推导）
 
+    # 错误恢复
+    ERROR_NODE = auto()  # 错误节点（用于错误恢复）
+
 
 class ASTNode(ABC):
     """AST节点基类

@@ -83,6 +83,14 @@ from .declarations import DeclarationParserMixin
 from .statements import StatementParserMixin
 from .expressions import ExpressionParserMixin
 
+# Parser 错误恢复
+from .parser_error_recovery import (
+    ParserRecoveryContext,
+    PlaceholderNode,
+    ParserErrorRecovery,
+    ParserErrorCollector,
+)
+
 __all__ = [
     # Lexer
     "Lexer",
@@ -151,4 +159,9 @@ __all__ = [
     "DeclarationParserMixin",
     "StatementParserMixin",
     "ExpressionParserMixin",
+    # Parser 错误恢复
+    "ParserRecoveryContext",
+    "PlaceholderNode",
+    "ParserErrorRecovery",
+    "ParserErrorCollector",
 ]

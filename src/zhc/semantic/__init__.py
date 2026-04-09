@@ -30,6 +30,14 @@ from .array_analyzer import (
     ArrayTypeValidator,
 )
 
+# 语义错误恢复
+from .semantic_recovery import (
+    PlaceholderSymbol,
+    SemanticRecoveryContext,
+    SemanticErrorRecovery,
+    SemanticErrorCollector,
+)
+
 __all__ = [
     # 核心语义分析
     "SemanticAnalyzer",
@@ -48,4 +56,9 @@ __all__ = [
     "ArraySemanticAnalyzer",
     "ArrayAnalysisResult",
     "ArrayTypeValidator",
+    # 语义错误恢复
+    "PlaceholderSymbol",
+    "SemanticRecoveryContext",
+    "SemanticErrorRecovery",
+    "SemanticErrorCollector",
 ]
