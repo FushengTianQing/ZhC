@@ -32,11 +32,7 @@ class TestArrayTypeInfo:
     def test_basic_properties(self):
         """测试基本属性"""
         i32 = ll.IntType(32)
-        info = ArrayTypeInfo(
-            element_type=i32,
-            dimensions=[3, 4, 5],
-            total_size=60
-        )
+        info = ArrayTypeInfo(element_type=i32, dimensions=[3, 4, 5], total_size=60)
         assert info.ndim == 3
         assert info.element_stride == 5
         assert info.total_size == 60
@@ -44,11 +40,7 @@ class TestArrayTypeInfo:
     def test_single_dimension(self):
         """测试单维数组"""
         i32 = ll.IntType(32)
-        info = ArrayTypeInfo(
-            element_type=i32,
-            dimensions=[10],
-            total_size=10
-        )
+        info = ArrayTypeInfo(element_type=i32, dimensions=[10], total_size=10)
         assert info.ndim == 1
         assert info.element_stride == 10
 
@@ -71,7 +63,7 @@ class TestStructTypeInfo:
             name="Student",
             llvm_type=struct_type,
             fields={"age": fields[0], "grade": fields[1]},
-            field_names=["age", "grade"]
+            field_names=["age", "grade"],
         )
 
         assert info.get_field("age") is not None
@@ -100,7 +92,9 @@ class TestTypeInfoRegistry:
         i8 = ll.IntType(8)
         struct_type = ll.LiteralStructType([i32, i8])
 
-        info = registry.register_struct("Person", struct_type, [("name", i32), ("age", i8)])
+        info = registry.register_struct(
+            "Person", struct_type, [("name", i32), ("age", i8)]
+        )
         assert info is not None
         assert info.get_field_index("name") == 0
         assert info.get_field_index("age") == 1
@@ -194,8 +188,7 @@ class TestCompilationContextGEP:
         assert len(optimized) >= 1
         # 检查非零索引存在
         non_zero_found = any(
-            (isinstance(idx, ll.Constant) and idx.constant != 0)
-            for idx in optimized
+            (isinstance(idx, ll.Constant) and idx.constant != 0) for idx in optimized
         )
         assert non_zero_found
 

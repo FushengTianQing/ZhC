@@ -381,7 +381,7 @@ class SwitchStrategy(InstructionStrategy):
         val = context.get_value(instr.operands[0])
 
         # 2. 验证条件值类型（必须是整数类型）
-        if hasattr(val, 'type'):
+        if hasattr(val, "type"):
             val_type = val.type
             if not isinstance(val_type, ll.IntType):
                 # 尝试转换为整数
@@ -445,7 +445,7 @@ class SwitchStrategy(InstructionStrategy):
         import llvmlite.ir as ll
 
         # 如果已经是 LLVM 值
-        if hasattr(operand, 'type'):
+        if hasattr(operand, "type"):
             return operand
 
         # 如果是整数
@@ -622,8 +622,7 @@ class GepStrategy(InstructionStrategy):
                     if isinstance(first_idx, ll.Constant):
                         # 直接累加
                         indices[0] = ll.Constant(
-                            ll.IntType(32),
-                            first_idx.constant + merged_offset
+                            ll.IntType(32), first_idx.constant + merged_offset
                         )
                     else:
                         # 需要生成 add 指令
@@ -659,7 +658,7 @@ class GepStrategy(InstructionStrategy):
                         f"警告：GEP 索引 {i} 为负数 ({idx.constant})，"
                         "这可能导致未定义行为。",
                         RuntimeWarning,
-                        stacklevel=3
+                        stacklevel=3,
                     )
 
 
@@ -703,7 +702,6 @@ class AdvancedGEPInstruction(InstructionStrategy):
         Returns:
             ll.Value: 生成的指针
         """
-        import llvmlite.ir as ll
 
         ptr = context.get_value(instr.operands[0])
 
@@ -753,7 +751,7 @@ class AdvancedGEPInstruction(InstructionStrategy):
                 # 在注册表中查找字段索引
                 # 这里需要知道结构体类型，暂时返回常量 0
                 # 实际实现需要从上下文获取结构体类型信息
-                if hasattr(context, 'current_struct_info'):
+                if hasattr(context, "current_struct_info"):
                     field_idx = context.current_struct_info.get_field_index(field_name)
                     if field_idx is not None:
                         return ll.Constant(ll.IntType(32), field_idx)
@@ -764,9 +762,9 @@ class AdvancedGEPInstruction(InstructionStrategy):
         # 其他情况使用标准解析
         return context.get_value(operand)
 
-    def _optimize_indices_for_type(self, base_type: "ll.Type",
-                                   indices: List["ll.Value"],
-                                   context) -> List["ll.Value"]:
+    def _optimize_indices_for_type(
+        self, base_type: "ll.Type", indices: List["ll.Value"], context
+    ) -> List["ll.Value"]:
         """
         根据类型优化索引
 
@@ -786,9 +784,9 @@ class AdvancedGEPInstruction(InstructionStrategy):
 
         return indices
 
-    def _optimize_multi_dimensional_array(self, array_type: "ll.ArrayType",
-                                         indices: List["ll.Value"],
-                                         context) -> List["ll.Value"]:
+    def _optimize_multi_dimensional_array(
+        self, array_type: "ll.ArrayType", indices: List["ll.Value"], context
+    ) -> List["ll.Value"]:
         """
         多维数组索引优化
 
@@ -804,7 +802,6 @@ class AdvancedGEPInstruction(InstructionStrategy):
         Returns:
             List[ll.Value]: 优化后的索引
         """
-        import llvmlite.ir as ll
 
         # 只有当索引数量与维度匹配时进行优化
         expected_dims = self._count_array_dims(array_type)
@@ -812,7 +809,7 @@ class AdvancedGEPInstruction(InstructionStrategy):
             return indices
 
         # 获取数组信息
-        if hasattr(array_type, 'count'):
+        if hasattr(array_type, "count"):
             inner_dim_size = array_type.count
         else:
             return indices
