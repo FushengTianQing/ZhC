@@ -23,6 +23,22 @@ except ImportError:
     PrereleaseType = None
     PackageError = Exception
 
+# 导入仓库模块
+try:
+    from zhc.package.repository import (
+        RepositoryRegistry,
+        LocalRepository,
+        RemoteRepository,
+        AuthManager,
+    )
+    from zhc.package.version import Version
+except ImportError:
+    RepositoryRegistry = None
+    LocalRepository = None
+    RemoteRepository = None
+    AuthManager = None
+    Version = None
+
 
 class CommandHandler(ABC):
     """命令处理器抽象基类 - 命令模式"""
@@ -606,6 +622,289 @@ class VersionCommand(CommandHandler):
             return 0
 
 
+class RepoCommand(CommandHandler):
+    """repo 命令处理器"""
+
+    def execute(self, args: argparse.Namespace, cli: "CommandLineInterface") -> int:
+        if RepositoryRegistry is None:
+            print("❌ 错误: 仓库模块未安装")
+            return 1
+
+        action = getattr(args, "repo_action", None)
+
+        if not action:
+            print("❌ 错误: 请指定仓库操作 (add, list, remove)")
+            return 1
+
+        try:
+            if action == "add":
+                return self._add_repository(args)
+            elif action == "list":
+                return self._list_repositories()
+            elif action == "remove":
+                return self._remove_repository(args)
+            else:
+                print(f"❌ 错误: 未知的仓库操作: {action}")
+                return 1
+        except Exception as e:
+            print(f"❌ 错误: {e}")
+            return 1
+
+    def _add_repository(self, args: argparse.Namespace) -> int:
+        """添加仓库"""
+        name = args.name
+        url = args.url
+        auth_token = getattr(args, "auth", None)
+
+        print(f"📦 正在添加仓库: {name}")
+        print(f"   URL: {url}")
+
+        # 创建仓库配置
+        config_dir = Path.home() / ".zhc"
+        config_dir.mkdir(exist_ok=True)
+        config_file = config_dir / "repositories.json"
+
+        # 加载现有配置
+        repos = {}
+        if config_file.exists():
+            with open(config_file, "r", encoding="utf-8") as f:
+                repos = json.load(f)
+
+        # 添加新仓库
+        repos[name] = {
+            "url": url,
+            "priority": len(repos) + 1,
+            "auth_token": auth_token,
+        }
+
+        # 保存配置
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump(repos, f, indent=2, ensure_ascii=False)
+
+        print(f"✅ 仓库添加成功: {name}")
+        return 0
+
+    def _list_repositories(self) -> int:
+        """列出所有仓库"""
+        config_dir = Path.home() / ".zhc"
+        config_file = config_dir / "repositories.json"
+
+        if not config_file.exists():
+            print("📋 没有配置任何仓库")
+            return 0
+
+        with open(config_file, "r", encoding="utf-8") as f:
+            repos = json.load(f)
+
+        if not repos:
+            print("📋 没有配置任何仓库")
+            return 0
+
+        print("📋 已配置的仓库:")
+        for name, config in repos.items():
+            print(f"  - {name}: {config['url']} (优先级: {config['priority']})")
+
+        return 0
+
+    def _remove_repository(self, args: argparse.Namespace) -> int:
+        """移除仓库"""
+        name = args.name
+
+        config_dir = Path.home() / ".zhc"
+        config_file = config_dir / "repositories.json"
+
+        if not config_file.exists():
+            print(f"❌ 错误: 仓库 {name} 不存在")
+            return 1
+
+        with open(config_file, "r", encoding="utf-8") as f:
+            repos = json.load(f)
+
+        if name not in repos:
+            print(f"❌ 错误: 仓库 {name} 不存在")
+            return 1
+
+        del repos[name]
+
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump(repos, f, indent=2, ensure_ascii=False)
+
+        print(f"✅ 仓库移除成功: {name}")
+        return 0
+
+
+class SearchCommand(CommandHandler):
+    """search 命令处理器"""
+
+    def execute(self, args: argparse.Namespace, cli: "CommandLineInterface") -> int:
+        if RepositoryRegistry is None:
+            print("❌ 错误: 仓库模块未安装")
+            return 1
+
+        query = args.query
+
+        print(f"🔍 正在搜索: {query}")
+
+        # 加载仓库配置
+        config_dir = Path.home() / ".zhc"
+        config_file = config_dir / "repositories.json"
+
+        if not config_file.exists():
+            print("ℹ️  没有配置任何仓库，请先使用 zhc repo add 添加仓库")
+            return 0
+
+        with open(config_file, "r", encoding="utf-8") as f:
+            repos_config = json.load(f)
+
+        if not repos_config:
+            print("ℹ️  没有配置任何仓库，请先使用 zhc repo add 添加仓库")
+            return 0
+
+        # 创建仓库注册表
+        registry = RepositoryRegistry()
+        for name, config in repos_config.items():
+            repo = RemoteRepository(
+                config["url"],
+                auth_token=config.get("auth_token"),
+            )
+            registry.add_repository(name, repo, priority=config.get("priority", 100))
+
+        # 搜索
+        results = registry.search(query)
+
+        if not results:
+            print("ℹ️  没有找到匹配的包")
+            return 0
+
+        print(f"\n📋 找到 {len(results)} 个包:")
+        for result in results:
+            print(f"  - {result.name} v{result.version}")
+            if result.description:
+                print(f"    {result.description}")
+            if result.author:
+                print(f"    作者: {result.author}")
+            if result.downloads:
+                print(f"    下载量: {result.downloads}")
+
+        return 0
+
+
+class InfoCommand2(CommandHandler):
+    """info 命令处理器（包信息）"""
+
+    def execute(self, args: argparse.Namespace, cli: "CommandLineInterface") -> int:
+        if RepositoryRegistry is None:
+            print("❌ 错误: 仓库模块未安装")
+            return 1
+
+        package_name = args.package
+        version_str = getattr(args, "version", None)
+
+        # 加载仓库配置
+        config_dir = Path.home() / ".zhc"
+        config_file = config_dir / "repositories.json"
+
+        if not config_file.exists():
+            print("ℹ️  没有配置任何仓库，请先使用 zhc repo add 添加仓库")
+            return 0
+
+        with open(config_file, "r", encoding="utf-8") as f:
+            repos_config = json.load(f)
+
+        # 创建仓库注册表
+        registry = RepositoryRegistry()
+        for name, config in repos_config.items():
+            repo = RemoteRepository(
+                config["url"],
+                auth_token=config.get("auth_token"),
+            )
+            registry.add_repository(name, repo, priority=config.get("priority", 100))
+
+        # 获取包信息
+        if version_str:
+            version = Version.parse(version_str)
+            metadata = registry.get_metadata(package_name, version)
+        else:
+            versions = registry.get_versions(package_name)
+            if not versions:
+                print(f"❌ 错误: 包 {package_name} 不存在")
+                return 1
+            version = versions[0]
+            metadata = registry.get_metadata(package_name, version)
+
+        if not metadata:
+            print(f"❌ 错误: 包 {package_name} 不存在")
+            return 1
+
+        print(f"📦 包信息: {metadata.name}")
+        print(f"  版本: {metadata.version}")
+        if metadata.description:
+            print(f"  描述: {metadata.description}")
+        if metadata.author:
+            print(f"  作者: {metadata.author}")
+        if metadata.license:
+            print(f"  许可证: {metadata.license}")
+        if metadata.homepage:
+            print(f"  主页: {metadata.homepage}")
+        if metadata.repository:
+            print(f"  仓库: {metadata.repository}")
+        if metadata.dependencies:
+            print(f"  依赖:")
+            for dep_name, dep_version in metadata.dependencies.items():
+                print(f"    - {dep_name}: {dep_version}")
+        if metadata.downloads:
+            print(f"  下载量: {metadata.downloads}")
+
+        return 0
+
+
+class DownloadCommand(CommandHandler):
+    """download 命令处理器"""
+
+    def execute(self, args: argparse.Namespace, cli: "CommandLineInterface") -> int:
+        if RepositoryRegistry is None:
+            print("❌ 错误: 仓库模块未安装")
+            return 1
+
+        package_name = args.package
+        version_str = args.version
+        output_dir = Path(args.output) if args.output else Path(".")
+
+        print(f"📥 正在下载: {package_name}@{version_str}")
+
+        # 加载仓库配置
+        config_dir = Path.home() / ".zhc"
+        config_file = config_dir / "repositories.json"
+
+        if not config_file.exists():
+            print("ℹ️  没有配置任何仓库，请先使用 zhc repo add 添加仓库")
+            return 1
+
+        with open(config_file, "r", encoding="utf-8") as f:
+            repos_config = json.load(f)
+
+        # 创建仓库注册表
+        registry = RepositoryRegistry()
+        for name, config in repos_config.items():
+            repo = RemoteRepository(
+                config["url"],
+                auth_token=config.get("auth_token"),
+            )
+            registry.add_repository(name, repo, priority=config.get("priority", 100))
+
+        # 下载包
+        version = Version.parse(version_str)
+        target_path = output_dir / f"{package_name}-{version_str}"
+
+        try:
+            result_path = registry.download(package_name, version, target_path)
+            print(f"✅ 下载成功: {result_path}")
+            return 0
+        except Exception as e:
+            print(f"❌ 下载失败: {e}")
+            return 1
+
+
 class CommandLineInterface:
     """统一的命令行接口 - 使用命令模式"""
 
@@ -625,6 +924,9 @@ class CommandLineInterface:
         "info": InfoCommand(),
         "compile": CompileCommand(),
         "version": VersionCommand(),
+        "repo": RepoCommand(),
+        "search": SearchCommand(),
+        "download": DownloadCommand(),
     }
 
     def __init__(self):
@@ -789,6 +1091,35 @@ class CommandLineInterface:
         compile_parser = subparsers.add_parser("compile", help="编译文件（快捷方式）")
         compile_parser.add_argument("file", help="要编译的文件")
         compile_parser.add_argument("-o", "--output", help="输出文件")
+
+        # repo 命令
+        repo_parser = subparsers.add_parser("repo", help="管理仓库")
+        repo_subparsers = repo_parser.add_subparsers(
+            dest="repo_action", help="仓库操作"
+        )
+
+        # repo add
+        repo_add_parser = repo_subparsers.add_parser("add", help="添加仓库")
+        repo_add_parser.add_argument("name", help="仓库名称")
+        repo_add_parser.add_argument("url", help="仓库 URL")
+        repo_add_parser.add_argument("--auth", help="认证 Token")
+
+        # repo list
+        repo_subparsers.add_parser("list", help="列出所有仓库")
+
+        # repo remove
+        repo_remove_parser = repo_subparsers.add_parser("remove", help="移除仓库")
+        repo_remove_parser.add_argument("name", help="仓库名称")
+
+        # search 命令
+        search_parser = subparsers.add_parser("search", help="搜索包")
+        search_parser.add_argument("query", help="搜索关键词")
+
+        # download 命令
+        download_parser = subparsers.add_parser("download", help="下载包")
+        download_parser.add_argument("package", help="包名")
+        download_parser.add_argument("version", help="版本")
+        download_parser.add_argument("-o", "--output", help="输出目录")
 
         return parser
 

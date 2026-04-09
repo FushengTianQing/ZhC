@@ -43,11 +43,20 @@ from .dependency import (
     DependencyResolver,
     MockRepository,
 )
+
+# 仓库接口（新的模块化实现）
 from .repository import (
     PackageRepository,
-    DefaultRepository,
-    LocalRepository,
     PackageMetadata,
+    PackageSearchResult,
+    RepositoryRegistry,
+    AuthManager,
+    AuthConfig,
+    AuthType,
+    PackageIndex,
+    IndexEntry,
+    LocalRepository,
+    RemoteRepository,
 )
 from .cache import (
     PackageCache,
@@ -127,9 +136,16 @@ __all__ = [
     "MockRepository",
     # 仓库接口
     "PackageRepository",
-    "DefaultRepository",
-    "LocalRepository",
     "PackageMetadata",
+    "PackageSearchResult",
+    "RepositoryRegistry",
+    "AuthManager",
+    "AuthConfig",
+    "AuthType",
+    "PackageIndex",
+    "IndexEntry",
+    "LocalRepository",
+    "RemoteRepository",
     # 缓存管理
     "PackageCache",
     "CacheEntry",
