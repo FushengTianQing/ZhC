@@ -1,40 +1,82 @@
+# -*- coding: utf-8 -*-
 """
-中文C语言调试信息生成模块
-DWARF Debug Information Generator
+ZhC 调试支持模块
 
-生成符合DWARF标准的调试信息，支持GDB/LLDB调试器。
-事件驱动架构，支持多后端扩展。
+提供 DWARF 调试信息生成、GDB/LLDB 美化打印器、断点管理等调试功能。
+
+作者：远
+日期：2026-04-09
 """
 
-__version__ = "1.0.0"
-__author__ = "中文C编译器团队"
-
-from .debug_generator import (
-    DebugInfoGenerator,
-    DWARFGenerator,
-    LineNumberTable,
-    DebugSymbolTable,
-    TypeInfoGenerator,
-    SourceLocation,
-    AddressRange,
-    CompileUnit,
+from .dwarf_builder import (
+    DwarfBuilder,
+    DwarfGenerator,
+    DebugSection,
 )
 
-from .debug_listener import DebugListener
-from .debug_manager import DebugManager
+from .debug_info_collector import (
+    DebugInfoCollector,
+    CompileUnitInfo,
+    FunctionDebugInfo,
+    VariableDebugInfo,
+)
+
+from .line_number_generator import (
+    LineNumberGenerator,
+    LineTableEntry,
+)
+
+# 断点引擎
+from .breakpoint_engine import (
+    BreakpointEngine,
+    BreakpointHit,
+    WatchType,
+)
+
+# 变量打印器
+from .variable_printer import (
+    VariablePrinter,
+    VariableDisplay,
+)
+
+# 栈帧分析器
+from .stack_frame_analyzer import (
+    StackFrameAnalyzer,
+    FrameInfo,
+)
+
+# 调试会话
+from .debug_session import (
+    DebugSession,
+    SessionState,
+    SessionConfig,
+)
 
 __all__ = [
-    # 核心生成器
-    "DebugInfoGenerator",
-    "DWARFGenerator",
-    "LineNumberTable",
-    "DebugSymbolTable",
-    "TypeInfoGenerator",
-    # 数据结构
-    "SourceLocation",
-    "AddressRange",
-    "CompileUnit",
-    # 事件驱动架构
-    "DebugListener",
-    "DebugManager",
+    # DWARF 构建
+    "DwarfBuilder",
+    "DwarfGenerator",
+    "DebugSection",
+    # 调试信息收集
+    "DebugInfoCollector",
+    "CompileUnitInfo",
+    "FunctionDebugInfo",
+    "VariableDebugInfo",
+    # 行号生成
+    "LineNumberGenerator",
+    "LineTableEntry",
+    # 断点引擎
+    "BreakpointEngine",
+    "BreakpointHit",
+    "WatchType",
+    # 变量打印器
+    "VariablePrinter",
+    "VariableDisplay",
+    # 栈帧分析器
+    "StackFrameAnalyzer",
+    "FrameInfo",
+    # 调试会话
+    "DebugSession",
+    "SessionState",
+    "SessionConfig",
 ]

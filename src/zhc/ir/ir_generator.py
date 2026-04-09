@@ -1158,10 +1158,12 @@ class IRGenerator(ASTVisitor):
             stmt.accept(self)
 
         # 检查是否需要 fall-through（没有 break 的情况下跳转到 end）
-        has_break = any(
-            self._has_break(stmt) for stmt in node.statements
-        )
-        if not has_break and self.current_block and not self.current_block.is_terminated():
+        has_break = any(self._has_break(stmt) for stmt in node.statements)
+        if (
+            not has_break
+            and self.current_block
+            and not self.current_block.is_terminated()
+        ):
             # fall-through: 跳转到 switch_end
             if self._break_targets:
                 self._emit(Opcode.JMP, [self._break_targets[-1]])
@@ -1193,10 +1195,12 @@ class IRGenerator(ASTVisitor):
             stmt.accept(self)
 
         # 检查是否需要 break
-        has_break = any(
-            self._has_break(stmt) for stmt in node.statements
-        )
-        if not has_break and self.current_block and not self.current_block.is_terminated():
+        has_break = any(self._has_break(stmt) for stmt in node.statements)
+        if (
+            not has_break
+            and self.current_block
+            and not self.current_block.is_terminated()
+        ):
             if self._break_targets:
                 self._emit(Opcode.JMP, [self._break_targets[-1]])
 

@@ -21,9 +21,10 @@ if TYPE_CHECKING:
 @dataclass
 class ArrayTypeInfo:
     """数组类型信息"""
+
     element_type: "ll.Type"  # 元素类型
-    dimensions: List[int]    # 各维度大小 [N, M, K] 表示 [N][M][K]
-    total_size: int          # 总元素数
+    dimensions: List[int]  # 各维度大小 [N, M, K] 表示 [N][M][K]
+    total_size: int  # 总元素数
 
     @property
     def ndim(self) -> int:
@@ -39,19 +40,21 @@ class ArrayTypeInfo:
 @dataclass
 class StructFieldInfo:
     """结构体字段信息"""
-    name: str                # 字段名
-    field_type: "ll.Type"    # 字段类型
-    index: int               # 字段索引
-    offset: int              # 字段偏移（字节）
+
+    name: str  # 字段名
+    field_type: "ll.Type"  # 字段类型
+    index: int  # 字段索引
+    offset: int  # 字段偏移（字节）
 
 
 @dataclass
 class StructTypeInfo:
     """结构体类型信息"""
-    name: str                                    # 结构体名称
-    llvm_type: "ll.Type"                         # LLVM 类型
-    fields: Dict[str, StructFieldInfo]           # 字段名 -> 字段信息
-    field_names: List[str]                       # 字段名列表（保持顺序）
+
+    name: str  # 结构体名称
+    llvm_type: "ll.Type"  # LLVM 类型
+    fields: Dict[str, StructFieldInfo]  # 字段名 -> 字段信息
+    field_names: List[str]  # 字段名列表（保持顺序）
 
     def get_field(self, field_name: str) -> Optional[StructFieldInfo]:
         """获取字段信息"""
@@ -74,8 +77,9 @@ class TypeInfoRegistry:
         self._struct_info: Dict[str, StructTypeInfo] = {}
         self._value_types: Dict[str, "ll.Type"] = {}  # 值 -> 类型映射
 
-    def register_array(self, name: str, element_type: "ll.Type",
-                       dimensions: List[int]) -> ArrayTypeInfo:
+    def register_array(
+        self, name: str, element_type: "ll.Type", dimensions: List[int]
+    ) -> ArrayTypeInfo:
         """注册数组类型信息
 
         Args:
@@ -88,15 +92,14 @@ class TypeInfoRegistry:
         """
         total_size = reduce(lambda a, b: a * b, dimensions, 1)
         info = ArrayTypeInfo(
-            element_type=element_type,
-            dimensions=dimensions,
-            total_size=total_size
+            element_type=element_type, dimensions=dimensions, total_size=total_size
         )
         self._array_info[name] = info
         return info
 
-    def register_struct(self, name: str, llvm_type: "ll.Type",
-                        fields: List[Tuple[str, "ll.Type"]]) -> StructTypeInfo:
+    def register_struct(
+        self, name: str, llvm_type: "ll.Type", fields: List[Tuple[str, "ll.Type"]]
+    ) -> StructTypeInfo:
         """注册结构体类型信息
 
         Args:
@@ -115,16 +118,13 @@ class TypeInfoRegistry:
                 name=field_name,
                 field_type=field_type,
                 index=idx,
-                offset=0  # 简化处理，实际计算需要考虑对齐
+                offset=0,  # 简化处理，实际计算需要考虑对齐
             )
             field_dict[field_name] = field_info
             field_names.append(field_name)
 
         info = StructTypeInfo(
-            name=name,
-            llvm_type=llvm_type,
-            fields=field_dict,
-            field_names=field_names
+            name=name, llvm_type=llvm_type, fields=field_dict, field_names=field_names
         )
         self._struct_info[name] = info
         return info
@@ -137,8 +137,9 @@ class TypeInfoRegistry:
         """获取结构体类型信息"""
         return self._struct_info.get(name)
 
-    def get_struct_field_offset(self, struct_type: str,
-                                field_name: str) -> Optional[int]:
+    def get_struct_field_offset(
+        self, struct_type: str, field_name: str
+    ) -> Optional[int]:
         """获取结构体字段偏移量
 
         Args:
@@ -186,8 +187,9 @@ class TypeInfoRegistry:
         """
         return self._value_types.get(value_name)
 
-    def infer_gep_result_type(self, base_type: "ll.Type",
-                               indices: List["ll.Type"]) -> Optional["ll.Type"]:
+    def infer_gep_result_type(
+        self, base_type: "ll.Type", indices: List["ll.Type"]
+    ) -> Optional["ll.Type"]:
         """推断 GEP 指令结果类型
 
         Args:
@@ -214,7 +216,7 @@ class TypeInfoRegistry:
             elif isinstance(current_type, ll.LiteralStructType):
                 # 这里需要更多信息来确定字段类型
                 # 简化处理：返回第一个字段类型
-                if hasattr(current_type, 'elements') and current_type.elements:
+                if hasattr(current_type, "elements") and current_type.elements:
                     # 索引应该是常量
                     pass
 
@@ -514,8 +516,9 @@ class CompilationContext:
 
     # ============ 类型信息注册表相关方法 ============
 
-    def register_array_type(self, name: str, element_type: "ll.Type",
-                           dimensions: List[int]) -> ArrayTypeInfo:
+    def register_array_type(
+        self, name: str, element_type: "ll.Type", dimensions: List[int]
+    ) -> ArrayTypeInfo:
         """注册数组类型信息
 
         Args:
@@ -528,8 +531,9 @@ class CompilationContext:
         """
         return self.type_registry.register_array(name, element_type, dimensions)
 
-    def register_struct_type(self, name: str, llvm_type: "ll.Type",
-                           fields: List[Tuple[str, "ll.Type"]]) -> StructTypeInfo:
+    def register_struct_type(
+        self, name: str, llvm_type: "ll.Type", fields: List[Tuple[str, "ll.Type"]]
+    ) -> StructTypeInfo:
         """注册结构体类型信息
 
         Args:
@@ -569,7 +573,7 @@ class CompilationContext:
         """
         import llvmlite.ir as ll
 
-        if hasattr(base_value, 'type'):
+        if hasattr(base_value, "type"):
             ptr_type = base_value.type
             if isinstance(ptr_type, ll.PointerType):
                 return ptr_type.pointee
@@ -585,11 +589,14 @@ class CompilationContext:
             ll.Value: i32 常量
         """
         import llvmlite.ir as ll
+
         return ll.Constant(ll.IntType(32), value)
 
     # ============ GEP 指令辅助方法 ============
 
-    def _fold_constant_indices(self, indices: List["ll.Value"]) -> Tuple[List["ll.Value"], int]:
+    def _fold_constant_indices(
+        self, indices: List["ll.Value"]
+    ) -> Tuple[List["ll.Value"], int]:
         """常量折叠：尝试将多个连续索引合并
 
         Args:
@@ -611,16 +618,15 @@ class CompilationContext:
                 # 非常量索引，需要保留
                 if merged_offset > 0:
                     # 插入合并后的偏移常量
-                    result_indices.append(
-                        ll.Constant(ll.IntType(32), merged_offset)
-                    )
+                    result_indices.append(ll.Constant(ll.IntType(32), merged_offset))
                     merged_offset = 0
                 result_indices.append(idx)
 
         return result_indices, merged_offset
 
-    def _compute_array_element_offset(self, array_info: ArrayTypeInfo,
-                                      indices: List["ll.Value"]) -> Optional[int]:
+    def _compute_array_element_offset(
+        self, array_info: ArrayTypeInfo, indices: List["ll.Value"]
+    ) -> Optional[int]:
         """计算数组成员偏移量（用于常量索引情况）
 
         Args:
@@ -657,8 +663,9 @@ class CompilationContext:
 
         return offset
 
-    def validate_gep_indices(self, ptr_type: "ll.Type",
-                           indices: List["ll.Value"]) -> Tuple[bool, str]:
+    def validate_gep_indices(
+        self, ptr_type: "ll.Type", indices: List["ll.Value"]
+    ) -> Tuple[bool, str]:
         """验证 GEP 索引有效性
 
         Args:
@@ -679,7 +686,7 @@ class CompilationContext:
             # 检查索引类型
             if isinstance(idx, ll.Constant):
                 # 常量索引：检查是否越界
-                if hasattr(idx, 'constant') and isinstance(idx.constant, int):
+                if hasattr(idx, "constant") and isinstance(idx.constant, int):
                     if idx.constant < 0:
                         return False, f"索引 {i} 不能为负数"
 
@@ -688,7 +695,7 @@ class CompilationContext:
                 current_type = current_type.pointee
             elif isinstance(current_type, ll.ArrayType):
                 # 检查索引是否超过数组大小
-                if isinstance(idx, ll.Constant) and hasattr(idx, 'constant'):
+                if isinstance(idx, ll.Constant) and hasattr(idx, "constant"):
                     if idx.constant >= current_type.count:
                         return False, f"索引 {i} 超出数组边界 ({current_type.count})"
                 current_type = current_type.element
@@ -699,15 +706,16 @@ class CompilationContext:
                 field_idx = idx.constant
                 if field_idx >= len(current_type.elements):
                     return False, f"结构体字段索引 {field_idx} 超出范围"
-                if hasattr(current_type, 'elements'):
+                if hasattr(current_type, "elements"):
                     current_type = current_type.elements[field_idx]
             else:
                 return False, f"无法对基本类型进行索引"
 
         return True, ""
 
-    def optimize_gep_indices(self, ptr: "ll.Value",
-                            indices: List["ll.Value"]) -> Tuple["ll.Value", List["ll.Value"]]:
+    def optimize_gep_indices(
+        self, ptr: "ll.Value", indices: List["ll.Value"]
+    ) -> Tuple["ll.Value", List["ll.Value"]]:
         """优化 GEP 索引
 
         移除不必要的零索引，合并常量索引。
@@ -726,15 +734,19 @@ class CompilationContext:
 
         for idx in indices:
             # 移除开头的零索引
-            if (isinstance(idx, ll.Constant) and
-                isinstance(idx.type, ll.IntType) and
-                idx.constant == 0):
+            if (
+                isinstance(idx, ll.Constant)
+                and isinstance(idx.type, ll.IntType)
+                and idx.constant == 0
+            ):
                 zero_count += 1
             else:
                 # 遇到非零索引，停止移除
                 if zero_count > 0:
                     # 重新添加被移除的零索引（除非后续有更多优化）
-                    optimized_indices.extend([ll.Constant(ll.IntType(32), 0)] * zero_count)
+                    optimized_indices.extend(
+                        [ll.Constant(ll.IntType(32), 0)] * zero_count
+                    )
                     zero_count = 0
                 optimized_indices.append(idx)
 

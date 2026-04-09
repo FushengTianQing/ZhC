@@ -1,28 +1,49 @@
 """
-中文C语言调试器集成模块
-GDB/LLDB Integration for ZHC Language
+ZhC 调试器支持模块
 
-提供GDB和LLDB调试器的中文C语言支持
+提供 GDB 和 LLDB 调试器的完整支持，包括：
+- 变量美化打印器
+- 调试器配置生成
+- 断点管理
+- 变量检查
+- 表达式求值
 """
 
-__version__ = "1.0.0"
-__author__ = "中文C编译器团队"
+from .gdb_support import GDBSupport, GDBPrettyPrinterRegistry
+from .lldb_support import LLDBSupport, LLDBFormatterRegistry
+from .pretty_printer import (
+    PrettyPrinterBase,
+    StringPrinter,
+    ArrayPrinter,
+    MapPrinter,
+    StructPrinter,
+)
+from .breakpoint_manager import BreakpointManager, Breakpoint, BreakpointType
+from .variable_inspector import VariableInspector, VariableValue, VariableLocation
+from .expression_evaluator import ExpressionEvaluator, EvaluationContext
 
-# 检查GDB/LLDB是否可用
-try:
-    from .gdb_zhc import ZHCGDBCommands
-
-    GDB_AVAILABLE = True
-except ImportError:
-    GDB_AVAILABLE = False
-    ZHCGDBCommands = None
-
-try:
-    from .lldb_zhc import ZHCLLLDBCommands
-
-    LLDB_AVAILABLE = True
-except ImportError:
-    LLDB_AVAILABLE = False
-    ZHCLLLDBCommands = None
-
-__all__ = ["ZHCGDBCommands", "ZHCLLLDBCommands", "GDB_AVAILABLE", "LLDB_AVAILABLE"]
+__all__ = [
+    # GDB 支持
+    "GDBSupport",
+    "GDBPrettyPrinterRegistry",
+    # LLDB 支持
+    "LLDBSupport",
+    "LLDBFormatterRegistry",
+    # 美化打印器
+    "PrettyPrinterBase",
+    "StringPrinter",
+    "ArrayPrinter",
+    "MapPrinter",
+    "StructPrinter",
+    # 断点管理
+    "BreakpointManager",
+    "Breakpoint",
+    "BreakpointType",
+    # 变量检查
+    "VariableInspector",
+    "VariableValue",
+    "VariableLocation",
+    # 表达式求值
+    "ExpressionEvaluator",
+    "EvaluationContext",
+]

@@ -24,12 +24,8 @@ from zhc.parser.ast_nodes import (
     BreakStmtNode,
     IntLiteralNode,
     IdentifierExprNode,
-    BlockStmtNode,
-    ExprStmtNode,
-    AssignExprNode,
 )
 from zhc.backend.llvm_instruction_strategy import SwitchStrategy
-from zhc.backend.compilation_context import CompilationContext
 
 
 class TestSwitchIRGeneration:
@@ -127,7 +123,9 @@ class TestSwitchIRGeneration:
         case_blocks = [bb for bb in func.basic_blocks if "case_1" in bb.label]
         if case_blocks:
             # 有 case 块，检查是否有终结指令
-            assert case_blocks[0].is_terminated() or len(case_blocks[0].instructions) > 0
+            assert (
+                case_blocks[0].is_terminated() or len(case_blocks[0].instructions) > 0
+            )
 
     def test_switch_fallthrough(self):
         """测试 fall-through 语义"""
@@ -187,9 +185,9 @@ class TestSwitchStrategy:
         i32 = ll.IntType(32)
 
         # 单字符
-        result = strategy._resolve_case_value('A', i32, None, None)
+        result = strategy._resolve_case_value("A", i32, None, None)
         assert isinstance(result, ll.Constant)
-        assert result.constant == ord('A')
+        assert result.constant == ord("A")
 
 
 class TestSwitchLLVMGeneration:
