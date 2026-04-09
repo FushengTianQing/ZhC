@@ -50,6 +50,7 @@ class PreprocessorConfig:
     """预处理器配置"""
 
     include_paths: List[str] = field(default_factory=list)
+    stdlib_path: str = ""  # 标准库路径
     predefined_macros: Dict[str, str] = field(default_factory=dict)
     max_include_depth: int = 100
     max_macro_depth: int = 100
@@ -75,7 +76,18 @@ class Preprocessor:
         self.current_file: str = ""
         self.current_line: int = 0
 
-        # 初始化预定义宏
+        # 初始化内置预定义宏
+        self._define_object_macro("__ZHC__", "1")
+        self._define_object_macro("__ZHC_VERSION__", '"0.1.0"')
+        self._define_object_macro("__ZHC_MAJOR__", "0")
+        self._define_object_macro("__ZHC_MINOR__", "1")
+        self._define_object_macro("__ZHC_PATCH__", "0")
+        self._define_object_macro("__FILE__", '"<input>"')
+        self._define_object_macro("__LINE__", "0")
+        self._define_object_macro("__DATE__", '"2026-04-10"')
+        self._define_object_macro("__TIME__", '"00:00:00"')
+
+        # 初始化用户预定义宏
         for name, value in self.config.predefined_macros.items():
             self._define_object_macro(name, value)
 
@@ -479,8 +491,12 @@ class Preprocessor:
                 current_dir = os.path.dirname(os.path.abspath(self.current_file))
                 search_paths.append(current_dir)
 
-        # 添加配置的搜索路径
+        # 添加命令行指定的 -I 路径
         search_paths.extend(self.config.include_paths)
+
+        # 添加标准库路径
+        if self.config.stdlib_path:
+            search_paths.append(self.config.stdlib_path)
 
         # 在搜索路径中查找文件
         for path in search_paths:
@@ -537,8 +553,16 @@ class Preprocessor:
                 file=self.current_file,
             )
 
-        # 检查是否已包含
+        # 检查循环包含
         abs_path = os.path.abspath(filepath)
+        if abs_path in self.include_stack:
+            raise PreprocessorError(
+                f"Circular include detected: {filename}",
+                line=self.current_line,
+                file=self.current_file,
+            )
+
+        # 检查是否已包含（用于防止重复包含）
         if abs_path in self.included_files:
             # 文件已包含，跳过
             return ""
