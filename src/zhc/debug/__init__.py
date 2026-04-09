@@ -26,6 +26,46 @@ from .line_number_generator import (
     LineTableEntry,
 )
 
+# 类型描述器
+from .type_printer import (
+    TypePrinter,
+    TypeDebugDescriptor,
+    TypeKind,
+    DwarfEncoding,
+    MemberInfo,
+    TypeLayout,
+)
+
+# 变量位置追踪
+from .variable_location import (
+    VariableLocationTracker,
+    VariableDebugLocation,
+    VariableLocation,
+    LiveRange,
+    LocationKind,
+)
+
+# 作用域追踪
+from .scope_tracker import (
+    ScopeTracker,
+    Scope,
+    ScopeEntry,
+    ScopeKind,
+)
+
+# DWARF 调试节
+from .sections import (
+    DebugInfoSection,
+    CompileUnitBuilder,
+    DIEBuilder,
+    DebugAbbrevSection,
+    AbbreviationBuilder,
+    DebugLineSection,
+    LineNumberProgramBuilder,
+    DebugStrSection,
+    StringPool,
+)
+
 # 断点引擎
 from .breakpoint_engine import (
     BreakpointEngine,
@@ -65,6 +105,34 @@ __all__ = [
     # 行号生成
     "LineNumberGenerator",
     "LineTableEntry",
+    # 类型描述器
+    "TypePrinter",
+    "TypeDebugDescriptor",
+    "TypeKind",
+    "DwarfEncoding",
+    "MemberInfo",
+    "TypeLayout",
+    # 变量位置追踪
+    "VariableLocationTracker",
+    "VariableDebugLocation",
+    "VariableLocation",
+    "LiveRange",
+    "LocationKind",
+    # 作用域追踪
+    "ScopeTracker",
+    "Scope",
+    "ScopeEntry",
+    "ScopeKind",
+    # DWARF 调试节
+    "DebugInfoSection",
+    "CompileUnitBuilder",
+    "DIEBuilder",
+    "DebugAbbrevSection",
+    "AbbreviationBuilder",
+    "DebugLineSection",
+    "LineNumberProgramBuilder",
+    "DebugStrSection",
+    "StringPool",
     # 断点引擎
     "BreakpointEngine",
     "BreakpointHit",
