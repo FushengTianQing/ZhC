@@ -8,9 +8,9 @@ ZhC 重定位信息管理
 日期：2026-04-09
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, IntEnum, auto
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 import struct
 import logging
 
@@ -428,11 +428,11 @@ class Relocator:
         r_extern = 1 if entry.symbol.is_global else 0
         r_type = entry.type
 
-        r_info = (r_symbolnum & 0xFFFFFF)
-        r_info |= (r_pcrel << 24)
-        r_info |= (r_length << 25)
-        r_info |= (r_extern << 27)
-        r_info |= (r_type << 28)
+        r_info = r_symbolnum & 0xFFFFFF
+        r_info |= r_pcrel << 24
+        r_info |= r_length << 25
+        r_info |= r_extern << 27
+        r_info |= r_type << 28
 
         return struct.pack("<II", r_address, r_info)
 
@@ -537,9 +537,13 @@ class Relocator:
             for entry in entries:
                 # 检查偏移对齐
                 if entry.size == 8 and entry.offset % 8 != 0:
-                    errors.append(f"Unaligned 64-bit relocation at {entry.offset:#x} in {section}")
+                    errors.append(
+                        f"Unaligned 64-bit relocation at {entry.offset:#x} in {section}"
+                    )
                 elif entry.size == 4 and entry.offset % 4 != 0:
-                    errors.append(f"Unaligned 32-bit relocation at {entry.offset:#x} in {section}")
+                    errors.append(
+                        f"Unaligned 32-bit relocation at {entry.offset:#x} in {section}"
+                    )
 
         return errors
 
@@ -603,6 +607,7 @@ def get_default_reloc_type_for_arch(arch: str, is_call: bool = False) -> int:
 # ============================================================================
 # 兼容层：旧版 relocater.py API 兼容
 # ============================================================================
+
 
 # 兼容枚举：从 RelocFormat 和具体类型派生出兼容的 RelocationType
 class _RelocationTypeCompat(Enum):
@@ -773,6 +778,7 @@ Relocation = _RelocationCompat
 # RelocaterError
 class RelocaterError(Exception):
     """重定位错误"""
+
     pass
 
 

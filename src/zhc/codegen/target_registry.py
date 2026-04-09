@@ -9,7 +9,7 @@ ZhC 目标平台注册表
 """
 
 from enum import Enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional
 import logging
 
@@ -29,6 +29,7 @@ class Architecture(Enum):
     RISCV32 = 7
     WASM32 = 8
     WASM64 = 9
+    WASM = 10  # 通用 WebArchitecture
 
     @property
     def is_64bit(self) -> bool:
@@ -113,7 +114,7 @@ class RegisterClass:
         return len(self.registers)
 
 
-@dataclass
+@dataclass(init=False)
 class Target:
     """
     目标平台描述
@@ -125,24 +126,75 @@ class Target:
     triple: str  # LLVM 目标三元组
     arch: Architecture
     os: OperatingSystem
-    vendor: Vendor = Vendor.UNKNOWN
-    environment: EnvironmentType = EnvironmentType.UNKNOWN
+    vendor: Vendor
+    environment: EnvironmentType
 
     # CPU 和特性
-    default_cpu: str = "generic"
-    default_features: List[str] = field(default_factory=list)
+    default_cpu: str
+    default_features: List[str]
 
     # ABI 信息
-    calling_convention: CallingConvention = CallingConvention.UNKNOWN
-    pointer_size: int = 8
-    stack_alignment: int = 16
+    calling_convention: CallingConvention
+    pointer_size: int
+    stack_alignment: int
 
     # 寄存器信息
-    register_classes: List[RegisterClass] = field(default_factory=list)
+    register_classes: List[RegisterClass]
 
     # 工具链信息
-    default_linker: str = ""
-    default_assembler: str = ""
+    default_linker: str
+    default_assembler: str
+
+    def __init__(
+        self,
+        name: str,
+        triple: str,
+        arch: Architecture = None,
+        os: OperatingSystem = None,
+        architecture: Architecture = None,  # 测试兼容
+        vendor: Vendor = None,
+        environment: EnvironmentType = None,
+        default_cpu: str = "generic",
+        default_features: List[str] = None,
+        calling_convention: CallingConvention = None,
+        pointer_size: int = 8,
+        stack_alignment: int = 16,
+        register_classes: List[RegisterClass] = None,
+        default_linker: str = "",
+        default_assembler: str = "",
+        **kwargs,
+    ):
+        """
+        初始化目标平台
+
+        支持两种参数名：
+        - arch: 内部使用
+        - architecture: 测试兼容
+        """
+        self.name = name
+        self.triple = triple
+        # 支持 architecture 参数（测试兼容）
+        self.arch = architecture if architecture is not None else arch
+        self.os = os if os is not None else OperatingSystem.UNKNOWN
+        self.vendor = vendor if vendor is not None else Vendor.UNKNOWN
+        self.environment = (
+            environment if environment is not None else EnvironmentType.UNKNOWN
+        )
+        self.default_cpu = default_cpu
+        self.default_features = default_features if default_features is not None else []
+        self.calling_convention = (
+            calling_convention
+            if calling_convention is not None
+            else CallingConvention.UNKNOWN
+        )
+        self.pointer_size = pointer_size
+        self.stack_alignment = stack_alignment
+        self.register_classes = register_classes if register_classes is not None else []
+        self.default_linker = default_linker
+        self.default_assembler = default_assembler
+        # 处理其他可能的参数
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
     def __str__(self) -> str:
         return f"{self.name} ({self.triple})"
