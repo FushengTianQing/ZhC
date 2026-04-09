@@ -8,6 +8,8 @@
 - ~1.2.3  近似版本（>=1.2.3 <1.3.0）
 - >=1.2.3 范围约束
 - 1.2.3   精确版本
+- 1.2.3-alpha.1  预发布版本
+- 1.2.3+build.123  构建元数据
 
 参考：https://semver.org/
 """
@@ -16,8 +18,105 @@ import re
 from typing import List, Tuple, Optional
 from dataclasses import dataclass
 from functools import total_ordering
+from enum import Enum
 
 from .errors import InvalidVersionError, InvalidConstraintError
+
+
+class PrereleaseType(Enum):
+    """预发布类型"""
+
+    ALPHA = "alpha"
+    BETA = "beta"
+    RC = "rc"
+
+    @classmethod
+    def from_string(cls, value: str) -> "PrereleaseType":
+        """从字符串解析预发布类型
+
+        Args:
+            value: 预发布类型字符串
+
+        Returns:
+            PrereleaseType 枚举值
+
+        Raises:
+            ValueError: 无效的预发布类型
+        """
+        value_lower = value.lower()
+        for member in cls:
+            if member.value == value_lower:
+                return member
+        raise ValueError(f"无效的预发布类型: {value}")
+
+
+@dataclass
+class Prerelease:
+    """预发布信息
+
+    格式: alpha.0, beta.1, rc.2
+    """
+
+    type: PrereleaseType
+    number: int = 0
+
+    def __str__(self) -> str:
+        return f"{self.type.value}.{self.number}"
+
+    def __lt__(self, other: "Prerelease") -> bool:
+        """比较预发布版本
+
+        alpha < beta < rc
+        """
+        # 预发布类型顺序
+        type_order = {
+            PrereleaseType.ALPHA: 0,
+            PrereleaseType.BETA: 1,
+            PrereleaseType.RC: 2,
+        }
+
+        if self.type != other.type:
+            return type_order[self.type] < type_order[other.type]
+
+        return self.number < other.number
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Prerelease):
+            return NotImplemented
+        return self.type == other.type and self.number == other.number
+
+    def __hash__(self) -> int:
+        return hash((self.type, self.number))
+
+    @classmethod
+    def parse(cls, prerelease_str: str) -> "Prerelease":
+        """解析预发布字符串
+
+        Args:
+            prerelease_str: 预发布字符串（如 "alpha.1"）
+
+        Returns:
+            Prerelease 对象
+
+        Raises:
+            ValueError: 预发布格式无效
+        """
+        # 支持 alpha, alpha.1, beta, beta.2 等格式
+        parts = prerelease_str.split(".")
+        if not parts:
+            raise ValueError(f"无效的预发布格式: {prerelease_str}")
+
+        prerelease_type = PrereleaseType.from_string(parts[0])
+
+        # 如果有编号，解析编号
+        number = 0
+        if len(parts) > 1:
+            try:
+                number = int(parts[1])
+            except ValueError:
+                raise ValueError(f"无效的预发布编号: {parts[1]}")
+
+        return cls(prerelease_type, number)
 
 
 @dataclass
@@ -26,20 +125,21 @@ class Version:
     """语义化版本
 
     遵循语义化版本规范 (SemVer)
-    格式: MAJOR.MINOR.PATCH[-PRERELEASE]
+    格式: MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]
     """
 
     major: int
     minor: int
     patch: int
     prerelease: Optional[str] = None
+    build: Optional[str] = None  # 构建元数据
 
     @classmethod
     def parse(cls, version_str: str) -> "Version":
         """解析版本字符串
 
         Args:
-            version_str: 版本字符串（如 "1.2.3" 或 "1.2.3-beta"）
+            version_str: 版本字符串（如 "1.2.3"、"1.2.3-beta.1"、"1.2.3+build.123"）
 
         Returns:
             Version 对象
@@ -47,9 +147,12 @@ class Version:
         Raises:
             InvalidVersionError: 版本格式无效
         """
-        # 格式: 1.2.3 或 1.2.3-beta 或 1.2.3-beta.1
+        # 格式: 1.2.3 或 1.2.3-beta 或 1.2.3-beta.1 或 1.2.3+build.123 或 1.2.3-beta.1+build.123
         # 使用 $ 确保匹配整个字符串
-        match = re.match(r"^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$", version_str.strip())
+        match = re.match(
+            r"^(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9.]+))?(?:\+(.+))?$",
+            version_str.strip(),
+        )
         if not match:
             raise InvalidVersionError(version_str)
 
@@ -58,12 +161,15 @@ class Version:
             minor=int(match.group(2)),
             patch=int(match.group(3)),
             prerelease=match.group(4),
+            build=match.group(5),
         )
 
     def __str__(self) -> str:
         base = f"{self.major}.{self.minor}.{self.patch}"
         if self.prerelease:
             base += f"-{self.prerelease}"
+        if self.build:
+            base += f"+{self.build}"
         return base
 
     def __repr__(self) -> str:
@@ -92,11 +198,22 @@ class Version:
             return False
 
         # 比较预发布标识
-        return (self.prerelease or "") < (other.prerelease or "")
+        if self.prerelease and other.prerelease:
+            # 尝试解析为 Prerelease 对象进行比较
+            try:
+                pre1 = Prerelease.parse(self.prerelease)
+                pre2 = Prerelease.parse(other.prerelease)
+                return pre1 < pre2
+            except ValueError:
+                # 如果解析失败，使用字符串比较
+                return self.prerelease < other.prerelease
+
+        return False
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Version):
             return NotImplemented
+        # 构建元数据不参与版本比较
         return (self.major, self.minor, self.patch, self.prerelease) == (
             other.major,
             other.minor,
@@ -105,6 +222,7 @@ class Version:
         )
 
     def __hash__(self) -> int:
+        # 构建元数据不参与哈希
         return hash((self.major, self.minor, self.patch, self.prerelease))
 
     def bump_major(self) -> "Version":
@@ -118,6 +236,44 @@ class Version:
     def bump_patch(self) -> "Version":
         """提升补丁版本号"""
         return Version(self.major, self.minor, self.patch + 1)
+
+    def bump_prerelease(self, prerelease_type: PrereleaseType) -> "Version":
+        """提升预发布版本
+
+        Args:
+            prerelease_type: 预发布类型
+
+        Returns:
+            新的 Version 对象
+        """
+        if self.prerelease:
+            try:
+                current_prerelease = Prerelease.parse(self.prerelease)
+                if current_prerelease.type == prerelease_type:
+                    # 同类型预发布，增加编号
+                    new_prerelease = Prerelease(
+                        prerelease_type, current_prerelease.number + 1
+                    )
+                else:
+                    # 新类型预发布，从 0 开始
+                    new_prerelease = Prerelease(prerelease_type, 0)
+            except ValueError:
+                # 解析失败，创建新的预发布
+                new_prerelease = Prerelease(prerelease_type, 0)
+        else:
+            # 没有预发布，创建新的预发布
+            new_prerelease = Prerelease(prerelease_type, 0)
+
+        return Version(
+            self.major,
+            self.minor,
+            self.patch,
+            str(new_prerelease),
+        )
+
+    def to_release(self) -> "Version":
+        """转换为正式版本（移除预发布标识）"""
+        return Version(self.major, self.minor, self.patch)
 
     def is_prerelease(self) -> bool:
         """是否为预发布版本"""

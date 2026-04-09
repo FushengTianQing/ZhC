@@ -12,6 +12,17 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 from abc import ABC, abstractmethod
 
+# 导入版本控制模块
+try:
+    from zhc.package.version_control import VersionControl
+    from zhc.package.version import PrereleaseType
+    from zhc.package.errors import PackageError
+except ImportError:
+    # 如果导入失败，定义占位符
+    VersionControl = None
+    PrereleaseType = None
+    PackageError = Exception
+
 
 class CommandHandler(ABC):
     """命令处理器抽象基类 - 命令模式"""
@@ -506,6 +517,95 @@ class CompileCommand(CommandHandler):
         return 0 if result.success else 1
 
 
+class VersionCommand(CommandHandler):
+    """version 命令处理器"""
+
+    def execute(self, args: argparse.Namespace, cli: "CommandLineInterface") -> int:
+        if VersionControl is None:
+            print("❌ 错误: 版本控制模块未安装")
+            return 1
+
+        project_root = Path.cwd()
+
+        try:
+            vc = VersionControl(project_root)
+        except Exception as e:
+            print(f"❌ 错误: {e}")
+            return 1
+
+        # 子命令处理
+        if hasattr(args, "version_action") and args.version_action:
+            action = args.version_action
+
+            try:
+                if action == "init":
+                    # 初始化版本
+                    initial_version = getattr(args, "initial_version", "0.1.0")
+                    vc.init_version(initial_version)
+                    print(f"✅ 版本初始化完成: {initial_version}")
+                    return 0
+
+                elif action == "major":
+                    # 升级主版本号
+                    new_version = vc.bump("major")
+                    print(f"✅ 版本升级完成: {vc.current_version} → {new_version}")
+                    return 0
+
+                elif action == "minor":
+                    # 升级次版本号
+                    new_version = vc.bump("minor")
+                    print(f"✅ 版本升级完成: {vc.current_version} → {new_version}")
+                    return 0
+
+                elif action == "patch":
+                    # 升级补丁版本号
+                    new_version = vc.bump("patch")
+                    print(f"✅ 版本升级完成: {vc.current_version} → {new_version}")
+                    return 0
+
+                elif action == "prerelease":
+                    # 升级预发布版本
+                    prerelease_type_str = getattr(args, "prerelease_type", "beta")
+                    prerelease_type = PrereleaseType(prerelease_type_str)
+                    new_version = vc.bump("prerelease", prerelease_type)
+                    print(
+                        f"✅ 预发布版本升级完成: {vc.current_version} → {new_version}"
+                    )
+                    return 0
+
+                elif action == "release":
+                    # 发布版本
+                    message = getattr(args, "message", None)
+                    push = getattr(args, "push", False)
+                    tag_name = vc.release(message, push)
+                    print(f"✅ 版本发布完成: {tag_name}")
+                    return 0
+
+                elif action == "history":
+                    # 显示版本历史
+                    history = vc.get_version_history()
+                    if not history:
+                        print("📋 暂无版本历史")
+                    else:
+                        print("📋 版本历史:")
+                        for v in history:
+                            print(f"  - {v}")
+                    return 0
+
+                else:
+                    print(f"❌ 错误: 未知的版本操作: {action}")
+                    return 1
+
+            except Exception as e:
+                print(f"❌ 错误: {e}")
+                return 1
+
+        else:
+            # 显示当前版本
+            print(f"📋 当前版本: {vc.current_version}")
+            return 0
+
+
 class CommandLineInterface:
     """统一的命令行接口 - 使用命令模式"""
 
@@ -524,6 +624,7 @@ class CommandLineInterface:
         "cache": CacheCommand(),
         "info": InfoCommand(),
         "compile": CompileCommand(),
+        "version": VersionCommand(),
     }
 
     def __init__(self):
@@ -643,6 +744,46 @@ class CommandLineInterface:
         # info 命令
         info_parser = subparsers.add_parser("info", help="显示系统信息")
         info_parser.add_argument("--json", action="store_true", help="JSON格式输出")
+
+        # version 命令
+        version_parser = subparsers.add_parser("version", help="版本控制")
+        version_subparsers = version_parser.add_subparsers(
+            dest="version_action", help="版本操作"
+        )
+
+        # version init
+        version_init_parser = version_subparsers.add_parser("init", help="初始化版本")
+        version_init_parser.add_argument(
+            "--initial-version", default="0.1.0", help="初始版本号"
+        )
+
+        # version major/minor/patch
+        version_subparsers.add_parser("major", help="升级主版本号")
+        version_subparsers.add_parser("minor", help="升级次版本号")
+        version_subparsers.add_parser("patch", help="升级补丁版本号")
+
+        # version prerelease
+        version_prerelease_parser = version_subparsers.add_parser(
+            "prerelease", help="升级预发布版本"
+        )
+        version_prerelease_parser.add_argument(
+            "--type",
+            choices=["alpha", "beta", "rc"],
+            default="beta",
+            help="预发布类型",
+        )
+
+        # version release
+        version_release_parser = version_subparsers.add_parser(
+            "release", help="发布版本"
+        )
+        version_release_parser.add_argument("--message", help="发布消息")
+        version_release_parser.add_argument(
+            "--push", action="store_true", help="推送到远程仓库"
+        )
+
+        # version history
+        version_subparsers.add_parser("history", help="显示版本历史")
 
         # 直接编译文件的快捷方式
         compile_parser = subparsers.add_parser("compile", help="编译文件（快捷方式）")

@@ -26,6 +26,8 @@ from .pkg_manager import (
 from .version import (
     Version,
     VersionConstraint,
+    PrereleaseType,
+    Prerelease,
     parse_version,
     parse_constraint,
     satisfies,
@@ -71,6 +73,19 @@ from .errors import (
     OfflineModeError,
 )
 
+# 版本控制模块
+from .version_control import (
+    VersionControl,
+    VersionError,
+)
+from .changelog import (
+    ChangelogGenerator,
+)
+from .git_utils import (
+    GitUtils,
+    GitError,
+)
+
 # 语音支持（可选导入）
 try:
     from .voice import (  # noqa: F401
@@ -96,6 +111,8 @@ __all__ = [
     # 版本管理
     "Version",
     "VersionConstraint",
+    "PrereleaseType",
+    "Prerelease",
     "parse_version",
     "parse_constraint",
     "satisfies",
@@ -119,6 +136,12 @@ __all__ = [
     # 锁定文件
     "Lockfile",
     "LockedPackage",
+    # 版本控制
+    "VersionControl",
+    "VersionError",
+    "ChangelogGenerator",
+    "GitUtils",
+    "GitError",
     # 错误定义
     "PackageError",
     "PackageNotFoundError",
