@@ -15,9 +15,10 @@ from dataclasses import dataclass
 @dataclass
 class SourceLocation:
     """
-    源码位置信息
+    源码位置信息 - 增强版
 
     用于追踪错误发生的具体位置，便于定位和修复问题。
+    支持精确到字符级别的错误定位和源码片段展示。
 
     Attributes:
         file_path: 源文件路径
@@ -25,6 +26,8 @@ class SourceLocation:
         column: 列号（从1开始）
         end_line: 结束行号（可选，用于多行错误）
         end_column: 结束列号（可选，用于多列错误）
+        token_text: 相关 Token 文本（可选，用于高亮）
+        source_line: 源码行内容（可选，用于展示）
     """
 
     file_path: Optional[str] = None
@@ -32,6 +35,8 @@ class SourceLocation:
     column: int = 0
     end_line: Optional[int] = None
     end_column: Optional[int] = None
+    token_text: Optional[str] = None  # 新增：相关 Token 文本
+    source_line: Optional[str] = None  # 新增：源码行内容
 
     def __str__(self) -> str:
         """格式化位置信息为可读字符串"""
@@ -41,6 +46,42 @@ class SourceLocation:
             return f"{self.file_path}:{self.line}:{self.column}"
         return f"行 {self.line}, 列 {self.column}"
 
+    def to_visual_format(self) -> str:
+        """
+        生成可视化格式（类似 Rust/Clang 风格）
+
+        Returns:
+            可视化的位置信息字符串
+
+        Example:
+            >>> loc = SourceLocation("test.zhc", 10, 5, 10, 15, "计数器")
+            >>> print(loc.to_visual_format())
+            test.zhc:10:5
+        """
+        return str(self)
+
+    def get_range(self) -> tuple[int, int, int, int]:
+        """
+        获取位置范围
+
+        Returns:
+            (line, column, end_line, end_column) 元组
+        """
+        end_line = self.end_line or self.line
+        end_column = self.end_column or self.column
+        return (self.line, self.column, end_line, end_column)
+
+    def is_multiline(self) -> bool:
+        """判断是否为多行位置"""
+        return self.end_line is not None and self.end_line != self.line
+
+    def get_length(self) -> int:
+        """获取位置长度（单行时）"""
+        if self.is_multiline():
+            return -1  # 多行不支持长度计算
+        end_col = self.end_column or (self.column + len(self.token_text or ""))
+        return end_col - self.column
+
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式，便于序列化"""
         return {
@@ -49,6 +90,8 @@ class SourceLocation:
             "column": self.column,
             "end_line": self.end_line,
             "end_column": self.end_column,
+            "token_text": self.token_text,
+            "source_line": self.source_line,
         }
 
 

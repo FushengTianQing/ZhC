@@ -81,6 +81,7 @@ class ASTNodeType(Enum):
     ARRAY_TYPE = auto()  # 数组类型
     FUNCTION_TYPE = auto()  # 函数类型
     STRUCT_TYPE = auto()  # 结构体类型
+    AUTO_TYPE = auto()  # 自动类型（自动推导）
 
 
 class ASTNode(ABC):
@@ -260,6 +261,7 @@ class FunctionDeclNode(ASTNode):
         return_type: ASTNode,
         params: List[ASTNode],
         body: Optional[ASTNode],
+        is_auto_return: bool = False,
         line: int = 0,
         column: int = 0,
     ):
@@ -268,6 +270,7 @@ class FunctionDeclNode(ASTNode):
         self.return_type = return_type
         self.params = params
         self.body = body
+        self.is_auto_return = is_auto_return  # 是否为自动返回类型
         self._set_parent(return_type)
         self._set_parent_list(params)
         self._set_parent(body)
@@ -282,7 +285,11 @@ class FunctionDeclNode(ASTNode):
         return children
 
     def get_hash(self) -> str:
-        parts = [self.node_type.name, f"name:{self.name}"]
+        parts = [
+            self.node_type.name,
+            f"name:{self.name}",
+            f"auto_return:{self.is_auto_return}",
+        ]
         for child in self.get_children():
             parts.append(child.get_hash())
         content = ":".join(parts)
@@ -408,6 +415,7 @@ class VariableDeclNode(ASTNode):
         var_type: ASTNode,
         init: Optional[ASTNode],
         is_const: bool = False,
+        is_auto: bool = False,
         line: int = 0,
         column: int = 0,
     ):
@@ -416,6 +424,7 @@ class VariableDeclNode(ASTNode):
         self.var_type = var_type
         self.init = init
         self.is_const = is_const
+        self.is_auto = is_auto  # 是否为自动类型声明
         self._set_parent(var_type)
         self._set_parent(init)
 
@@ -429,7 +438,12 @@ class VariableDeclNode(ASTNode):
         return children
 
     def get_hash(self) -> str:
-        parts = [self.node_type.name, f"name:{self.name}", f"const:{self.is_const}"]
+        parts = [
+            self.node_type.name,
+            f"name:{self.name}",
+            f"const:{self.is_const}",
+            f"auto:{self.is_auto}",
+        ]
         for child in self.get_children():
             parts.append(child.get_hash())
         content = ":".join(parts)
@@ -1200,6 +1214,21 @@ class StructTypeNode(ASTNode):
         return hashlib.md5(content.encode("utf-8")).hexdigest()
 
 
+class AutoTypeNode(ASTNode):
+    """自动类型节点（用于自动类型推导）"""
+
+    def __init__(self, line: int = 0, column: int = 0):
+        super().__init__(ASTNodeType.AUTO_TYPE, line, column)
+        self.resolved_type: Optional[str] = None  # 解析后的实际类型
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_auto_type(self)
+
+    def get_hash(self) -> str:
+        content = f"{self.node_type.name}:resolved:{self.resolved_type}"
+        return hashlib.md5(content.encode("utf-8")).hexdigest()
+
+
 # ============================================================================
 # AST访问者
 # ============================================================================
@@ -1338,6 +1367,10 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visit_struct_type(self, node: StructTypeNode) -> Any:
+        pass
+
+    @abstractmethod
+    def visit_auto_type(self, node: "AutoTypeNode") -> Any:
         pass
 
     @abstractmethod
@@ -1541,6 +1574,10 @@ class ASTPrinter(ASTVisitor):
 
     def visit_struct_type(self, node: StructTypeNode) -> Any:
         self._print(f"StructType: {node.name}")
+
+    def visit_auto_type(self, node: "AutoTypeNode") -> Any:
+        resolved = f" -> {node.resolved_type}" if node.resolved_type else ""
+        self._print(f"AutoType{resolved}")
 
     def visit_do_while_stmt(self, node: "DoWhileStmtNode") -> Any:
         self._print("DoWhileStmt")

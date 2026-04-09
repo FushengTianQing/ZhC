@@ -84,6 +84,9 @@ class TokenType(Enum):
     FALSE = auto()  # 假
     NULL = auto()  # 空
 
+    # 自动类型推导关键字
+    AUTO = auto()  # 自动
+
     # 标识符和字面量
     IDENTIFIER = auto()  # 标识符
     INT_LITERAL = auto()  # 整数字面量
@@ -250,6 +253,9 @@ class Lexer:
         "假": TokenType.FALSE,
         "空": TokenType.NULL,
         "空指针": TokenType.NULL,
+        # 自动类型推导关键字
+        "自动": TokenType.AUTO,
+        "自动型": TokenType.AUTO,
         # 泛型关键字
         "泛型类型": TokenType.GENERIC_TYPE,
         "泛型函数": TokenType.GENERIC_FUNC,

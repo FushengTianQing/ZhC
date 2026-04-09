@@ -6,5 +6,20 @@ Type Inference Module
 """
 
 from .engine import TypeInferenceEngine, TypeConstraint, TypeVariable, TypeEnv
+from .auto_inference import (
+    AutoTypeInferencer,
+    InferenceResult,
+    infer_auto_type,
+    infer_function_return,
+)
 
-__all__ = ["TypeInferenceEngine", "TypeConstraint", "TypeVariable", "TypeEnv"]
+__all__ = [
+    "TypeInferenceEngine",
+    "TypeConstraint",
+    "TypeVariable",
+    "TypeEnv",
+    "AutoTypeInferencer",
+    "InferenceResult",
+    "infer_auto_type",
+    "infer_function_return",
+]

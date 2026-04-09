@@ -15,6 +15,9 @@ from typing import Optional, List, Dict, Set, Any
 from dataclasses import dataclass, field
 
 from ..errors import SemanticError
+from ..errors.error_mode import ErrorMode, ErrorModeManager
+from ..errors.recovery import ErrorRecoveryStrategy, RecoveryContext
+from ..errors.suggestions import SuggestionGenerator
 from ..parser.ast_nodes import (
     ASTNode,
     ASTNodeType,
@@ -41,6 +44,7 @@ from ..parser.ast_nodes import (
     AssignExprNode,
     MemberExprNode,
     IdentifierExprNode,
+    AutoTypeNode,
 )
 
 
@@ -251,6 +255,7 @@ class SemanticAnalyzer:
         self.symbol_table = SymbolTable()
         self.errors: List[SemanticErrorInfo] = []
         self.warnings: List[SemanticErrorInfo] = []
+        self.infos: List[SemanticErrorInfo] = []  # 提示信息
         self.current_function: Optional[Symbol] = None
         self.current_struct: Optional[Symbol] = None
         self.in_loop: bool = False
@@ -290,11 +295,19 @@ class SemanticAnalyzer:
         # Phase 9: 泛型实例化器 — 将泛型函数/类型实例化为具体版本
         self._instantiator = None  # 延迟初始化
 
+        # Phase 10: 错误恢复系统集成
+        self._error_mode_manager = ErrorModeManager(mode=ErrorMode.LENIENT)
+        self._error_recovery_strategy = ErrorRecoveryStrategy(self._error_mode_manager)
+        self._suggestion_generator = SuggestionGenerator()
+        self._recovery_context = RecoveryContext()
+        self._error_recovery_count = 0  # 错误恢复次数统计
+
         self.stats = {
             "nodes_visited": 0,
             "symbols_added": 0,
             "errors_found": 0,
             "warnings_found": 0,
+            "infos_found": 0,
         }
 
     @property
@@ -574,13 +587,73 @@ class SemanticAnalyzer:
         """分析变量声明节点"""
         loc = self._node_location(node)
 
-        var_symbol = Symbol(
-            name=node.name,
-            symbol_type="变量",
-            data_type=self._get_type_name(node.var_type),
-            definition_location=loc,
-            is_defined=True,
-        )
+        # Phase 5 T2.3: 处理自动类型推导
+        inferred_type_name = self._get_type_name(node.var_type)
+        if isinstance(node.var_type, AutoTypeNode) and node.init:
+            # 使用自动类型推导器推导类型
+            from ..typeinfer.auto_inference import AutoTypeInferencer
+
+            inferencer = AutoTypeInferencer()
+            # 创建临时节点用于类型推导
+            temp_node = VariableDeclNode(
+                name=node.name,
+                var_type=node.var_type,
+                init=node.init,
+                is_auto=True,
+            )
+            result = inferencer.infer_variable_type(temp_node)
+            if result and result.confidence > 0:
+                inferred_type_name = result.inferred_type
+                # 更新 AST 节点中的解析后类型
+                node.var_type.resolved_type = inferred_type_name
+                # 将 is_auto 标记传递给 var_symbol
+                var_symbol = Symbol(
+                    name=node.name,
+                    symbol_type="变量",
+                    data_type=inferred_type_name,
+                    definition_location=loc,
+                    is_defined=True,
+                )
+                self._add_info(
+                    "类型推导",
+                    f"变量 '{node.name}' 的类型自动推导为 {inferred_type_name}",
+                    loc,
+                )
+            else:
+                self._add_error(
+                    "类型推导失败",
+                    f"无法从初始化表达式推导变量 '{node.name}' 的类型",
+                    loc,
+                )
+                var_symbol = Symbol(
+                    name=node.name,
+                    symbol_type="变量",
+                    data_type="未知",
+                    definition_location=loc,
+                    is_defined=True,
+                )
+        elif isinstance(node.var_type, AutoTypeNode) and not node.init:
+            # 自动类型但没有初始化表达式
+            self._add_error(
+                "类型推导失败",
+                f"变量 '{node.name}' 使用自动类型但没有初始化表达式",
+                loc,
+            )
+            var_symbol = Symbol(
+                name=node.name,
+                symbol_type="变量",
+                data_type="未知",
+                definition_location=loc,
+                is_defined=True,
+            )
+        else:
+            var_symbol = Symbol(
+                name=node.name,
+                symbol_type="变量",
+                data_type=inferred_type_name,
+                definition_location=loc,
+                is_defined=True,
+            )
 
         # Phase 7: 变量遮蔽检查（从 scope_checker.py 迁移）
         parent_scope = self.symbol_table.current_scope.parent
@@ -1688,7 +1761,7 @@ class SemanticAnalyzer:
         location: str,
         suggestions: List[str] = None,
     ) -> None:
-        """添加错误"""
+        """添加错误，并使用错误恢复策略处理"""
         error = SemanticErrorInfo(
             error_type=error_type,
             message=message,
@@ -1699,6 +1772,20 @@ class SemanticAnalyzer:
         )
         self.errors.append(error)
         self.stats["errors_found"] += 1
+
+        # 使用错误恢复策略进行处理
+        if self._error_mode_manager.mode.should_recover:
+            # 创建语义错误的 ZHCError 对象用于恢复策略
+            semantic_error = SemanticError(
+                message=message,
+                location=location,
+                error_code=f"SEMANTIC_{error_type.upper()}",
+            )
+            action = self._error_mode_manager.handle_error(
+                semantic_error, self._recovery_context
+            )
+            if action:
+                self._error_recovery_count += 1
 
     def _add_warning(
         self,
@@ -1718,6 +1805,24 @@ class SemanticAnalyzer:
         )
         self.warnings.append(warning)
         self.stats["warnings_found"] += 1
+
+    def _add_info(
+        self,
+        info_type: str,
+        message: str,
+        location: str,
+    ) -> None:
+        """添加提示信息"""
+        info = SemanticErrorInfo(
+            error_type=info_type,
+            message=message,
+            location=location,
+            severity="提示",
+            suggestions=[],
+            source_file=self.source_file,
+        )
+        self.infos.append(info)
+        self.stats["infos_found"] += 1
 
     def _check_unused_symbols(self) -> None:
         """检查未使用的符号"""
