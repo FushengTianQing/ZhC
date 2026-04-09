@@ -247,14 +247,25 @@ class LLVMBackend(BackendBase):
         # 创建模块
         self.module = ll.Module(name=module_name)
 
+        # 设置目标三元组（如果没有指定，使用本机默认）
         if self.target_triple:
             self.module.triple = self.target_triple
+        else:
+            # 使用 llvmlite 获取默认目标三元组
+            self.module.triple = llvm.get_default_triple()
+
+        # 设置数据布局
+        target = llvm.Target.from_default_triple()
+        target_machine = target.create_target_machine()
+        # 使用 str() 获取 TargetData 的字符串表示（数据布局）
+        self.module.data_layout = str(target_machine.target_data)
 
         # 设置编译上下文
         self.context.module = self.module
         self.context.functions.clear()
         self.context.blocks.clear()
         self.context.values.clear()
+        self.context.string_constants.clear()
 
         # 编译全局变量
         for gv in ir.global_vars:
@@ -291,9 +302,12 @@ class LLVMBackend(BackendBase):
         # 创建函数
         llvm_func = ll.Function(self.module, func_ty, func.name)
 
-        # 设置参数名
+        # 设置参数名并映射到 context.values
         for i, param in enumerate(func.params):
-            llvm_func.args[i].name = param.name
+            llvm_arg = llvm_func.args[i]
+            llvm_arg.name = param.name
+            # 将参数映射到 values（使用 %N 格式的临时变量名）
+            self.context.values[param.name] = llvm_arg
 
         # TASK-P3-003：应用优化提示
         self._apply_function_hints(llvm_func, func.name)
@@ -301,7 +315,12 @@ class LLVMBackend(BackendBase):
         self.context.functions[func.name] = llvm_func
         self.context.current_function = llvm_func
 
-        # 编译基本块
+        # 先创建所有基本块（避免跳转引用未创建的基本块）
+        for bb in func.basic_blocks:
+            block = llvm_func.append_basic_block(bb.label)
+            self.context.blocks[bb.label] = block
+
+        # 然后编译每个基本块的指令
         for bb in func.basic_blocks:
             self._compile_basic_block(llvm_func, bb)
 
@@ -324,9 +343,8 @@ class LLVMBackend(BackendBase):
 
     def _compile_basic_block(self, llvm_func: ll.Function, bb: IRBasicBlock) -> None:
         """编译基本块"""
-        # 创建基本块
-        block = llvm_func.append_basic_block(bb.label)
-        self.context.blocks[bb.label] = block
+        # 获取已创建的基本块
+        block = self.context.blocks[bb.label]
         self.context.current_block = block
 
         # 创建指令生成器
@@ -356,6 +374,10 @@ class LLVMBackend(BackendBase):
 
     def _get_llvm_type(self, zhc_type: str) -> ll.Type:
         """获取 LLVM 类型"""
+        # 处理空型
+        if zhc_type == "空型":
+            return ll.VoidType()
+
         # 使用统一的类型映射器
         llvm_type = self.type_mapper.to_llvm(zhc_type)
         if llvm_type:
@@ -373,6 +395,19 @@ class LLVMBackend(BackendBase):
         if LLVM_AVAILABLE:
             return f"llvmlite {llvmlite.__version__}"
         return None
+
+    def generate(self, ir: IRProgram) -> str:
+        """
+        生成 LLVM IR 代码（兼容 CLI 接口）
+
+        Args:
+            ir: ZhC IR 程序
+
+        Returns:
+            str: LLVM IR 文本
+        """
+        self.compile_to_module(ir, "zhc_module")
+        return str(self.module)
 
     def to_llvm_ir(self) -> str:
         """转换为 LLVM IR 文本"""

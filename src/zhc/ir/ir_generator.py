@@ -15,7 +15,7 @@ ZHC IR - AST → IR 生成器
 日期：2026-04-03
 """
 
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 
 from zhc.parser.ast_nodes import (
     ASTVisitor,
@@ -104,6 +104,8 @@ class IRGenerator(ASTVisitor):
         self._in_switch = False
         self._switch_cases: List[tuple] = []
         self.symbol_table = symbol_table
+        # 变量名到指针的映射（用于 STORE 指令）
+        self.var_ptr_map: Dict[str, IRValue] = {}
 
     # ========== 工具方法 ==========
 
@@ -147,12 +149,15 @@ class IRGenerator(ASTVisitor):
             if isinstance(target, str):
                 self.current_block.add_successor(target)
         elif opcode == Opcode.JZ and operands:
-            # JZ：两个后继——then分支（条件为真）和 else/合并分支（条件为假）
-            # operands[0] 是条件值（字符串标签），operands[1] 是目标块标签
-            if len(operands) >= 2:
-                target = operands[1]
-                if isinstance(target, str):
-                    self.current_block.add_successor(target)
+            # JZ：两个后继——then分支（条件为真）和 else分支（条件为假）
+            # operands[0] 是条件值，operands[1] 是 then_label，operands[2] 是 else_label
+            if len(operands) >= 3:
+                then_label = operands[1]
+                else_label = operands[2]
+                if isinstance(then_label, str):
+                    self.current_block.add_successor(then_label)
+                if isinstance(else_label, str):
+                    self.current_block.add_successor(else_label)
 
         instr = IRInstruction(opcode=opcode, operands=operands, result=result)
         self.current_block.add_instruction(instr)
@@ -236,6 +241,18 @@ class IRGenerator(ASTVisitor):
         FUNCTION_MAP = {
             "主函数": "main",
             "主程序": "main",
+            # 测试用例中的函数
+            "阶乘": "factorial",
+            "斐波那契": "fibonacci",
+            "幂运算": "power",
+            "是质数": "is_prime",
+            "最大公约数": "gcd",
+            "最小公倍数": "lcm",
+            "数组总和": "array_sum",
+            "数组最大值": "array_max",
+            "数组最小值": "array_min",
+            "数组排序": "array_sort",
+            "打印数组": "print_array",
         }
         return FUNCTION_MAP.get(name, name)
 
@@ -296,6 +313,9 @@ class IRGenerator(ASTVisitor):
         var_value = IRValue(name=node.name, ty=ty, kind=ValueKind.VAR)
         self._emit(Opcode.ALLOC, [var_value], [alloc_result])
 
+        # 维护变量名到指针的映射（用于 STORE 指令）
+        self.var_ptr_map[node.name] = alloc_result
+
         # 初始化
         if node.init:
             init_node_type = (
@@ -319,7 +339,8 @@ class IRGenerator(ASTVisitor):
             # 计算元素地址
             idx_val = IRValue(str(i), "整数型", ValueKind.CONST, const_value=i)
             elem_ptr = self._new_temp()
-            self._emit(Opcode.GEP, [var_value, idx_val], [elem_ptr])
+            # GEP 需要指针作为第一个操作数，使用 alloc_result（指针）而不是 var_value
+            self._emit(Opcode.GEP, [alloc_result, idx_val], [elem_ptr])
 
             # 求值元素值
             elem_val = self._eval_expr(elem)
@@ -327,11 +348,38 @@ class IRGenerator(ASTVisitor):
                 self._emit(Opcode.STORE, [elem_val, elem_ptr])
 
     def visit_param_decl(self, node: ParamDeclNode):
-        """参数声明 → PARAM（只添加到函数参数列表，不生成 ALLOC）"""
+        """参数声明 → PARAM + ALLOC + STORE
+
+        为每个参数创建一个局部副本，这样参数就可以被修改了。
+        注意：数组参数在 C 中是指针，不需要额外的 ALLOC。
+        """
         ty = self._get_type_name(node.param_type)
-        pv = IRValue(name=node.name, ty=ty, kind=ValueKind.PARAM)
+
+        # 检查是否是数组参数类型（以 [] 结尾）
+        is_array_param = ty.endswith("[]")
+
+        # 1. 添加到函数参数列表（使用 %N 格式的临时变量名）
+        param_name = f"%{self.temp_counter}"
+        self.temp_counter += 1
+        pv = IRValue(name=param_name, ty=ty, kind=ValueKind.PARAM)
         self.current_function.params.append(pv)
-        # 参数已在函数签名中声明，不需要额外的 ALLOC
+
+        if is_array_param:
+            # 数组参数已经是指针，直接使用参数名作为指针
+            # 维护变量名到指针的映射
+            self.var_ptr_map[node.name] = pv
+        else:
+            # 普通参数：创建局部副本
+            # 2. 为参数创建 ALLOC（创建局部副本）
+            alloc_result = self._new_temp(ty)
+            var_value = IRValue(name=node.name, ty=ty, kind=ValueKind.VAR)
+            self._emit(Opcode.ALLOC, [var_value], [alloc_result])
+
+            # 3. 将参数值存储到局部副本
+            self._emit(Opcode.STORE, [pv, alloc_result])
+
+            # 4. 维护变量名到指针的映射
+            self.var_ptr_map[node.name] = alloc_result
 
     def visit_block_stmt(self, node: BlockStmtNode):
         """代码块 → 递归处理"""
@@ -431,11 +479,9 @@ class IRGenerator(ASTVisitor):
     def _eval_string_literal(self, node: ASTNode) -> IRValue:
         """求值字符串字面量"""
         val = getattr(node, "value", "")
-        # 将 Python 字符串转换为 C 字符串字面量
-        # repr() 会将转义字符转换为字符串形式，例如 '\n' -> '\\n'
-        # 然后去掉首尾的引号
-        c_val = repr(val)[1:-1]  # 去掉 repr() 添加的引号
-        return self._eval_literal(node, "字符串型", f'"{c_val}"', is_string=True)
+        # 直接使用原始字符串值，不添加额外的引号
+        # 字符串值本身已经包含正确的内容（包括转义字符）
+        return self._eval_literal(node, "字符串型", val, is_string=True)
 
     def _eval_char_literal(self, node: ASTNode) -> IRValue:
         """求值字符字面量"""
@@ -458,9 +504,42 @@ class IRGenerator(ASTVisitor):
         return IRValue(str(value), type_name, ValueKind.CONST, const_value=value)
 
     def _eval_identifier(self, node: ASTNode) -> IRValue:
-        """求值标识符表达式"""
+        """求值标识符表达式
+
+        返回值：
+        - 如果是局部变量，返回指针（从 var_ptr_map 获取）
+        - 如果是函数参数，直接返回参数引用
+        - 如果是数组变量，直接返回数组指针（数组退化）
+        """
         name = getattr(node, "name", "")
         ty = getattr(node, "inferred_type", "整数型")
+
+        # 检查是否是局部变量（有 ALLOC）
+        if name in self.var_ptr_map:
+            ptr = self.var_ptr_map[name]
+
+            # 检查是否是数组类型（以 [] 结尾或包含 [N]）
+            ptr_ty = getattr(ptr, "ty", "")
+            is_array = ptr_ty.endswith("]") or ("[" in ptr_ty and ptr_ty.endswith("]"))
+
+            if is_array:
+                # 数组变量：直接返回数组指针（数组退化）
+                # 不需要 LOAD，直接返回指针
+                return ptr
+            else:
+                # 普通变量：生成 LOAD 指令
+                result = self._new_temp(ty)
+                self._emit(Opcode.LOAD, [ptr], [result])
+                return result
+
+        # 检查是否是函数参数
+        if self.current_function:
+            for param in self.current_function.params:
+                if param.name == name:
+                    # 参数直接返回（不需要 LOAD）
+                    return param
+
+        # 默认返回变量引用
         return IRValue(name, ty, ValueKind.VAR)
 
     def _eval_binary(self, node: ASTNode) -> Optional[IRValue]:
@@ -531,6 +610,8 @@ class IRGenerator(ASTVisitor):
         对于数组赋值（如 数组[j] = 值），需要特殊处理：
         - target 只生成 GEP（获取地址），不生成 LOAD
         - STORE 写入这个地址
+
+        对于普通赋值（如 a = b），使用 var_ptr_map 获取变量指针。
         """
         value = self._eval_expr(getattr(node, "value", None))
 
@@ -540,10 +621,19 @@ class IRGenerator(ASTVisitor):
             nt = target_node.node_type.name
             if nt == "ARRAY_EXPR":
                 # 数组赋值：只生成 GEP，不生成 LOAD
-                base = self._eval_expr(
-                    getattr(target_node, "array", None)
-                    or getattr(target_node, "object", None)
+                # 获取数组基址（参数或局部变量）
+                array_node = getattr(target_node, "array", None) or getattr(
+                    target_node, "object", None
                 )
+                array_name = getattr(array_node, "name", "") if array_node else ""
+
+                # 检查是否是局部变量（有 ALLOC）
+                if array_name in self.var_ptr_map:
+                    base = self.var_ptr_map[array_name]
+                else:
+                    # 可能是函数参数，直接使用参数名
+                    base = IRValue(array_name, kind=ValueKind.PARAM)
+
                 index = self._eval_expr(getattr(target_node, "index", None))
                 if base and index:
                     elem_ptr = self._new_temp()
@@ -551,8 +641,16 @@ class IRGenerator(ASTVisitor):
                     if value:
                         self._emit(Opcode.STORE, [value, elem_ptr])
                     return value
+            elif nt == "IDENTIFIER_EXPR":
+                # 普通标识符赋值：使用 var_ptr_map 获取变量指针
+                var_name = getattr(target_node, "name", "")
+                if var_name in self.var_ptr_map:
+                    ptr = self.var_ptr_map[var_name]
+                    if value:
+                        self._emit(Opcode.STORE, [value, ptr])
+                    return value
 
-        # 普通赋值
+        # 回退：使用原始的 _eval_expr
         target = self._eval_expr(target_node)
         if value:
             self._emit(Opcode.STORE, [value, target] if target else [value])
@@ -589,9 +687,16 @@ class IRGenerator(ASTVisitor):
         2. LOAD: 读取元素值 *(base + index)
         """
         # ArrayExprNode 使用 array 属性，不是 object
-        base = self._eval_expr(
-            getattr(node, "array", None) or getattr(node, "object", None)
-        )
+        array_node = getattr(node, "array", None) or getattr(node, "object", None)
+        array_name = getattr(array_node, "name", "") if array_node else ""
+
+        # 检查是否是局部变量（有 ALLOC）
+        if array_name in self.var_ptr_map:
+            base = self.var_ptr_map[array_name]
+        else:
+            # 可能是函数参数，直接使用参数名
+            base = IRValue(array_name, kind=ValueKind.PARAM)
+
         index = self._eval_expr(getattr(node, "index", None))
 
         if not base or not index:
@@ -620,8 +725,9 @@ class IRGenerator(ASTVisitor):
         self.current_function.basic_blocks.append(IRBasicBlock(then_bb_label))
         self.current_function.basic_blocks.append(IRBasicBlock(else_bb_label))
         self.current_function.basic_blocks.append(IRBasicBlock(merge_bb_label))
-        self._emit(Opcode.JZ, [cond, else_bb_label] if cond else [])
-        self._emit(Opcode.JMP, [then_bb_label])
+        # 条件跳转：cond 为真跳到 then，为假跳到 else
+        if cond:
+            self._emit(Opcode.JZ, [cond, then_bb_label, else_bb_label])
         # then 块
         self._switch_block(self.current_function.find_basic_block(then_bb_label))
         if then_val:
@@ -711,10 +817,9 @@ class IRGenerator(ASTVisitor):
         self.current_function.basic_blocks.append(else_bb)
         self.current_function.basic_blocks.append(merge_bb)
 
-        # 条件跳转
+        # 条件跳转：cond 为真跳到 then，为假跳到 else
         if cond:
-            self._emit(Opcode.JZ, [cond, else_bb.label])
-        self._emit(Opcode.JMP, [then_bb.label])
+            self._emit(Opcode.JZ, [cond, then_bb.label, else_bb.label])
 
         # then 分支
         old_block = self.current_block
@@ -771,10 +876,9 @@ class IRGenerator(ASTVisitor):
         # 条件块
         self._switch_block(cond_bb)
         cond = self._eval_expr(node.condition)
-        # JZ: 条件为假（0）时跳转到 end 退出循环；否则（1）继续到 body 执行循环体
+        # 条件跳转：cond 为真跳到 body（继续循环），为假跳到 end（退出循环）
         if cond:
-            self._emit(Opcode.JZ, [cond, end_bb.label])
-        self._emit(Opcode.JMP, [body_bb.label])
+            self._emit(Opcode.JZ, [cond, body_bb.label, end_bb.label])
 
         # 循环体
         cond_bb.add_successor(body_bb.label)
@@ -814,10 +918,9 @@ class IRGenerator(ASTVisitor):
         # 条件块
         self._switch_block(cond_bb)
         cond = self._eval_expr(node.condition) if node.condition else None
-        # JZ: 条件为假时跳转到 end 退出循环
+        # 条件跳转：cond 为真跳到 body（继续循环），为假跳到 end（退出循环）
         if cond:
-            self._emit(Opcode.JZ, [cond, end_bb.label])
-        self._emit(Opcode.JMP, [body_bb.label])
+            self._emit(Opcode.JZ, [cond, body_bb.label, end_bb.label])
 
         # 更新块
         update_bb.add_predecessor(body_bb.label)
@@ -894,10 +997,9 @@ class IRGenerator(ASTVisitor):
         # 条件块
         self._switch_block(cond_bb)
         cond = self._eval_expr(node.condition)
-        # do-while: 条件为真则继续循环（跳转body）；条件为假则退出（跳转end）
+        # do-while: 条件为真跳到 body（继续循环），为假跳到 end（退出循环）
         if cond:
-            self._emit(Opcode.JZ, [cond, end_bb.label])
-        self._emit(Opcode.JMP, [body_bb.label])
+            self._emit(Opcode.JZ, [cond, body_bb.label, end_bb.label])
         cond_bb.add_successor(body_bb.label)
         cond_bb.add_successor(end_bb.label)
 

@@ -200,14 +200,35 @@ class TypeMapper:
         if not self._llvm_available:
             return None
 
-        # 处理指针类型
-        if zhc_type.endswith("*"):
-            if not self._llvm_available:
-                return None
-            import llvmlite.ir as ll
+        import llvmlite.ir as ll
 
+        # 处理指针类型（如 "整数型*"）
+        if zhc_type.endswith("*"):
             base_type = zhc_type[:-1].strip()
-            return ll.PointerType(self.to_llvm(base_type))
+            base_llvm = self.to_llvm(base_type)
+            if base_llvm:
+                return ll.PointerType(base_llvm)
+            return ll.PointerType(ll.IntType(32))
+
+        # 处理数组类型（如 "整数型[10]" 或 "整数型[]"）
+        if "[" in zhc_type and zhc_type.endswith("]"):
+            base_type = zhc_type.split("[")[0].strip()
+            size_str = zhc_type.split("[")[1].rstrip("]")
+            base_llvm = self.to_llvm(base_type)
+            if not base_llvm:
+                base_llvm = ll.IntType(32)
+
+            # 如果大小为空（如"整数型[]"），表示动态大小数组参数
+            # 在 C 中，数组参数实际上是指针类型
+            if size_str == "" or size_str == "_":
+                return ll.PointerType(base_llvm)
+
+            try:
+                size = int(size_str)
+                return ll.ArrayType(base_llvm, size)
+            except ValueError:
+                # 无法解析大小，返回指针类型
+                return ll.PointerType(base_llvm)
 
         return self._llvm_types.get(zhc_type)
 
