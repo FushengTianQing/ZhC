@@ -418,14 +418,28 @@ class Lexer:
         - \\r: 回车
         - \\uNNNN: Unicode 转义 (4位十六进制)
         - \\UNNNNNNNN: Unicode 转义 (8位十六进制)
+
+        支持全角引号:
+        - 『...』: 全角书名号，引号内为字符串
+        - 「...」: 全角方括号，引号内为字符串
         """
         start_line = self.line
         start_column = self.column
-        quote = self.advance()  # ' 或 "
+        quote = self.advance()  # ' 或 " 或 『 或 「
         value = ""
+        # 判断引号类型
         is_char = quote == "'"
+        is_fullwidth = quote in ("『", "「")
+        # 确定闭合引号
+        close_quote = quote
+        if quote == "「":
+            close_quote = "」"
+        elif quote == "『":
+            close_quote = "』"
+        # 全角引号内的字符不是字符字面量
+        is_char = is_char and not is_fullwidth
 
-        while self.current_char() and self.current_char() != quote:
+        while self.current_char() and self.current_char() != close_quote:
             if self.current_char() == "\\":
                 self.advance()  # \
                 char = self.current_char()
@@ -522,7 +536,12 @@ class Lexer:
                     value += "\r"
                     self.advance()
                 elif char == quote:
+                    # 对于半角引号，处理 \" 或 \' 转义
                     value += quote
+                    self.advance()
+                elif char == close_quote and is_fullwidth:
+                    # 对于全角引号，处理转义的全角引号
+                    value += close_quote
                     self.advance()
                 elif char == "u" or char == "U":
                     # Unicode 转义
@@ -585,6 +604,113 @@ class Lexer:
             return Token(TokenType.CHAR_LITERAL, value, start_line, start_column)
         else:
             return Token(TokenType.STRING_LITERAL, value, start_line, start_column)
+
+    def read_multiline_string(self) -> Token:
+        """读取多行字符串字面量
+
+        多行字符串使用三个双引号包裹：
+        字符串型 s = \"\"\"
+            第一行
+            第二行
+        \"\"\";
+
+        多行字符串保留原始换行和缩进。
+        """
+        start_line = self.line
+        start_column = self.column
+
+        # 消费三个双引号
+        self.advance()  # 第一个 "
+        self.advance()  # 第二个 "
+        self.advance()  # 第三个 "
+
+        value = ""
+
+        # 读取内容直到遇到 """
+        while self.current_char():
+            # 检查是否到达结束标记
+            if (
+                self.current_char() == '"'
+                and self.peek_char() == '"'
+                and self.peek_char(2) == '"'
+            ):
+                self.advance()  # 第一个 "
+                self.advance()  # 第二个 "
+                self.advance()  # 第三个 "
+                return Token(TokenType.STRING_LITERAL, value, start_line, start_column)
+
+            # 处理换行
+            if self.current_char() == "\n":
+                value += "\n"
+                self.advance()
+                continue
+
+            # 处理转义序列（与普通字符串相同）
+            if self.current_char() == "\\":
+                self.advance()  # \
+                char = self.current_char()
+
+                if char == "n":
+                    value += "\n"
+                    self.advance()
+                elif char == "t":
+                    value += "\t"
+                    self.advance()
+                elif char == "\\":
+                    value += "\\"
+                    self.advance()
+                elif char == '"':
+                    value += '"'
+                    self.advance()
+                elif char == "r":
+                    value += "\r"
+                    self.advance()
+                elif char == "u" or char == "U":
+                    # Unicode 转义
+                    unicode_val = ""
+                    max_len = 4 if char == "u" else 8
+                    for _ in range(max_len):
+                        next_char = self.peek_char()
+                        if next_char and next_char in "0123456789abcdefABCDEF":
+                            unicode_val += next_char
+                            self.advance()
+                        else:
+                            break
+                    if unicode_val:
+                        try:
+                            code_point = int(unicode_val, 16)
+                            if code_point <= 0x10FFFF:
+                                value += chr(code_point)
+                            else:
+                                value += "\\" + char + unicode_val
+                        except ValueError:
+                            value += "\\" + char + unicode_val
+                    else:
+                        value += "\\" + char
+                    self.advance()
+                else:
+                    # 其他转义序列保留原样
+                    value += "\\"
+                    if char:
+                        value += char
+                        self.advance()
+            else:
+                # 普通字符
+                char = self.advance()
+                if char and not self._is_valid_unicode(char):
+                    error = invalid_unicode_character(
+                        character=char,
+                        location=SourceLocation(line=self.line, column=self.column - 1),
+                    )
+                    self.errors.append(error)
+                value += char or ""
+
+        # 未闭合的多行字符串
+        error = unterminated_string(
+            location=SourceLocation(line=start_line, column=start_column)
+        )
+        self.errors.append(error)
+        return Token(TokenType.STRING_LITERAL, value, start_line, start_column)
 
     def read_identifier(self) -> Token:
         """读取标识符"""
@@ -742,8 +868,17 @@ class Lexer:
                 self.tokens.append(self.read_number())
                 continue
 
-            # 字符串
-            if self.current_char() in "\"'":
+            # 多行字符串（\"\"\"）
+            if (
+                self.current_char() == '"'
+                and self.peek_char() == '"'
+                and self.peek_char(2) == '"'
+            ):
+                self.tokens.append(self.read_multiline_string())
+                continue
+
+            # 字符串（支持全角引号）
+            if self.current_char() in "\"'「『":
                 self.tokens.append(self.read_string())
                 continue
 
