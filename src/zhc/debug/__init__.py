@@ -92,6 +92,13 @@ from .debug_session import (
     SessionConfig,
 )
 
+# 表达式求值器（从 debugger 模块导入）
+from zhc.debugger.expression_evaluator import (
+    ExpressionEvaluator,
+    EvaluationContext,
+    EvaluationResult,
+)
+
 __all__ = [
     # DWARF 构建
     "DwarfBuilder",
@@ -147,4 +154,8 @@ __all__ = [
     "DebugSession",
     "SessionState",
     "SessionConfig",
+    # 表达式求值器
+    "ExpressionEvaluator",
+    "EvaluationContext",
+    "EvaluationResult",
 ]

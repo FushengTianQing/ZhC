@@ -17,6 +17,7 @@ from .breakpoint_engine import BreakpointEngine, BreakpointHit, WatchType
 from .variable_printer import VariablePrinter
 from .stack_frame_analyzer import StackFrameAnalyzer
 from .debug_info_collector import DebugInfoCollector
+from zhc.debugger.expression_evaluator import ExpressionEvaluator, EvaluationContext
 
 
 class SessionState(Enum):
@@ -87,6 +88,7 @@ class DebugSession:
         self._breakpoint_engine: Optional[BreakpointEngine] = None
         self._variable_printer: Optional[VariablePrinter] = None
         self._stack_analyzer: Optional[StackFrameAnalyzer] = None
+        self._expression_evaluator: Optional[ExpressionEvaluator] = None
 
         # 会话状态
         self._state = SessionState.STOPPED
@@ -130,6 +132,7 @@ class DebugSession:
         self._breakpoint_engine = BreakpointEngine()
         self._variable_printer = VariablePrinter(self._debug_info)
         self._stack_analyzer = StackFrameAnalyzer(self._debug_info)
+        self._expression_evaluator = ExpressionEvaluator()
 
         self._state = SessionState.STOPPED
         return True
@@ -457,8 +460,38 @@ class DebugSession:
         Returns:
             求值结果
         """
-        # TODO: 实现表达式求值
-        return "<not implemented>"
+        if not self._expression_evaluator or not self.is_stopped:
+            return "<not available>"
+
+        # 获取当前帧
+        frame = (
+            self._stack_analyzer.get_current_frame() if self._stack_analyzer else None
+        )
+
+        # 构建求值上下文
+        context = EvaluationContext(
+            frame_id=self._current_frame_id,
+            thread_id=self._current_thread_id,
+            pc=frame.pc if frame else 0,
+            stack_pointer=frame.stack_pointer if frame else 0,
+            frame_pointer=frame.frame_pointer if frame else 0,
+        )
+
+        # 添加局部变量到上下文
+        if frame and self._variable_printer:
+            self._variable_printer.set_current_frame(frame.pc, frame.frame_pointer or 0)
+            locals_vars = self._variable_printer.print_local_variables(None)
+            for var in locals_vars:
+                if var.is_valid and var.value is not None:
+                    context.set_variable(var.name, var.value)
+
+        # 求值表达式
+        result = self._expression_evaluator.evaluate(expression, context)
+
+        if result.is_error:
+            return f"<error: {result.error}>"
+
+        return f"{result.value} ({result.type_name})"
 
     # ==================== 回调管理 ====================
 
