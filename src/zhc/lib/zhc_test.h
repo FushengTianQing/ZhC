@@ -102,6 +102,18 @@ void _zhc_test_skip(const char* reason);
 #define 断言不为空集合(对象, ...) \
     _zhc_report_assertion(__FILE__, __LINE__, _zhc_length(对象) > 0, "len(" #对象 ") > 0")
 
+#define 断言数组相等(a, b, n, ...) \
+    _zhc_report_assertion(__FILE__, __LINE__, memcmp((a), (b), (n)) == 0, #a " == " #b " (memcmp)")
+
+#define 断言字符串包含(字符串, 子串, ...) \
+    _zhc_report_assertion(__FILE__, __LINE__, strstr((字符串), (子串)) != NULL, #子串 " in " #字符串)
+
+#define 断言字符串以(字符串, 前缀, ...) \
+    _zhc_report_assertion(__FILE__, __LINE__, strncmp((字符串), (前缀), strlen(前缀)) == 0, #字符串 " starts with " #前缀)
+
+#define 断言字符串以结尾(字符串, 后缀, ...) \
+    _zhc_report_assertion(__FILE__, __LINE__, _zhc_str_ends_with((字符串), (后缀)), #字符串 " ends with " #后缀)
+
 #define 断言抛出异常(表达式, 异常类型, ...) \
     do { \
         int _caught = 0; \
@@ -122,6 +134,7 @@ void _zhc_test_skip(const char* reason);
 int _zhc_contains(const void* container, const void* element);
 int _zhc_isinstance(const void* obj, const char* type_name);
 int _zhc_length(const void* obj);
+int _zhc_str_ends_with(const char* str, const char* suffix);
 
 // 测试跳转缓冲区
 extern jmp_buf _test_jmp_buf;
