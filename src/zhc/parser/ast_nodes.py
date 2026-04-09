@@ -38,6 +38,8 @@ class ASTNodeType(Enum):
     ENUM_DECL = auto()  # 枚举声明
     UNION_DECL = auto()  # 共用体声明
     TYPEDEF_DECL = auto()  # 别名声明
+    EXTERNAL_BLOCK = auto()  # 外部块
+    EXTERNAL_FUNCTION_DECL = auto()  # 外部函数声明
 
     # 语句
     BLOCK_STMT = auto()  # 代码块
@@ -217,6 +219,84 @@ class ASTNode(ABC):
 # ============================================================================
 # 程序结构节点
 # ============================================================================
+
+
+class ExternalBlockNode(ASTNode):
+    """
+    外部块节点
+
+    语法：
+        外部 "C" {
+            函数声明1;
+            函数声明2;
+        }
+
+    例如：
+        外部 "C" {
+            整数型 系统调用(整数型 命令);
+            无类型 退出程序(整数型 状态码);
+        }
+    """
+
+    def __init__(
+        self,
+        language: str,
+        declarations: List["ExternalFunctionDeclNode"],
+        line: int = 0,
+        column: int = 0,
+    ):
+        super().__init__(ASTNodeType.EXTERNAL_BLOCK, line, column)
+        self.language = language
+        self.declarations = declarations
+
+    def accept(self, visitor):
+        return visitor.visit_external_block(self)
+
+    def get_children(self) -> List[ASTNode]:
+        return self.declarations
+
+    def __repr__(self):
+        return f"ExternalBlockNode(language={self.language}, decls={len(self.declarations)})"
+
+
+class ExternalFunctionDeclNode(ASTNode):
+    """
+    外部函数声明节点
+
+    语法：返回类型 函数名(参数列表);
+
+    例如：
+        整数型 系统调用(整数型 命令);
+        无类型 退出程序(整数型 状态码);
+    """
+
+    def __init__(
+        self,
+        name: str,
+        return_type: ASTNode,
+        parameters: List["ParamDeclNode"],
+        c_name: Optional[str] = None,
+        library: Optional[str] = None,
+        line: int = 0,
+        column: int = 0,
+    ):
+        super().__init__(ASTNodeType.EXTERNAL_FUNCTION_DECL, line, column)
+        self.name = name
+        self.return_type = return_type
+        self.parameters = parameters
+        self.c_name = c_name
+        self.library = library
+
+    def accept(self, visitor):
+        return visitor.visit_external_function_decl(self)
+
+    def get_children(self) -> List[ASTNode]:
+        children = [self.return_type]
+        children.extend(self.parameters)
+        return children
+
+    def __repr__(self):
+        return f"ExternalFunctionDeclNode(name={self.name}, return={self.return_type})"
 
 
 class ProgramNode(ASTNode):

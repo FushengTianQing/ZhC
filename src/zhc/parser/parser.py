@@ -355,6 +355,8 @@ class Parser(GenericParserMixin):
             return self.parse_const_decl()
         if self.match(TokenType.FUNCTION):
             return self.parse_function_decl()
+        if self.match(TokenType.EXTERN):
+            return self.parse_external_block()
 
         # --- 需要 lookahead 的 token ---
         if self.match(TokenType.STRUCT):
@@ -600,6 +602,119 @@ class Parser(GenericParserMixin):
             body,
             self.tokens[self.pos - 1].line,
             self.tokens[self.pos - 1].column,
+        )
+
+    def parse_external_block(self) -> ExternalBlockNode:
+        """
+        解析外部块
+
+        语法：
+            外部 "C" {
+                函数声明1;
+                函数声明2;
+            }
+        """
+        start_line = self.current_token().line
+        start_column = self.current_token().column
+
+        # 消耗 '外部'
+        self.advance()
+
+        # 解析语言字符串
+        language_token = self.current_token()
+        if language_token.type != TokenType.STRING_LITERAL:
+            self.errors.append(
+                ParserError(
+                    f"期望外部语言字符串，但找到 '{language_token.value}'",
+                    language_token,
+                )
+            )
+            language = "C"  # 默认使用 C
+        else:
+            language = language_token.value.strip('"')
+            self.advance()
+
+        # 目前只支持 "C"
+        if language != "C":
+            self.errors.append(
+                ParserError(
+                    f"不支持的外部语言: {language}，目前仅支持 C",
+                    language_token,
+                )
+            )
+
+        # 解析 '{'
+        self.expect(TokenType.LBRACE, "期望 '{'")
+
+        # 解析函数声明列表
+        declarations = []
+        while not self.match(TokenType.RBRACE) and not self.is_at_end():
+            decl = self.parse_external_function_decl()
+            if decl:
+                declarations.append(decl)
+
+        # 解析 '}'
+        self.expect(TokenType.RBRACE, "期望 '}'")
+
+        return ExternalBlockNode(
+            language=language,
+            declarations=declarations,
+            line=start_line,
+            column=start_column,
+        )
+
+    def parse_external_function_decl(self) -> Optional[ExternalFunctionDeclNode]:
+        """
+        解析外部函数声明
+
+        语法：返回类型 函数名(参数列表);
+        """
+        start_line = self.current_token().line
+        start_column = self.current_token().column
+
+        # 解析返回类型
+        return_type = self.parse_type()
+
+        # 解析函数名
+        name_token = self.current_token()
+        if name_token.type != TokenType.IDENTIFIER:
+            self.errors.append(
+                ParserError(
+                    f"期望函数名，但找到 '{name_token.value}'",
+                    name_token,
+                )
+            )
+            # 尝试恢复：跳到下一个分号
+            while not self.match(TokenType.SEMICOLON) and not self.is_at_end():
+                self.advance()
+            if self.match(TokenType.SEMICOLON):
+                self.advance()
+            return None
+
+        name = name_token.value
+        self.advance()
+
+        # 解析参数列表
+        self.expect(TokenType.LPAREN, "期望 '('")
+
+        parameters = []
+        if not self.match(TokenType.RPAREN):
+            parameters.append(self.parse_param_decl())
+            while self.match(TokenType.COMMA):
+                self.advance()
+                parameters.append(self.parse_param_decl())
+
+        self.expect(TokenType.RPAREN, "期望 ')'")
+
+        # 解析 ';'
+        self.expect(TokenType.SEMICOLON, "期望 ';'")
+
+        return ExternalFunctionDeclNode(
+            name=name,
+            return_type=return_type,
+            parameters=parameters,
+            line=start_line,
+            column=start_column,
         )
 
     def parse_struct_decl(self) -> StructDeclNode:
