@@ -207,6 +207,31 @@ def invalid_identifier(
     )
 
 
+def invalid_escape_sequence(
+    sequence: str,
+    location: Optional[SourceLocation] = None,
+    context: Optional[str] = None,
+) -> LexerError:
+    """
+    创建无效转义序列错误
+
+    Args:
+        sequence: 无效的转义序列
+        location: 错误位置
+        context: 错误上下文
+
+    Returns:
+        LexerError 实例
+    """
+    return LexerError(
+        message=f"无效的转义序列 '{sequence}'",
+        location=location,
+        error_code=LEXER_INVALID_ESCAPE_SEQUENCE,
+        context=context,
+        suggestion="使用有效的转义序列，如 \\n, \\t, \\xNN, \\e",
+    )
+
+
 def unterminated_comment(
     location: Optional[SourceLocation] = None,
     context: Optional[str] = None,
@@ -276,4 +301,5 @@ __all__ = [
     "unterminated_char",
     "invalid_number_format",
     "invalid_identifier",
+    "invalid_escape_sequence",
 ]

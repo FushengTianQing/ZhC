@@ -140,6 +140,55 @@ def test_regression_standard_escapes():
     print(f"✓ 标准转义回归: {repr(string_tokens[0].value)}")
 
 
+# ============= 边界情况测试 =============
+
+
+def test_hex_escape_no_digits():
+    """测试 \\x 后无数字时报错"""
+    lexer = Lexer(r'字符串型 s = "\x";')
+    _tokens = lexer.tokenize()
+    # 应该有错误
+    assert len(lexer.errors) == 1
+    assert "无效的转义序列" in str(lexer.errors[0])
+    print(f"✓ \\x 后无数字报错: {lexer.errors[0].message}")
+
+
+def test_hex_escape_single_digit():
+    """测试单位十六进制 \\xN"""
+    lexer = Lexer(r'字符串型 s = "\xA";')
+    tokens = lexer.tokenize()
+    string_tokens = [t for t in tokens if t.type.name == "STRING_LITERAL"]
+    assert string_tokens[0].value == "\x0a"  # 10 = 换行符
+    print(f"✓ 单位十六进制 \\xA: {repr(string_tokens[0].value)}")
+
+
+def test_hex_escape_case_insensitive():
+    """测试大小写混合 \\xAB"""
+    lexer = Lexer(r'字符串型 s = "\xaB\xAb";')
+    tokens = lexer.tokenize()
+    string_tokens = [t for t in tokens if t.type.name == "STRING_LITERAL"]
+    assert string_tokens[0].value == "\xab\xab"  # 两个都是 171
+    print(f"✓ 大小写混合: {repr(string_tokens[0].value)}")
+
+
+def test_hex_escape_null_byte():
+    """测试空字符 \\x00"""
+    lexer = Lexer(r'字符串型 s = "\x00";')
+    tokens = lexer.tokenize()
+    string_tokens = [t for t in tokens if t.type.name == "STRING_LITERAL"]
+    assert string_tokens[0].value == "\x00"
+    print(f"✓ 空字符 \\x00: {repr(string_tokens[0].value)}")
+
+
+def test_hex_escape_max_value():
+    """测试最大值 \\xFF"""
+    lexer = Lexer(r'字符串型 s = "\xFF";')
+    tokens = lexer.tokenize()
+    string_tokens = [t for t in tokens if t.type.name == "STRING_LITERAL"]
+    assert string_tokens[0].value == "\xff"
+    print(f"✓ 最大值 \\xFF: {repr(string_tokens[0].value)}")
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("测试转义序列功能")
@@ -168,6 +217,14 @@ if __name__ == "__main__":
     test_mixed_escapes()
     test_regression_hex_still_works()
     test_regression_standard_escapes()
+    print()
+
+    print("【边界情况测试】")
+    test_hex_escape_no_digits()
+    test_hex_escape_single_digit()
+    test_hex_escape_case_insensitive()
+    test_hex_escape_null_byte()
+    test_hex_escape_max_value()
     print()
 
     print("=" * 60)

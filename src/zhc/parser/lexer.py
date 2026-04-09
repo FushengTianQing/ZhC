@@ -20,6 +20,7 @@ from zhc.errors import (
     unterminated_string,
     unterminated_comment,
     unterminated_char,
+    invalid_escape_sequence,
 )
 
 
@@ -435,6 +436,14 @@ class Lexer:
                         except ValueError:
                             value += "\\x" + hex_value
                     else:
+                        # \x 后无十六进制数字，报错
+                        error = invalid_escape_sequence(
+                            sequence="\\x",
+                            location=SourceLocation(
+                                line=self.line, column=self.column - 1
+                            ),
+                        )
+                        self.errors.append(error)
                         value += "\\x"
                     self.advance()
 

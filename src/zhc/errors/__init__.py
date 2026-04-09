@@ -92,6 +92,7 @@ from .lexer_error import (
     unterminated_char,
     invalid_number_format,
     invalid_identifier,
+    invalid_escape_sequence,
 )
 
 # 导入语法分析异常
@@ -297,6 +298,7 @@ __all__ = [
     "unterminated_char",
     "invalid_number_format",
     "invalid_identifier",
+    "invalid_escape_sequence",
     # 语法分析异常
     "ParserError",
     "PARSER_MISSING_TOKEN",
