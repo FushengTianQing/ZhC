@@ -51,6 +51,10 @@ from .utf8_utils import (
     utf8_center,
 )
 
+from .unicode_utils import (
+    UnicodeUtils,
+)
+
 __all__ = [
     # 文件工具
     "read_file",
@@ -87,4 +91,6 @@ __all__ = [
     "utf8_ljust",
     "utf8_rjust",
     "utf8_center",
+    # Unicode 工具
+    "UnicodeUtils",
 ]

@@ -15,6 +15,9 @@ from typing import Optional, List, Dict, Set, Any
 from dataclasses import dataclass, field
 
 from ..errors import SemanticError
+from ..errors.error_mode import ErrorMode, ErrorModeManager
+from ..errors.recovery import ErrorRecoveryStrategy, RecoveryContext
+from ..errors.suggestions import SuggestionGenerator
 from ..parser.ast_nodes import (
     ASTNode,
     ASTNodeType,
@@ -291,6 +294,13 @@ class SemanticAnalyzer:
 
         # Phase 9: 泛型实例化器 — 将泛型函数/类型实例化为具体版本
         self._instantiator = None  # 延迟初始化
+
+        # Phase 10: 错误恢复系统集成
+        self._error_mode_manager = ErrorModeManager(mode=ErrorMode.LENIENT)
+        self._error_recovery_strategy = ErrorRecoveryStrategy(self._error_mode_manager)
+        self._suggestion_generator = SuggestionGenerator()
+        self._recovery_context = RecoveryContext()
+        self._error_recovery_count = 0  # 错误恢复次数统计
 
         self.stats = {
             "nodes_visited": 0,
@@ -1751,7 +1761,7 @@ class SemanticAnalyzer:
         location: str,
         suggestions: List[str] = None,
     ) -> None:
-        """添加错误"""
+        """添加错误，并使用错误恢复策略处理"""
         error = SemanticErrorInfo(
             error_type=error_type,
             message=message,
@@ -1762,6 +1772,20 @@ class SemanticAnalyzer:
         )
         self.errors.append(error)
         self.stats["errors_found"] += 1
+
+        # 使用错误恢复策略进行处理
+        if self._error_mode_manager.mode.should_recover:
+            # 创建语义错误的 ZHCError 对象用于恢复策略
+            semantic_error = SemanticError(
+                message=message,
+                location=location,
+                error_code=f"SEMANTIC_{error_type.upper()}",
+            )
+            action = self._error_mode_manager.handle_error(
+                semantic_error, self._recovery_context
+            )
+            if action:
+                self._error_recovery_count += 1
 
     def _add_warning(
         self,

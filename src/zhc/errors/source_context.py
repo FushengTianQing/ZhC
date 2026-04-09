@@ -128,6 +128,24 @@ class SourceContextExtractor:
         self.sources: Dict[str, str] = source_files or {}
         self._line_cache: Dict[str, list[str]] = {}
 
+    def create_location(
+        self, file_path: str, line: int, column: int
+    ) -> "SourceLocation":
+        """
+        创建源码位置对象
+
+        Args:
+            file_path: 文件路径
+            line: 行号（从1开始）
+            column: 列号（从1开始）
+
+        Returns:
+            SourceLocation 对象
+        """
+        from .base import SourceLocation
+
+        return SourceLocation(file_path=file_path, line=line, column=column)
+
     def add_source(self, file_path: str, content: str) -> None:
         """
         添加源文件

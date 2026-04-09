@@ -23,7 +23,15 @@ from ..ir.symbol import (
     SymbolCategory as IRSymbolCategory,
 )
 
+# 数组语义分析器
+from .array_analyzer import (
+    ArraySemanticAnalyzer,
+    ArrayAnalysisResult,
+    ArrayTypeValidator,
+)
+
 __all__ = [
+    # 核心语义分析
     "SemanticAnalyzer",
     "SemanticError",
     "SymbolTable",
@@ -36,4 +44,8 @@ __all__ = [
     "IRScope",
     "IRScopeType",
     "IRSymbolCategory",
+    # 数组分析
+    "ArraySemanticAnalyzer",
+    "ArrayAnalysisResult",
+    "ArrayTypeValidator",
 ]

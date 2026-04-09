@@ -223,6 +223,30 @@ from .pipeline_error import (
     unsupported_feature as pipeline_unsupported_feature,  # noqa: F401
 )
 
+# 导入错误恢复机制
+from .recovery import (
+    RecoveryAction,
+    RecoveryContext,
+    ErrorRecoveryStrategy,
+    CompilationAbortedError,
+)
+
+# 导入错误模式管理
+from .error_mode import (
+    ErrorMode,
+    ErrorModeConfig,
+    ErrorModeManager,
+    ErrorRecoveryContext,
+)
+
+# 导入智能提示生成器
+from .suggestions import (
+    Suggestion,
+    SuggestionResult,
+    SuggestionGenerator,
+    ErrorEnhancer,
+)
+
 
 # ============================================================================
 # 版本信息
@@ -390,4 +414,19 @@ __all__ = [
     "missing_module",
     "duplicate_symbol",
     "unsupported_feature",
+    # 错误恢复机制
+    "RecoveryAction",
+    "RecoveryContext",
+    "ErrorRecoveryStrategy",
+    "CompilationAbortedError",
+    # 错误模式管理
+    "ErrorMode",
+    "ErrorModeConfig",
+    "ErrorModeManager",
+    "ErrorRecoveryContext",
+    # 智能提示生成器
+    "Suggestion",
+    "SuggestionResult",
+    "SuggestionGenerator",
+    "ErrorEnhancer",
 ]

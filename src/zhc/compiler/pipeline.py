@@ -33,6 +33,14 @@ from ..parser.module import ModuleParser
 from ..errors.pipeline_error import ErrorHandler, ErrorType
 from ..analyzer.dependency import DependencyResolver, MultiFileIntegrator
 
+# 导入增强的错误处理模块
+from ..errors.error_codes import ErrorCodeRegistry
+from ..errors.error_formatter import ErrorFormatter, ErrorPrinter
+from ..errors.error_mode import ErrorMode, ErrorModeManager
+from ..errors.source_context import SourceContextExtractor
+from ..errors.suggestions import SuggestionGenerator
+from ..errors.recovery import ErrorRecoveryStrategy
+
 logger = logging.getLogger(__name__)
 
 
@@ -88,6 +96,20 @@ class CompilationPipeline:
         self.module_parser = ModuleParser()
         self.dependency_resolver = DependencyResolver(self.error_handler)
         self.file_integrator = MultiFileIntegrator(self.dependency_resolver)
+
+        # 初始化增强错误处理系统
+        self.error_code_registry = ErrorCodeRegistry()
+        self.error_formatter = ErrorFormatter()
+        self.error_printer = ErrorPrinter(self.error_formatter)
+        self.source_context_extractor = SourceContextExtractor()
+        self.suggestion_generator = SuggestionGenerator()
+
+        # 错误模式管理（默认宽松模式，收集所有错误继续编译）
+        self.error_mode_manager = ErrorModeManager(mode=ErrorMode.LENIENT)
+        self.error_recovery_strategy = ErrorRecoveryStrategy(self.error_mode_manager)
+
+        # 源文件内容缓存（用于错误上下文提取）
+        self._source_contents: Dict[str, str] = {}
 
         # 缓存系统
         self.file_hash_cache: Dict[str, str] = {}
@@ -151,6 +173,86 @@ class CompilationPipeline:
 
         with open(cache_file, "wb") as f:
             pickle.dump(data, f)
+
+    def _format_errors_with_context(
+        self, errors: List[Any], source_files: Dict[str, str]
+    ) -> str:
+        """
+        使用增强的错误格式化器格式化错误信息
+
+        Args:
+            errors: 错误列表
+            source_files: 源文件路径到内容的映射
+
+        Returns:
+            格式化后的错误信息字符串
+        """
+        if not errors:
+            return ""
+
+        formatted_output = []
+        formatted_output.append("=" * 60)
+        formatted_output.append("编译错误报告")
+        formatted_output.append("=" * 60)
+
+        # 更新源上下文提取器的内容
+        for file_path, content in source_files.items():
+            self.source_context_extractor.add_source(file_path, content)
+
+        for i, error in enumerate(errors, 1):
+            # 获取错误基本信息
+            severity = getattr(error, "severity", "ERROR")
+            message = getattr(error, "message", str(error))
+            line = getattr(error, "line", 0)
+            column = getattr(error, "column", 0)
+            filename = getattr(error, "file", "unknown")
+
+            # 获取错误代码
+            error_code = getattr(error, "code", None)
+
+            # 构建头部
+            formatted_output.append(
+                f"\n[{i}] {severity}"
+                + (" " * (50 - len(severity)))
+                + f"{filename}:{line}:{column}"
+            )
+
+            # 获取源码上下文
+            if line > 0 and filename in source_files:
+                location = self.source_context_extractor.create_location(
+                    filename, line, column
+                )
+                context = self.source_context_extractor.get_context(
+                    location, context_lines=2
+                )
+                if context:
+                    formatted_output.append(context)
+
+            # 获取错误代码定义信息
+            if error_code and self.error_code_registry:
+                code_def = self.error_code_registry.get(error_code)
+                if code_def:
+                    formatted_output.append(f"  错误代码: {error_code}")
+                    formatted_output.append(f"  原因: {code_def.get('reason', '未知')}")
+                    suggestion = code_def.get("suggestion")
+                    if suggestion:
+                        formatted_output.append(f"  建议: {suggestion}")
+
+            # 添加基本消息
+            formatted_output.append(f"  消息: {message}")
+
+            # 生成智能建议
+            suggestion_result = self.suggestion_generator.generate_suggestions(error)
+            if suggestion_result.has_suggestions():
+                best = suggestion_result.get_best_suggestion()
+                if best and best.is_high_confidence():
+                    formatted_output.append(f"  💡 建议: {best.message}")
+
+        formatted_output.append("\n" + "=" * 60)
+        formatted_output.append(f"共 {len(errors)} 个错误/警告")
+        formatted_output.append("=" * 60)
+
+        return "\n".join(formatted_output)
 
     def _generate_markdown_report(
         self,
@@ -594,15 +696,16 @@ class CompilationPipeline:
             f.write(report)
         logger.info("生成: %s", report_path)
 
-        # 7. 显示错误和警告
+        # 7. 显示错误和警告（使用增强的错误格式化器）
         errors = self.error_handler.get_errors()
         if errors:
             logger.warning("发现 %d 个错误/警告", len(errors))
-            for i, error in enumerate(errors, 1):
-                # ErrorRecord 对象，需要获取其属性
-                severity = getattr(error, "severity", "UNKNOWN")
-                message = getattr(error, "message", "N/A")
-                logger.warning("%d: %s (%s)", i, message, severity)
+            # 使用增强的错误格式化器
+            error_report = self._format_errors_with_context(
+                errors, self._source_contents
+            )
+            print(error_report)
+            logger.info("详细错误报告已生成")
 
         # 8. 执行编译（如果无错误）
         has_errors = any(getattr(e, "severity", "") == "ERROR" for e in errors)
