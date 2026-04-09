@@ -150,6 +150,7 @@ class LLVMInstructionGenerator:
         values: Dict[str, ll.Value],
         blocks: Dict[str, ll.Block],
         functions: Dict[str, ll.Function],
+        string_constants: Optional[Dict[str, ll.Value]] = None,
     ) -> Optional[ll.Value]:
         """生成 LLVM 指令
 
@@ -159,11 +160,14 @@ class LLVMInstructionGenerator:
             values: 值映射表
             blocks: 基本块映射表
             functions: 函数映射表
+            string_constants: 字符串常量缓存（字符串内容 -> 全局变量）
 
         Returns:
             生成的 LLVM 值（如果有结果）
         """
         opcode = instr.opcode
+        self._string_constants = string_constants or {}
+        self._builder = builder  # 保存 builder 供 _create_global_string 使用
 
         if opcode in self._generators:
             return self._generators[opcode](builder, instr, values, blocks, functions)
@@ -542,10 +546,54 @@ class LLVMInstructionGenerator:
 
     # ========== 辅助方法 ==========
 
+    def _create_global_string(self, content: str) -> ll.Value:
+        """创建或获取全局字符串常量
+
+        Args:
+            content: 字符串内容（不含引号）
+
+        Returns:
+            指向字符串的 i8* 指针
+        """
+        # 缓存检查
+        if content in self._string_constants:
+            return self._string_constants[content]
+
+        # 获取 module（需要从 builder 获取）
+        module = self._builder.module
+
+        # 创建唯一的全局变量名
+        global_name = f".str.{len(self._string_constants)}"
+
+        # 创建字符数组类型 [n x i8]
+        byte_count = len(content) + 1  # +1 for null terminator
+        char_array_type = ll.ArrayType(ll.IntType(8), byte_count)
+
+        # 创建字节串（包含 null 终止符）
+        byte_data = [ll.Constant(ll.IntType(8), ord(b)) for b in content]
+        byte_data.append(ll.Constant(ll.IntType(8), 0))  # null terminator
+
+        # 创建全局变量
+        global_var = ll.GlobalVariable(module, char_array_type, global_name)
+        global_var.linkage = "private"
+        global_var.global_constant = True
+        global_var.initializer = ll.Constant(char_array_type, byte_data)
+
+        # 缓存结果
+        self._string_constants[content] = global_var
+
+        return global_var
+
     def _get_value(self, operand: Any, values: Dict[str, ll.Value]) -> ll.Value:
         """获取 LLVM 值"""
         # 如果是字符串
         if isinstance(operand, str):
+            # 检查是否是字符串常量（以引号开头）
+            if operand.startswith('"') and operand.endswith('"'):
+                # 提取字符串内容
+                string_content = operand[1:-1]
+                return self._create_global_string(string_content)
+
             # 检查是否是已存在的值
             if operand in values:
                 return values[operand]

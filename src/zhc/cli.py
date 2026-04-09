@@ -631,13 +631,23 @@ class ZHCCompiler:
         return run_ir_gen()
 
     def _resolve_output_path(
-        self, input_file: Path, output_dir: Optional[Path]
+        self, input_file: Path, output_dir: Optional[Path] = None
     ) -> Path:
-        """确定输出文件路径"""
+        """确定输出文件路径（根据后端类型选择扩展名）"""
+        # 根据后端类型确定扩展名
+        backend = self.config.backend if self.config else "ir"
+        suffix_map = {
+            "llvm": ".ll",
+            "wasm": ".wasm",
+            "ir": ".ll",
+        }
+        suffix = suffix_map.get(backend, ".c")
+
+        base_name = input_file.stem
         if output_dir:
             output_dir.mkdir(exist_ok=True)
-            return output_dir / input_file.name.replace(".zhc", ".c")
-        return input_file.with_suffix(".c")
+            return output_dir / f"{base_name}{suffix}"
+        return input_file.parent / f"{base_name}{suffix}"
 
     def _cache_compiled_ast(self, input_file: Path, ast) -> None:
         """缓存本次编译成功的AST，供下次增量diff使用"""

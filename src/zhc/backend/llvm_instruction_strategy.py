@@ -528,7 +528,7 @@ class CallStrategy(InstructionStrategy):
 
     def compile(self, builder, instr, context):
         callee_name = str(instr.operands[0])
-        args = [context.get_value(a) for a in instr.operands[1:]]
+        args = [self._prepare_argument(builder, a, context) for a in instr.operands[1:]]
 
         result_name = context.get_result_name(instr)
 
@@ -537,10 +537,12 @@ class CallStrategy(InstructionStrategy):
         if callee_func:
             result = builder.call(callee_func, args, name=result_name or "")
         else:
-            # 外部函数 - 简单假设返回 int
+            # 外部函数 - 使用参数的实际类型
             import llvmlite.ir as ll
 
-            func_ty = ll.FunctionType(ll.IntType(32), [ll.IntType(32)] * len(args))
+            # 获取每个参数的实际类型
+            arg_types = [arg.type for arg in args]
+            func_ty = ll.FunctionType(ll.IntType(32), arg_types)
             external_func = ll.Function(context.module, func_ty, callee_name)
             result = builder.call(external_func, args, name=result_name or "")
 
@@ -548,6 +550,35 @@ class CallStrategy(InstructionStrategy):
             context.store_result(instr, result)
 
         return result
+
+    def _prepare_argument(self, builder, arg, context):
+        """
+        准备函数参数，处理字符串常量等特殊情况
+
+        Args:
+            builder: IRBuilder
+            arg: 参数值
+            context: 编译上下文
+
+        Returns:
+            准备好的参数值
+        """
+        import llvmlite.ir as ll
+
+        value = context.get_value(arg)
+
+        # 如果是全局变量指针（字符串常量），需要用 GEP 获取 i8* 指针
+        if isinstance(value, ll.GlobalVariable):
+            # llvmlite 的 GlobalVariable.type 是指针类型 (e.g., [12 x i8]*)
+            # 检查指针指向的类型是否是数组
+            pointee_type = value.type.pointee
+            if isinstance(pointee_type, ll.ArrayType):
+                # 创建 GEP 获取第一个元素的指针 (i8*)
+                zero = ll.Constant(ll.IntType(32), 0)
+                ptr = builder.gep(value, [zero, zero], name="str_ptr")
+                return ptr
+
+        return value
 
 
 class LogicalStrategy(InstructionStrategy):

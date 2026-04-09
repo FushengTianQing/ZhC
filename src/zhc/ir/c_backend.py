@@ -93,6 +93,7 @@ class CBackend:
         self.output_lines: List[str] = []
         self.temp_names: dict = {}  # IR temp name -> C temp name
         self.pointer_temps: set = set()  # 记录哪些临时变量是指针（由 GEP 生成）
+        self.ir_program: Optional[IRProgram] = None  # IR 程序引用，用于查找函数信息
 
         # 优化提示配置
         self.enable_optimization_hints = (
@@ -137,6 +138,7 @@ class CBackend:
         """
         self.output_lines = []
         self.temp_names = {}
+        self.ir_program = ir  # 保存 IR 程序引用
 
         # TASK-P3-003：分析优化提示
         if self.enable_optimization_hints:
@@ -186,15 +188,39 @@ class CBackend:
         ALLOC 指令建立 %N → var_name 映射，此处用该映射将临时变量名
         转换为实际 C 变量名。若映射中不存在（理论上不应该），则原样返回。
 
+        特别处理：
+        - 字符串常量需要添加引号，并转义特殊字符
+        - 字符常量需要添加单引号
+
         Args:
             v: IRValue 对象，或字符串（如块标签）
 
         Returns:
             C 代码中可用的变量名字符串
         """
-        if not isinstance(v, str) and hasattr(v, "name"):
-            return self.temp_names.get(v.name, v.name)
+        from zhc.ir.values import IRValue, ValueKind
+
+        if isinstance(v, IRValue):
+            # 检查是否是字符串常量
+            if v.kind == ValueKind.CONST and v.ty == "字符串型":
+                # 字符串常量需要添加引号，并转义特殊字符
+                s = v.name
+                # 转义特殊字符
+                s = s.replace("\\", "\\\\")  # 反斜杠
+                s = s.replace('"', '\\"')  # 双引号
+                s = s.replace("\n", "\\n")  # 换行
+                s = s.replace("\r", "\\r")  # 回车
+                s = s.replace("\t", "\\t")  # 制表符
+                return f'"{s}"'
+            # 检查是否是字符常量
+            if v.kind == ValueKind.CONST and v.ty == "字符型":
+                # 字符常量需要添加单引号
+                return f"'{v.name}'"
+            # 普通常量或变量
+            name = v.name
+            return self.temp_names.get(name, name)
         if isinstance(v, str):
+            # 字符串参数直接返回
             return v
         return str(v)
 
@@ -522,13 +548,17 @@ class CBackend:
             "memmove",
             "exit",
             "abort",
-            # 中文 void 函数
-            "打印数组",
-            "数组排序",
-            "字符串复制",
         }
 
-        if instr.result and func_val not in void_functions:
+        # 检查是否是用户定义的空型函数
+        is_void_func = func_val in void_functions
+        if not is_void_func and self.ir_program:
+            # 查找被调用函数的定义，检查返回类型
+            called_func = self.ir_program.find_function(func_val)
+            if called_func and called_func.return_type == "空型":
+                is_void_func = True
+
+        if instr.result and not is_void_func:
             res = self._resolve_val(instr.result[0])
             self._emit(f"{res} = {func_val}({args});")
         else:

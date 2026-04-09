@@ -27,6 +27,7 @@ class CompilationContext:
     - functions: 函数映射表
     - blocks: 基本块映射表
     - values: 值映射表
+    - string_constants: 字符串常量映射表
     - current_function: 当前编译的函数
     - current_block: 当前编译的基本块
     - type_mapper: 类型映射器
@@ -36,6 +37,7 @@ class CompilationContext:
     functions: Dict[str, "ll.Function"] = field(default_factory=dict)
     blocks: Dict[str, "ll.Block"] = field(default_factory=dict)
     values: Dict[str, "ll.Value"] = field(default_factory=dict)
+    string_constants: Dict[str, "ll.GlobalVariable"] = field(default_factory=dict)
     current_function: Optional["IRFunction"] = None
     current_block: Optional["ll.Block"] = None
 
@@ -60,6 +62,10 @@ class CompilationContext:
             # 检查是否是已存在的值
             if operand in self.values:
                 return self.values[operand]
+
+            # 检查是否是字符串常量（以引号开头）
+            if operand.startswith('"') and operand.endswith('"'):
+                return self._create_global_string(operand[1:-1])
 
             # 检查是否是数字常量
             try:
@@ -176,6 +182,49 @@ class CompilationContext:
             Optional[ll.Function]: LLVM 函数
         """
         return self.functions.get(name)
+
+    def _create_global_string(self, content: str) -> "ll.Value":
+        """
+        创建或获取全局字符串常量
+
+        Args:
+            content: 字符串内容（不含引号）
+
+        Returns:
+            ll.Value: 指向字符串的 i8* 指针
+        """
+        import llvmlite.ir as ll
+
+        # 缓存检查
+        if content in self.string_constants:
+            return self.string_constants[content]
+
+        # 获取 module
+        if not self.module:
+            raise RuntimeError("CompilationContext.module 未设置，无法创建全局字符串")
+
+        # 创建唯一的全局变量名
+        global_name = f".str.{len(self.string_constants)}"
+
+        # 创建字符数组类型 [n x i8]
+        byte_count = len(content) + 1  # +1 for null terminator
+        char_array_type = ll.ArrayType(ll.IntType(8), byte_count)
+
+        # 创建字节串（包含 null 终止符）
+        byte_data = [ll.Constant(ll.IntType(8), ord(b)) for b in content]
+        byte_data.append(ll.Constant(ll.IntType(8), 0))  # null terminator
+
+        # 创建全局变量
+        global_var = ll.GlobalVariable(self.module, char_array_type, global_name)
+        global_var.linkage = "private"
+        global_var.global_constant = True
+        global_var.initializer = ll.Constant(char_array_type, byte_data)
+
+        # 缓存全局变量（数组类型）
+        self.string_constants[content] = global_var
+
+        # 返回全局变量本身（调用方需要使用 GEP 获取 i8*）
+        return global_var
 
     def get_type_from_operand(self, operand) -> "ll.Type":
         """

@@ -348,38 +348,24 @@ class IRGenerator(ASTVisitor):
                 self._emit(Opcode.STORE, [elem_val, elem_ptr])
 
     def visit_param_decl(self, node: ParamDeclNode):
-        """参数声明 → PARAM + ALLOC + STORE
+        """参数声明 → PARAM
 
-        为每个参数创建一个局部副本，这样参数就可以被修改了。
-        注意：数组参数在 C 中是指针，不需要额外的 ALLOC。
+        在 C 中，函数参数直接可用，不需要创建局部副本。
+        注意：数组参数在 C 中是指针。
         """
         ty = self._get_type_name(node.param_type)
 
-        # 检查是否是数组参数类型（以 [] 结尾）
-        is_array_param = ty.endswith("[]")
+        # 数组参数在 C 中是指针，这里保留类型信息供后续处理
+        # 注意：如果 ty 以 [] 结尾，表示数组参数
 
-        # 1. 添加到函数参数列表（使用 %N 格式的临时变量名）
-        param_name = f"%{self.temp_counter}"
-        self.temp_counter += 1
+        # 1. 添加到函数参数列表（使用实际参数名）
+        param_name = node.name
         pv = IRValue(name=param_name, ty=ty, kind=ValueKind.PARAM)
         self.current_function.params.append(pv)
 
-        if is_array_param:
-            # 数组参数已经是指针，直接使用参数名作为指针
-            # 维护变量名到指针的映射
-            self.var_ptr_map[node.name] = pv
-        else:
-            # 普通参数：创建局部副本
-            # 2. 为参数创建 ALLOC（创建局部副本）
-            alloc_result = self._new_temp(ty)
-            var_value = IRValue(name=node.name, ty=ty, kind=ValueKind.VAR)
-            self._emit(Opcode.ALLOC, [var_value], [alloc_result])
-
-            # 3. 将参数值存储到局部副本
-            self._emit(Opcode.STORE, [pv, alloc_result])
-
-            # 4. 维护变量名到指针的映射
-            self.var_ptr_map[node.name] = alloc_result
+        # 2. 维护变量名到指针的映射
+        # 参数名可以直接使用，不需要额外的 ALLOC+STORE
+        self.var_ptr_map[node.name] = pv
 
     def visit_block_stmt(self, node: BlockStmtNode):
         """代码块 → 递归处理"""

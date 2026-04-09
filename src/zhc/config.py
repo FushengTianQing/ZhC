@@ -46,7 +46,7 @@ class OutputConfig:
 
     verbose: bool = False
     warning_level: Literal["none", "normal", "all", "error"] = "normal"
-    backend: Literal["ir", "llvm", "wasm"] = "ir"
+    backend: Literal["ir", "llvm", "wasm"] = "llvm"
     dump_ir: bool = False
     optimize_ir: bool = True
 
