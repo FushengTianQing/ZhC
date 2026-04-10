@@ -60,6 +60,7 @@ from zhc.parser.ast_nodes import (
     TernaryExprNode,
     SizeofExprNode,
     CastExprNode,
+    LambdaExprNode,
     ArrayInitNode,
     StructInitNode,
     PrimitiveTypeNode,
@@ -415,6 +416,7 @@ class IRGenerator(ASTVisitor):
         "ARRAY_EXPR": "_eval_array",
         "TERNARY_EXPR": "_eval_ternary",
         "CAST_EXPR": "_eval_cast",
+        "LAMBDA_EXPR": "_eval_lambda",
     }
 
     def _eval_expr(self, node: ASTNode) -> Optional[IRValue]:
@@ -831,6 +833,45 @@ class IRGenerator(ASTVisitor):
             self._emit(Opcode.BITCAST, [operand], [result])
         return result
 
+    def _eval_lambda(self, node: LambdaExprNode) -> Optional[IRValue]:
+        """求值 Lambda 表达式
+
+        Lambda 表达式会创建一个闭包，包含：
+        1. 函数指针
+        2. upvalue 环境
+
+        Returns:
+            IRValue - 闭包值
+        """
+        # 获取返回类型
+        return_type = "空型"
+        if hasattr(node, "return_type") and node.return_type:
+            return_type = self._get_type_name(node.return_type)
+
+        # 获取参数类型
+        param_types = []
+        for param in node.params:
+            if hasattr(param, "param_type") and param.param_type:
+                param_types.append(self._get_type_name(param.param_type))
+            else:
+                param_types.append("整数型")  # 默认类型
+
+        # 创建闭包类型签名
+        closure_type = f"函数型({','.join(param_types)}) -> {return_type}"
+
+        # 创建临时变量存储闭包
+        result = self._new_temp(closure_type)
+
+        # TODO: 实际创建闭包需要:
+        # 1. 为闭包体创建一个内部函数
+        # 2. 捕获外部变量（upvalue）
+        # 3. 创建闭包结构体
+
+        # 目前生成一条 LAMBDA 指令作为占位
+        self._emit(Opcode.LAMBDA, [], [result])
+
+        return result
+
     def visit_binary_expr(self, node: BinaryExprNode):
         """二元表达式"""
         self._ensure_block()
@@ -878,6 +919,12 @@ class IRGenerator(ASTVisitor):
     def visit_null_literal(self, node: NullLiteralNode):
         """空指针字面量"""
         self._eval_expr(node)
+
+    def visit_lambda_expr(self, node: LambdaExprNode):
+        """Lambda 表达式"""
+        self._ensure_block()
+        result = self._eval_lambda(node)
+        return result
 
     # ========== P2: 控制流 ==========
 

@@ -80,6 +80,7 @@ class ASTNodeType(Enum):
     TERNARY_EXPR = auto()  # 三元表达式 (a ? b : c)
     SIZEOF_EXPR = auto()  # sizeof 表达式
     CAST_EXPR = auto()  # 类型转换表达式
+    LAMBDA_EXPR = auto()  # Lambda 表达式
 
     # 类型
     PRIMITIVE_TYPE = auto()  # 基本类型
@@ -1415,6 +1416,61 @@ class CastExprNode(ASTNode):
         return [self.cast_type, self.expr]
 
 
+class LambdaExprNode(ASTNode):
+    """Lambda 表达式节点
+
+    语法：
+        (参数列表) -> 表达式
+        (参数列表) -> { 语句块 }
+
+    例如：
+        (整数型 x, 整数型 y) -> x + y
+        (整数型 x) -> { 返回 x * 2; }
+
+    属性：
+        params: 参数列表
+        body: 函数体（表达式或代码块）
+        return_type: 返回类型（可选，用于类型推导）
+    """
+
+    def __init__(
+        self,
+        params: List["ParamDeclNode"],
+        body: ASTNode,
+        return_type: Optional[ASTNode] = None,
+        line: int = 0,
+        column: int = 0,
+        end_line: Optional[int] = None,
+        end_column: Optional[int] = None,
+    ):
+        super().__init__(
+            ASTNodeType.LAMBDA_EXPR,
+            line,
+            column,
+            end_line=end_line,
+            end_column=end_column,
+        )
+        self.params = params
+        self.body = body
+        self.return_type = return_type
+        self._set_parent_list(params)
+        self._set_parent(body)
+        if return_type:
+            self._set_parent(return_type)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_lambda_expr(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        children = self.params + [self.body]
+        if self.return_type:
+            children.append(self.return_type)
+        return children
+
+    def __repr__(self):
+        return f"LambdaExprNode(params={len(self.params)}, line={self.line}:{self.column})"
+
+
 class ArrayInitNode(ASTNode):
     """数组初始化节点 {1, 2, 3}"""
 
@@ -1813,6 +1869,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visit_lambda_expr(self, node: "LambdaExprNode") -> Any:
+        pass
+
+    @abstractmethod
     def visit_array_init(self, node: "ArrayInitNode") -> Any:
         pass
 
@@ -2041,6 +2101,9 @@ class ASTPrinter(ASTVisitor):
 
     def visit_cast_expr(self, node: "CastExprNode") -> Any:
         self._print("CastExpr")
+
+    def visit_lambda_expr(self, node: "LambdaExprNode") -> Any:
+        self._print(f"LambdaExpr(params={len(node.params)})")
 
     def visit_array_init(self, node: "ArrayInitNode") -> Any:
         self._print("ArrayInit")

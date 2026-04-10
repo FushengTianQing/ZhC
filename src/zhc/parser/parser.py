@@ -1852,6 +1852,117 @@ class Parser(GenericParserMixin):
             self.advance()
             return IdentifierExprNode(token.value, token.line, token.column)
 
+        # Lambda 表达式: (参数列表) -> 表达式 或 (参数列表) -> { 语句块 }
+        if self.match(TokenType.LPAREN):
+            # 保存当前位置，用于回溯
+            lambda_start = self.pos
+            self.advance()
+            self.recovery.enter_paren()
+
+            # 检查是否是 Lambda 表达式
+            # 尝试解析参数列表
+            params = []
+            is_lambda = False
+
+            # 如果下一个 token 是 ) 或者类型关键字，可能是 Lambda
+            if not self.match(TokenType.RPAREN):
+                # 尝试解析第一个参数（可能是类型标识符）
+                # Lambda: (整数型 x, 整数型 y) -> ...
+                # 或者: (x, y) -> ... （使用自动类型推导）
+
+                # 记录起始位置
+                param_start = self.pos
+
+                # 尝试解析参数
+                try:
+                    # 检查是否是空参数
+                    if not self.match(TokenType.RPAREN):
+                        # 解析第一个参数（简单方案：只支持标识符或类型+标识符）
+                        first_token = self.current_token()
+
+                        # 情况1: 类型 + 标识符 (整数型 x)
+                        if self.match(TokenType.IDENTIFIER):
+                            param_name = self.advance().value
+                            # 检查下一个 token 是否是逗号或右括号
+                            if self.match(TokenType.COMMA, TokenType.RPAREN):
+                                # 标识符可能是类型名，检查后面是否有标识符
+                                pass
+                            elif self.match(TokenType.IDENTIFIER):
+                                # 第一个标识符是类型，第二个是参数名
+                                param_type = first_token.value
+                                param_name = self.advance().value
+                                params.append((param_type, param_name))
+                            else:
+                                # 可能是自动类型的参数
+                                params.append(("自动", first_token.value))
+
+                        # 继续解析更多参数
+                        while self.match(TokenType.COMMA):
+                            self.advance()
+                            if self.match(TokenType.IDENTIFIER):
+                                param_type = "自动"  # 默认自动类型
+                                param_name = self.advance().value
+                                # 检查是否是类型+标识符
+                                if self.match(TokenType.IDENTIFIER):
+                                    param_type = params[0][0] if params else "整数型"  # 使用前面的类型
+                                    param_name = self.current_token().value
+                                    self.advance()
+                                params.append((param_type, param_name))
+
+                        # 检查是否有 ->
+                        if self.match(TokenType.ARROW):
+                            is_lambda = True
+                except Exception:
+                    # 解析失败，不是 Lambda
+                    is_lambda = False
+
+            if is_lambda:
+                # 消耗 ->
+                self.advance()
+
+                # 解析返回类型（可选）
+                return_type = None
+                if self.match(TokenType.IDENTIFIER) and not self.match(TokenType.LPAREN):
+                    # 可能是返回类型
+                    return_type = self.parse_type()
+
+                # 解析函数体
+                body = None
+                if self.match(TokenType.LBRACE):
+                    # 语句块
+                    body = self.parse_block()
+                else:
+                    # 单表达式
+                    body = self.parse_expression()
+
+                # 构建参数节点列表
+                param_nodes = []
+                for param_type_str, param_name in params:
+                    # 创建类型节点
+                    type_node = PrimitiveTypeNode(param_type_str, token.line, token.column)
+                    # 创建参数节点
+                    param_node = ParamDeclNode(
+                        name=param_name,
+                        param_type=type_node,
+                        line=token.line,
+                        column=token.column,
+                    )
+                    param_nodes.append(param_node)
+
+                self.recovery.exit_paren()
+                return LambdaExprNode(
+                    params=param_nodes,
+                    body=body,
+                    return_type=return_type,
+                    line=token.line,
+                    column=token.column,
+                )
+            else:
+                # 不是 Lambda，回溯到 ( 之后
+                self.pos = lambda_start + 1
+                self.recovery.exit_paren()
+                # 继续执行下面的括号表达式解析
+
         # 括号表达式
         if self.match(TokenType.LPAREN):
             self.advance()
