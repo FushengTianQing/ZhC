@@ -523,10 +523,14 @@ class AllocStrategy(InstructionStrategy):
     opcode = Opcode.ALLOC
 
     def compile(self, builder, instr, context):
-        # 获取类型
-        alloc_type = context.get_type_from_operand(
-            instr.operands[0] if instr.operands else None
-        )
+        # 优先用 result 的 ty（含数组维度如"整数型[5]"），回退到 operands
+        alloc_type = None
+        if instr.result and hasattr(instr.result[0], "ty") and instr.result[0].ty:
+            alloc_type = context.get_llvm_type(instr.result[0].ty)
+        if alloc_type is None:
+            alloc_type = context.get_type_from_operand(
+                instr.operands[0] if instr.operands else None
+            )
         result = builder.alloca(alloc_type, name=context.get_result_name(instr))
         context.store_result(instr, result)
         return result
@@ -550,8 +554,24 @@ class StoreStrategy(InstructionStrategy):
     opcode = Opcode.STORE
 
     def compile(self, builder, instr, context):
-        val = context.get_value(instr.operands[0])
-        ptr = context.get_value(instr.operands[1])
+        # 值
+        val_op = instr.operands[0]
+        if hasattr(val_op, "const_value") and val_op.const_value is not None:
+            import llvmlite.ir as ll
+
+            val = ll.Constant(ll.IntType(32), int(val_op.const_value))
+        else:
+            val = context.get_value(val_op)
+            # 只有当值确实 是指针类型时才 load（这表示它是个需要解引用的变量）
+            # 不要自动 load 所有值
+
+        # 指针
+        ptr_op = instr.operands[1]
+        if hasattr(ptr_op, "name"):
+            ptr = context.get_value(ptr_op.name)
+        else:
+            ptr = context.get_value(ptr_op)
+
         builder.store(val, ptr)
         return None
 
@@ -562,15 +582,35 @@ class GetPtrStrategy(InstructionStrategy):
     opcode = Opcode.GETPTR
 
     def compile(self, builder, instr, context):
-        ptr = context.get_value(instr.operands[0])
-        index = (
-            context.get_value(instr.operands[1]) if len(instr.operands) > 1 else None
-        )
+        import llvmlite.ir as ll
+
+        # 基指针
+        base_op = instr.operands[0]
+        if hasattr(base_op, "name"):
+            ptr = context.get_value(base_op.name)
+        else:
+            ptr = context.get_value(base_op)
+
+        # 索引
+        index = None
+        if len(instr.operands) > 1:
+            idx_op = instr.operands[1]
+            # 检查是否是常量
+            if hasattr(idx_op, "const_value") and idx_op.const_value is not None:
+                index = ll.Constant(ll.IntType(32), int(idx_op.const_value))
+            else:
+                # 当作变量名查找
+                idx_name = getattr(idx_op, "name", str(idx_op))
+                idx_raw = context.get_value(idx_name)
+                # 如果是指令对象，需要 load
+                if hasattr(idx_raw, "operands"):
+                    index = builder.load(idx_raw)
+                else:
+                    index = idx_raw
 
         if index is None:
             result = ptr
         else:
-            # 使用 gep 实现指针运算
             result = builder.gep(ptr, [index], name=context.get_result_name(instr))
 
         context.store_result(instr, result)
@@ -599,48 +639,37 @@ class GepStrategy(InstructionStrategy):
     def compile(self, builder, instr, context):
         import llvmlite.ir as ll
 
-        ptr = context.get_value(instr.operands[0])
+        # 基指针
+        base_op = instr.operands[0]
+        if hasattr(base_op, "name"):
+            ptr = context.get_value(base_op.name)
+        else:
+            ptr = context.get_value(base_op)
 
-        # 收集所有索引
+        # 收集所有索引 - 特殊处理常量 vs 变量
         indices = []
         for i in range(1, len(instr.operands)):
-            idx = context.get_value(instr.operands[i])
+            idx_op = instr.operands[i]
+
+            # 检查是否是常量
+            if hasattr(idx_op, "const_value") and idx_op.const_value is not None:
+                idx = ll.Constant(ll.IntType(32), int(idx_op.const_value))
+            elif hasattr(idx_op, "value"):
+                try:
+                    idx = ll.Constant(ll.IntType(32), int(idx_op.value))
+                except (ValueError, TypeError):
+                    idx = context.get_value(idx_op)
+            else:
+                idx_name = getattr(idx_op, "name", str(idx_op))
+                idx = context.get_value(idx_name)
+                if hasattr(idx, "operands"):
+                    idx = builder.load(idx)
             indices.append(idx)
 
         if not indices:
             result = ptr
         else:
-            # ============ 增强处理 ============
-
-            # 1. 负数索引检测
-            self._check_negative_indices(indices)
-
-            # 2. 尝试常量优化
-            folded_indices, merged_offset = context._fold_constant_indices(indices)
-
-            # 3. 如果有合并的偏移量，创建新的索引列表
-            if merged_offset > 0:
-                indices = folded_indices
-                if indices:
-                    # 将偏移量合并到第一个非常量索引
-                    first_idx = indices[0]
-                    if isinstance(first_idx, ll.Constant):
-                        # 直接累加
-                        indices[0] = ll.Constant(
-                            ll.IntType(32), first_idx.constant + merged_offset
-                        )
-                    else:
-                        # 需要生成 add 指令
-                        offset_const = ll.Constant(ll.IntType(32), merged_offset)
-                        indices[0] = builder.add(first_idx, offset_const)
-                else:
-                    # 所有索引都是常量，直接使用合并结果
-                    indices = [ll.Constant(ll.IntType(32), merged_offset)]
-
-            # 4. 【GEP-001 修复】确保首元素索引存在（多维数组必需）
-            indices = self._ensure_first_index(indices, builder, context)
-
-            # 5. 生成 GEP 指令
+            # 简化处理：直接使用索引
             result = builder.gep(ptr, indices, name=context.get_result_name(instr))
 
         context.store_result(instr, result)

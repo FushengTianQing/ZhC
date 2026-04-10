@@ -267,6 +267,18 @@ class CompilationContext:
 
         # 如果是字符串
         if isinstance(operand, str):
+            # 【重要】数字常量检查必须优先！否则 '0' 会错误匹配 values['0']
+            try:
+                return ll.Constant(ll.IntType(32), int(operand))
+            except ValueError:
+                pass
+
+            # 浮点数常量
+            try:
+                return ll.Constant(ll.FloatType(), float(operand))
+            except ValueError:
+                pass
+
             # 检查是否是已存在的值
             if operand in self.values:
                 return self.values[operand]
@@ -274,12 +286,6 @@ class CompilationContext:
             # 检查是否是字符串常量（以引号开头）
             if operand.startswith('"') and operand.endswith('"'):
                 return self._create_global_string(operand[1:-1])
-
-            # 检查是否是数字常量
-            try:
-                return ll.Constant(ll.IntType(32), int(operand))
-            except ValueError:
-                pass
 
             # 检查是否是浮点数常量
             try:
@@ -296,11 +302,18 @@ class CompilationContext:
             # 默认返回常量 0
             return ll.Constant(ll.IntType(32), 0)
 
-        # 如果是 IRValue 对象
+        # 如果是 IRValue 对象（如 GEP/LOAD 的 operand 是 IRValue）
         if hasattr(operand, "name"):
             name = operand.name
+            # 优先精确查找（含 % 前缀，如 '%0'）
             if name in self.values:
                 return self.values[name]
+            # 回退：去掉 % 前缀查找（如 '0'）
+            if name.startswith("%") and name[1:] in self.values:
+                return self.values[name[1:]]
+            # 回退：加上 % 前缀查找（如 '0' -> '%0'）
+            if not name.startswith("%") and ("%" + name) in self.values:
+                return self.values["%" + name]
 
             # 处理常量
             if hasattr(operand, "kind") and hasattr(operand, "const_value"):
@@ -314,6 +327,9 @@ class CompilationContext:
                             )
                         except (ValueError, TypeError):
                             pass
+
+            # 无法解析：name 不在 values 里，返回常量 0 而非返回 operand 本身
+            return ll.Constant(ll.IntType(32), 0)
 
         # 如果有 value 属性
         if hasattr(operand, "value"):
@@ -490,7 +506,19 @@ class CompilationContext:
             "i1": ll.IntType(1),
         }
 
-        return TYPE_MAP.get(type_name, ll.IntType(32))
+        if type_name in TYPE_MAP:
+            return TYPE_MAP[type_name]
+
+        # 处理数组类型，如 "整数型[5]" -> [5 x i32]
+        if "[" in type_name and type_name.endswith("]"):
+            base_str, bracket_str = type_name.rsplit("[", 1)
+            size = int(bracket_str.rstrip("]"))
+            # 递归获取元素类型（去除多余空格）
+            base_type = base_str.strip()
+            elem_llvm = self.get_llvm_type(base_type)
+            return ll.ArrayType(elem_llvm, size)
+
+        return ll.IntType(32)
 
     def create_merge_block(self) -> "ll.Block":
         """
