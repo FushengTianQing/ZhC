@@ -437,6 +437,67 @@ class TestExternalFunctionAST:
             def visit_auto_type(self, node):
                 return None
 
+            # 新增特性：协程/异常/智能指针/宽字符/复数等
+            def visit_wide_char_literal(self, node):
+                return None
+
+            def visit_wide_string_literal(self, node):
+                return None
+
+            def visit_wide_char_type(self, node):
+                return None
+
+            def visit_wide_string_type(self, node):
+                return None
+
+            def visit_complex_type(self, node):
+                return None
+
+            def visit_complex_literal(self, node):
+                return None
+
+            def visit_fixed_point_type(self, node):
+                return None
+
+            def visit_lambda_expr(self, node):
+                return None
+
+            def visit_try_stmt(self, node):
+                return None
+
+            def visit_throw_stmt(self, node):
+                return None
+
+            def visit_catch_clause(self, node):
+                return None
+
+            def visit_finally_clause(self, node):
+                return None
+
+            def visit_coroutine_def(self, node):
+                return None
+
+            def visit_await_expr(self, node):
+                return None
+
+            def visit_channel_expr(self, node):
+                return None
+
+            def visit_spawn_expr(self, node):
+                return None
+
+            def visit_yield_expr(self, node):
+                return None
+
+            def visit_smart_ptr_type(self, node):
+                return None
+
+            def visit_smart_ptr_decl(self, node):
+                return None
+
+            def visit_move_expr(self, node):
+                return None
+
         func_decl = ExternalFunctionDeclNode(
             name="测试",
             return_type=PrimitiveTypeNode("整数型"),

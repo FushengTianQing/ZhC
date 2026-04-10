@@ -140,7 +140,6 @@ class TestGEP002NestedStructAccess:
     def test_resolve_single_field_index(self):
         """测试解析单个字段索引"""
         strategy = AdvancedGEPInstruction()
-        i32 = ll.IntType(32)
 
         module = ll.Module("test")
         ctx = CompilationContext()
@@ -156,6 +155,7 @@ class TestGEP002NestedStructAccess:
     def test_ensure_first_index_gep(self):
         """测试高级 GEP 的首元素索引确保"""
         strategy = AdvancedGEPInstruction()
+        i32 = ll.IntType(32)
 
         module = ll.Module("test")
         ctx = CompilationContext()

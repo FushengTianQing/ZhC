@@ -350,7 +350,7 @@ tee ~/.zsh/completion/_zhc > /dev/null << 'EOF'
 EOF
 
 # 添加到 ~/.zshrc（永久生效）
-echo "fpath=(~/.zsh/completion \$fpath)" >> ~/.zshrc
+echo "fpath=(~/.zsh/completion \\$fpath)" >> ~/.zshrc
 echo "autoload -U compinit && compinit" >> ~/.zshrc
 
 # 重新加载配置
