@@ -11,7 +11,7 @@ ZhC IR - 支配树算法性能对比测试
 import pytest
 import time
 import random
-from src.ir.dominator import (
+from zhc.ir.dominator import (
     LengauerTarjanDominator,
     build_dominator_tree_iterative,
 )
@@ -56,7 +56,10 @@ def generate_diamond_chain(num_diamonds: int) -> dict:
         if i == num_diamonds - 1:
             blocks[merge] = ([b, c], ["exit"])
 
-    blocks["exit"] = ([f"d{num_diamonds-1}_merge"] if num_diamonds > 0 else ["entry"], [])
+    blocks["exit"] = (
+        [f"d{num_diamonds-1}_merge"] if num_diamonds > 0 else ["entry"],
+        [],
+    )
 
     return blocks
 
@@ -148,11 +151,15 @@ class TestPerformanceComparison:
             results.append((n, lt_time, iter_time))
 
             # Lengauer-Tarjan 应该不比迭代算法慢
-            assert lt_time < iter_time * 2, f"Size {n}: LT ({lt_time:.6f}s) should be faster than iter ({iter_time:.6f}s)"
+            assert (
+                lt_time < iter_time * 2
+            ), f"Size {n}: LT ({lt_time:.6f}s) should be faster than iter ({iter_time:.6f}s)"
 
         print("\nLinear Chain Performance:")
         for n, lt, it in results:
-            print(f"  n={n:5d}: LT={lt*1000:.4f}ms, Iter={it*1000:.4f}ms, Speedup={it/lt:.2f}x")
+            print(
+                f"  n={n:5d}: LT={lt*1000:.4f}ms, Iter={it*1000:.4f}ms, Speedup={it/lt:.2f}x"
+            )
 
     def test_diamond_chain_performance(self):
         """测试菱形链性能"""
@@ -180,7 +187,9 @@ class TestPerformanceComparison:
 
         print("\nDiamond Chain Performance:")
         for n, lt, it in results:
-            print(f"  n={n:3d}: LT={lt*1000:.4f}ms, Iter={it*1000:.4f}ms, Speedup={it/lt:.2f}x")
+            print(
+                f"  n={n:3d}: LT={lt*1000:.4f}ms, Iter={it*1000:.4f}ms, Speedup={it/lt:.2f}x"
+            )
 
     def test_complex_cfg_performance(self):
         """测试复杂控制流图性能"""
@@ -208,7 +217,9 @@ class TestPerformanceComparison:
 
         print("\nComplex CFG Performance:")
         for n, lt, it in results:
-            print(f"  n={n:3d}: LT={lt*1000:.4f}ms, Iter={it*1000:.4f}ms, Speedup={it/lt:.2f}x")
+            print(
+                f"  n={n:3d}: LT={lt*1000:.4f}ms, Iter={it*1000:.4f}ms, Speedup={it/lt:.2f}x"
+            )
 
     def test_correctness_stress(self):
         """正确性压力测试"""
@@ -227,8 +238,9 @@ class TestPerformanceComparison:
                 # 只比较可达节点（两种算法的交集）
                 common_keys = set(lt_idom.keys()) & set(iter_idom.keys())
                 for key in common_keys:
-                    assert lt_idom[key] == iter_idom[key], \
-                        f"Mismatch at n={n}, trial={trial}, key={key}: LT={lt_idom[key]}, Iter={iter_idom[key]}"
+                    assert (
+                        lt_idom[key] == iter_idom[key]
+                    ), f"Mismatch at n={n}, trial={trial}, key={key}: LT={lt_idom[key]}, Iter={iter_idom[key]}"
 
     @pytest.mark.slow
     def test_large_scale_performance(self):

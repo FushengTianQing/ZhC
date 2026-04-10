@@ -1800,6 +1800,109 @@ class IRGenerator(ASTVisitor):
         if node.body:
             node.body.accept(self)
 
+    # ========== 协程/异步表达式访问方法 ==========
+
+    def visit_coroutine_def(self, node: "CoroutineDefNode"):
+        """协程定义 → 生成协程 IR
+
+        协程定义创建一个新的协程类型函数。
+        """
+        self._ensure_block()
+
+        # 创建协程函数
+        coroutine_name = f"coroutine_{node.name}"
+
+        # 为协程参数创建形参
+        param_values = []
+        for param in node.params:
+            param_value = self._new_temp()
+            param_values.append(param_value)
+
+        # 创建协程基本块
+        entry_label = self._new_bb_label(f"{coroutine_name}_entry")
+        entry_bb = IRBasicBlock(entry_label)
+        self.current_function.basic_blocks.append(entry_bb)
+
+        # 切换到入口块
+        self._switch_block(entry_bb)
+
+        # 生成函数体
+        if node.body:
+            node.body.accept(self)
+
+    def visit_await_expr(self, node: "AwaitExprNode"):
+        """等待表达式 → 生成等待协程 IR
+
+        等待一个协程完成并获取其结果。
+        """
+        self._ensure_block()
+
+        # 生成被等待的表达式
+        node.expression.accept(self)
+
+        # 创建协程等待指令
+        result = self._new_temp()
+        self._emit(Opcode.COROUTINE_AWAIT, [], [result])
+
+        # 将结果存储为当前值
+        self.current_value = result
+
+    def visit_channel_expr(self, node: "ChannelExprNode"):
+        """通道表达式 → 生成通道创建 IR
+
+        创建一个新的通道。
+        """
+        self._ensure_block()
+
+        # 创建通道元素类型
+        node.element_type.accept(self)
+        element_type_result = self.current_value
+
+        # 创建通道创建指令
+        result = self._new_temp()
+        self._emit(
+            Opcode.CHANNEL_CREATE,
+            [element_type_result, self._make_integer_constant(node.buffer_size)],
+            [result],
+        )
+
+        # 将结果存储为当前值
+        self.current_value = result
+
+    def visit_spawn_expr(self, node: "SpawnExprNode"):
+        """启动协程表达式 → 生成启动协程 IR
+
+        启动一个协程并返回其句柄。
+        """
+        self._ensure_block()
+
+        # 生成协程表达式
+        node.coroutine.accept(self)
+
+        # 创建协程启动指令
+        result = self._new_temp()
+        self._emit(Opcode.COROUTINE_SPAWN, [], [result])
+
+        # 将结果存储为当前值
+        self.current_value = result
+
+    def visit_yield_expr(self, node: "YieldExprNode"):
+        """让出表达式 → 生成协程让出 IR
+
+        让出协程执行权，可选地返回一个值。
+        """
+        self._ensure_block()
+
+        # 如果有值，生成值表达式
+        if node.value:
+            node.value.accept(self)
+            value_result = self.current_value
+        else:
+            value_result = None
+
+        # 创建协程让出指令
+        self._emit(Opcode.COROUTINE_YIELD, [value_result] if value_result else [])
+
     # ========== 宽字符/字符串支持（避免抽象类错误）==========
 
     def visit_wide_char_literal(self, node):

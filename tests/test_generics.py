@@ -15,19 +15,27 @@ import os
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.semantic.generics import (
+from zhc.semantic.generics import (
     # 类型和约束
-    TypeParameter, TypeConstraint, GenericType, GenericTypeInstance,
-    GenericFunction, FunctionInstance, MemberInfo, ParamInfo,
-    MethodSignature, OperatorSignature, Variance,
+    TypeParameter,
+    TypeConstraint,
+    GenericType,
+    GenericFunction,
+    MemberInfo,
+    ParamInfo,
+    MethodSignature,
+    OperatorSignature,
+    Variance,
     # 约束和预设
     PredefinedConstraints,
     # 异常
-    GenericError, TypeParameterCountError, ConstraintViolationError,
-    # 管理器
-    GenericManager, get_generic_manager, reset_generic_manager,
+    TypeParameterCountError,
+    get_generic_manager,
+    reset_generic_manager,
     # 便捷函数
-    create_generic_type, create_generic_function, create_constraint,
+    create_generic_type,
+    create_generic_function,
+    create_constraint,
 )
 
 
@@ -49,7 +57,7 @@ class TestTypeParameter:
             required_operators=[
                 OperatorSignature(operator="<", return_type="逻辑型"),
                 OperatorSignature(operator=">", return_type="逻辑型"),
-            ]
+            ],
         )
         param = TypeParameter(name="T", constraints=[constraint])
         assert param.name == "T"
@@ -80,7 +88,7 @@ class TestTypeConstraint:
             name="可比较",
             required_operators=[
                 OperatorSignature(operator="<", return_type="逻辑型"),
-            ]
+            ],
         )
         assert constraint.name == "可比较"
         assert len(constraint.required_operators) == 1
@@ -91,7 +99,7 @@ class TestTypeConstraint:
             name="可打印",
             required_methods=[
                 MethodSignature(name="转字符串", return_type="字符串型"),
-            ]
+            ],
         )
         assert len(constraint.required_methods) == 1
         assert constraint.required_methods[0].name == "转字符串"
@@ -122,7 +130,7 @@ class TestGenericType:
             members=[
                 MemberInfo(name="数据", type_name="T"),
                 MemberInfo(name="长度", type_name="整数型"),
-            ]
+            ],
         )
 
         assert generic_type.name == "列表"
@@ -137,7 +145,7 @@ class TestGenericType:
             type_params=[t],
             members=[
                 MemberInfo(name="数据", type_name="T"),
-            ]
+            ],
         )
 
         # 实例化为 列表<整数型>
@@ -157,7 +165,7 @@ class TestGenericType:
             members=[
                 MemberInfo(name="键", type_name="K"),
                 MemberInfo(name="值", type_name="V"),
-            ]
+            ],
         )
 
         instance = generic_type.instantiate(["字符串型", "整数型"])
@@ -195,10 +203,9 @@ class TestGenericType:
 
         assert str(generic_type) == "列表<T>"
 
-        generic_type2 = GenericType(name="映射", type_params=[
-            TypeParameter(name="K"),
-            TypeParameter(name="V")
-        ])
+        generic_type2 = GenericType(
+            name="映射", type_params=[TypeParameter(name="K"), TypeParameter(name="V")]
+        )
         assert str(generic_type2) == "映射<K, V>"
 
 
@@ -219,7 +226,7 @@ class TestGenericFunction:
                 ParamInfo(name="a", type_name="T"),
                 ParamInfo(name="b", type_name="T"),
             ],
-            return_type="T"
+            return_type="T",
         )
 
         assert generic_func.name == "最大值"
@@ -236,7 +243,7 @@ class TestGenericFunction:
                 ParamInfo(name="a", type_name="T"),
                 ParamInfo(name="b", type_name="T"),
             ],
-            return_type="T"
+            return_type="T",
         )
 
         # 实例化
@@ -260,7 +267,7 @@ class TestGenericFunction:
                 ParamInfo(name="first", type_name="K"),
                 ParamInfo(name="second", type_name="V"),
             ],
-            return_type=f"({k.name}, {v.name})"
+            return_type=f"({k.name}, {v.name})",
         )
 
         instance = generic_func.instantiate(["字符串型", "整数型"])
@@ -276,11 +283,14 @@ class TestGenericFunction:
             name="最大值",
             type_params=[TypeParameter(name="T")],
             params=[],
-            return_type="T"
+            return_type="T",
         )
 
         assert generic_func.get_mangled_name(["整数型"]) == "最大值__整数型"
-        assert generic_func.get_mangled_name(["字符串型", "整数型"]) == "最大值__字符串型_整数型"
+        assert (
+            generic_func.get_mangled_name(["字符串型", "整数型"])
+            == "最大值__字符串型_整数型"
+        )
 
 
 class TestPredefinedConstraints:
@@ -345,7 +355,7 @@ class TestGenericManager:
             name="最大值",
             type_params=[TypeParameter(name="T")],
             params=[],
-            return_type="T"
+            return_type="T",
         )
 
         manager.register_generic_function(generic_func)
@@ -375,10 +385,7 @@ class TestGenericManager:
     def test_instantiate_type(self):
         """测试实例化类型"""
         manager = get_generic_manager()
-        generic_type = GenericType(
-            name="盒子",
-            type_params=[TypeParameter(name="T")]
-        )
+        generic_type = GenericType(name="盒子", type_params=[TypeParameter(name="T")])
         manager.register_generic_type(generic_type)
 
         instance = manager.instantiate_type("盒子", ["整数型"])
@@ -394,7 +401,7 @@ class TestGenericManager:
                 ParamInfo(name="a", type_name="T"),
                 ParamInfo(name="b", type_name="T"),
             ],
-            return_type="T"
+            return_type="T",
         )
         manager.register_generic_function(generic_func)
 
@@ -406,15 +413,17 @@ class TestGenericManager:
         manager = get_generic_manager()
 
         # 注册一些泛型
-        manager.register_generic_type(GenericType(
-            name="列表", type_params=[TypeParameter(name="T")]
-        ))
-        manager.register_generic_function(GenericFunction(
-            name="最大值",
-            type_params=[TypeParameter(name="T")],
-            params=[],
-            return_type="T"
-        ))
+        manager.register_generic_type(
+            GenericType(name="列表", type_params=[TypeParameter(name="T")])
+        )
+        manager.register_generic_function(
+            GenericFunction(
+                name="最大值",
+                type_params=[TypeParameter(name="T")],
+                params=[],
+                return_type="T",
+            )
+        )
 
         stats = manager.get_statistics()
         assert stats["generic_types"] == 1
@@ -438,7 +447,7 @@ class TestConvenienceFunctions:
             members=[
                 MemberInfo(name="数据", type_name="T"),
                 MemberInfo(name="栈顶", type_name="整数型"),
-            ]
+            ],
         )
 
         # 应该已经注册到管理器
@@ -455,7 +464,7 @@ class TestConvenienceFunctions:
                 ParamInfo(name="a", type_name="T"),
                 ParamInfo(name="b", type_name="T"),
             ],
-            return_type="T"
+            return_type="T",
         )
 
         manager = get_generic_manager()
@@ -465,10 +474,7 @@ class TestConvenienceFunctions:
 
     def test_create_constraint(self):
         """测试便捷创建约束"""
-        constraint = create_constraint(
-            name="可迭代",
-            operators=["==", "!="]
-        )
+        constraint = create_constraint(name="可迭代", operators=["==", "!="])
 
         manager = get_generic_manager()
         assert manager.get_constraint("可迭代") == constraint
@@ -493,7 +499,7 @@ class TestIntegration:
             members=[
                 MemberInfo(name="数据", type_name="T"),
                 MemberInfo(name="长度", type_name="整数型"),
-            ]
+            ],
         )
         manager.register_generic_type(list_type)
 
@@ -520,7 +526,7 @@ class TestIntegration:
                 ParamInfo(name="a", type_name="T"),
                 ParamInfo(name="b", type_name="T"),
             ],
-            return_type="(T, T)"
+            return_type="(T, T)",
         )
         manager.register_generic_function(swap_func)
 
@@ -550,7 +556,7 @@ class TestIntegration:
                 ParamInfo(name="a", type_name="T"),
                 ParamInfo(name="b", type_name="T"),
             ],
-            return_type="T"
+            return_type="T",
         )
         manager.register_generic_function(max_func)
 

@@ -6,8 +6,7 @@ ZhC IR - Lengauer-Tarjan 支配树算法测试
 日期: 2026-04-08
 """
 
-import pytest
-from src.ir.dominator import (
+from zhc.ir.dominator import (
     LengauerTarjanDominator,
     build_dominator_tree_iterative,
 )
