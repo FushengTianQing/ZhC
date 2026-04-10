@@ -259,7 +259,7 @@ class SemanticAnalyzer:
     - 未使用符号检测
     """
 
-    def __init__(self):
+    def __init__(self, ir_generator=None):
         self.symbol_table = SymbolTable()
         self.errors: List[SemanticErrorInfo] = []
         self.warnings: List[SemanticErrorInfo] = []
@@ -270,6 +270,9 @@ class SemanticAnalyzer:
         self.in_switch: bool = False  # Phase 6: switch 内 break 合法
         self.in_try: bool = False  # Phase 5: try-catch 内异常处理
         self.source_file: str = ""  # 源文件路径（Phase 5 T1.1）
+
+        # Phase 5 T4: IR 生成器（用于语义分析时直接生成 IR）
+        self.ir_generator = ir_generator
 
         # Phase 5 T2.2: 类型检查器
         self._type_checker = None  # 延迟初始化，避免循环导入
@@ -1340,6 +1343,10 @@ class SemanticAnalyzer:
 
         self.in_try = old_in_try
 
+        # Phase 5 T4: 调用 IR 生成器生成异常处理 IR
+        if self.ir_generator:
+            node.accept(self.ir_generator)
+
     def _analyze_catch_clause(self, node: CatchClauseNode) -> None:
         """分析捕获子句
 
@@ -1396,6 +1403,10 @@ class SemanticAnalyzer:
 
         self.symbol_table.exit_scope()
 
+        # Phase 5 T4: 调用 IR 生成器生成 catch handler IR
+        if self.ir_generator:
+            node.accept(self.ir_generator)
+
     def _analyze_finally_clause(self, node: FinallyClauseNode) -> None:
         """分析最终子句
 
@@ -1406,6 +1417,10 @@ class SemanticAnalyzer:
 
             # 检查 finally 中的 return 语句
             self._check_finally_return(node)
+
+        # Phase 5 T4: 调用 IR 生成器生成 finally IR
+        if self.ir_generator:
+            node.accept(self.ir_generator)
 
     def _analyze_throw_stmt(self, node: ThrowStmtNode) -> None:
         """分析抛出语句
@@ -1433,6 +1448,10 @@ class SemanticAnalyzer:
                             self._node_location(node),
                             suggestions=["确保抛出的对象继承自 异常"],
                         )
+
+        # Phase 5 T4: 调用 IR 生成器生成 throw IR
+        if self.ir_generator:
+            node.accept(self.ir_generator)
 
     def _check_finally_return(self, node: FinallyClauseNode) -> None:
         """检查 finally 块中的 return 语句（警告）"""
