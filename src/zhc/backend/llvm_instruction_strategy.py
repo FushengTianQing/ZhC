@@ -72,6 +72,31 @@ class InstructionStrategy(ABC):
         """检查此类是否可以编译给定的操作码"""
         return cls.opcode == opcode
 
+    @staticmethod
+    def _ensure_value_type(
+        builder: "ll.IRBuilder", value: "ll.Value", context: "CompilationContext"
+    ) -> "ll.Value":
+        """
+        确保值是非指针类型（自动 load 指针）
+
+        在 opaque pointer 模式下，变量存储为指针 (如 i32*)，
+        但算术/比较操作需要实际值 (如 i32)。此方法自动处理指针解引用。
+
+        Args:
+            builder: LLVM IR 构建器
+            value: LLVM 值
+            context: 编译上下文
+
+        Returns:
+            解引用后的值（如果是指针则 load，否则原样返回）
+        """
+        import llvmlite.ir as ll
+
+        if isinstance(value.type, ll.PointerType):
+            # 指针类型需要 load
+            return builder.load(value, name="deref")
+        return value
+
 
 class ArithmeticStrategy(InstructionStrategy):
     """算术运算策略基类"""
@@ -84,6 +109,18 @@ class ArithmeticStrategy(InstructionStrategy):
         """执行算术运算"""
         pass
 
+    def compile(self, builder, instr, context):
+        """通用编译方法：自动处理指针解引用"""
+        a = self._ensure_value_type(
+            builder, context.get_value(instr.operands[0]), context
+        )
+        b = self._ensure_value_type(
+            builder, context.get_value(instr.operands[1]), context
+        )
+        result = self.operation(builder, a, b, name=context.get_result_name(instr))
+        context.store_result(instr, result)
+        return result
+
 
 class AddStrategy(ArithmeticStrategy):
     """加法策略"""
@@ -93,13 +130,6 @@ class AddStrategy(ArithmeticStrategy):
     @staticmethod
     def operation(builder, a, b, name):
         return builder.add(a, b, name=name)
-
-    def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
-        result = self.operation(builder, a, b, name=context.get_result_name(instr))
-        context.store_result(instr, result)
-        return result
 
 
 class SubStrategy(ArithmeticStrategy):
@@ -111,13 +141,6 @@ class SubStrategy(ArithmeticStrategy):
     def operation(builder, a, b, name):
         return builder.sub(a, b, name=name)
 
-    def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
-        result = self.operation(builder, a, b, name=context.get_result_name(instr))
-        context.store_result(instr, result)
-        return result
-
 
 class MulStrategy(ArithmeticStrategy):
     """乘法策略"""
@@ -127,13 +150,6 @@ class MulStrategy(ArithmeticStrategy):
     @staticmethod
     def operation(builder, a, b, name):
         return builder.mul(a, b, name=name)
-
-    def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
-        result = self.operation(builder, a, b, name=context.get_result_name(instr))
-        context.store_result(instr, result)
-        return result
 
 
 class DivStrategy(ArithmeticStrategy):
@@ -145,13 +161,6 @@ class DivStrategy(ArithmeticStrategy):
     def operation(builder, a, b, name):
         return builder.sdiv(a, b, name=name)
 
-    def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
-        result = self.operation(builder, a, b, name=context.get_result_name(instr))
-        context.store_result(instr, result)
-        return result
-
 
 class ModStrategy(ArithmeticStrategy):
     """取模策略"""
@@ -162,13 +171,6 @@ class ModStrategy(ArithmeticStrategy):
     def operation(builder, a, b, name):
         return builder.srem(a, b, name=name)
 
-    def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
-        result = self.operation(builder, a, b, name=context.get_result_name(instr))
-        context.store_result(instr, result)
-        return result
-
 
 class NegStrategy(InstructionStrategy):
     """取负策略"""
@@ -176,7 +178,9 @@ class NegStrategy(InstructionStrategy):
     opcode = Opcode.NEG
 
     def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
+        a = self._ensure_value_type(
+            builder, context.get_value(instr.operands[0]), context
+        )
         result = builder.neg(a, name=context.get_result_name(instr))
         context.store_result(instr, result)
         return result
@@ -193,6 +197,26 @@ class ComparisonStrategy(InstructionStrategy):
         """执行比较运算"""
         pass
 
+    def compile(self, builder, instr, context):
+        """通用编译方法：自动处理指针解引用"""
+        a = self._ensure_value_type(
+            builder, context.get_value(instr.operands[0]), context
+        )
+        b = self._ensure_value_type(
+            builder, context.get_value(instr.operands[1]), context
+        )
+        result = self.comparison(
+            builder, self._get_pred(), a, b, name=context.get_result_name(instr)
+        )
+        context.store_result(instr, result)
+        return result
+
+    @staticmethod
+    @abstractmethod
+    def _get_pred() -> str:
+        """返回比较谓词"""
+        pass
+
 
 class EqStrategy(ComparisonStrategy):
     """等于策略"""
@@ -203,14 +227,9 @@ class EqStrategy(ComparisonStrategy):
     def comparison(builder, pred, a, b, name):
         return builder.icmp_signed("==", a, b, name=name)
 
-    def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
-        result = self.comparison(
-            builder, "==", a, b, name=context.get_result_name(instr)
-        )
-        context.store_result(instr, result)
-        return result
+    @staticmethod
+    def _get_pred():
+        return "=="
 
 
 class NeStrategy(ComparisonStrategy):
@@ -222,14 +241,9 @@ class NeStrategy(ComparisonStrategy):
     def comparison(builder, pred, a, b, name):
         return builder.icmp_signed("!=", a, b, name=name)
 
-    def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
-        result = self.comparison(
-            builder, "!=", a, b, name=context.get_result_name(instr)
-        )
-        context.store_result(instr, result)
-        return result
+    @staticmethod
+    def _get_pred():
+        return "!="
 
 
 class LtStrategy(ComparisonStrategy):
@@ -241,14 +255,9 @@ class LtStrategy(ComparisonStrategy):
     def comparison(builder, pred, a, b, name):
         return builder.icmp_signed("<", a, b, name=name)
 
-    def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
-        result = self.comparison(
-            builder, "<", a, b, name=context.get_result_name(instr)
-        )
-        context.store_result(instr, result)
-        return result
+    @staticmethod
+    def _get_pred():
+        return "<"
 
 
 class LeStrategy(ComparisonStrategy):
@@ -260,14 +269,9 @@ class LeStrategy(ComparisonStrategy):
     def comparison(builder, pred, a, b, name):
         return builder.icmp_signed("<=", a, b, name=name)
 
-    def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
-        result = self.comparison(
-            builder, "<=", a, b, name=context.get_result_name(instr)
-        )
-        context.store_result(instr, result)
-        return result
+    @staticmethod
+    def _get_pred():
+        return "<="
 
 
 class GtStrategy(ComparisonStrategy):
@@ -279,14 +283,9 @@ class GtStrategy(ComparisonStrategy):
     def comparison(builder, pred, a, b, name):
         return builder.icmp_signed(">", a, b, name=name)
 
-    def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
-        result = self.comparison(
-            builder, ">", a, b, name=context.get_result_name(instr)
-        )
-        context.store_result(instr, result)
-        return result
+    @staticmethod
+    def _get_pred():
+        return ">"
 
 
 class GeStrategy(ComparisonStrategy):
@@ -298,14 +297,9 @@ class GeStrategy(ComparisonStrategy):
     def comparison(builder, pred, a, b, name):
         return builder.icmp_signed(">=", a, b, name=name)
 
-    def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
-        result = self.comparison(
-            builder, ">=", a, b, name=context.get_result_name(instr)
-        )
-        context.store_result(instr, result)
-        return result
+    @staticmethod
+    def _get_pred():
+        return ">="
 
 
 class RetStrategy(InstructionStrategy):
@@ -315,7 +309,9 @@ class RetStrategy(InstructionStrategy):
 
     def compile(self, builder, instr, context):
         if instr.operands:
-            val = context.get_value(instr.operands[0])
+            val = self._ensure_value_type(
+                builder, context.get_value(instr.operands[0]), context
+            )
             builder.ret(val)
         else:
             builder.ret_void()
@@ -340,7 +336,9 @@ class JzStrategy(InstructionStrategy):
     opcode = Opcode.JZ
 
     def compile(self, builder, instr, context):
-        cond = context.get_value(instr.operands[0])
+        cond = self._ensure_value_type(
+            builder, context.get_value(instr.operands[0]), context
+        )
         then_label = str(instr.operands[1])
         else_label = str(instr.operands[2]) if len(instr.operands) > 2 else None
 
@@ -377,8 +375,10 @@ class SwitchStrategy(InstructionStrategy):
     def compile(self, builder, instr, context):
         import llvmlite.ir as ll
 
-        # 1. 获取条件值
-        val = context.get_value(instr.operands[0])
+        # 1. 获取条件值（自动解引用指针）
+        val = self._ensure_value_type(
+            builder, context.get_value(instr.operands[0]), context
+        )
 
         # 2. 验证条件值类型（必须是整数类型）
         if hasattr(val, "type"):
@@ -1360,6 +1360,18 @@ class LogicalStrategy(InstructionStrategy):
         """执行逻辑运算"""
         pass
 
+    def compile(self, builder, instr, context):
+        """通用编译方法：自动处理指针解引用"""
+        a = self._ensure_value_type(
+            builder, context.get_value(instr.operands[0]), context
+        )
+        b = self._ensure_value_type(
+            builder, context.get_value(instr.operands[1]), context
+        )
+        result = self.operation(builder, a, b, name=context.get_result_name(instr))
+        context.store_result(instr, result)
+        return result
+
 
 class LAndStrategy(LogicalStrategy):
     """逻辑与策略 (&&)"""
@@ -1372,13 +1384,6 @@ class LAndStrategy(LogicalStrategy):
         a_bool = builder.icmp_signed("!=", a, a.type(0), name="land_a")
         b_bool = builder.icmp_signed("!=", b, b.type(0), name="land_b")
         return builder.and_(a_bool, b_bool, name=name)
-
-    def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
-        result = self.operation(builder, a, b, name=context.get_result_name(instr))
-        context.store_result(instr, result)
-        return result
 
 
 class LOrStrategy(LogicalStrategy):
@@ -1393,13 +1398,6 @@ class LOrStrategy(LogicalStrategy):
         b_bool = builder.icmp_signed("!=", b, b.type(0), name="lor_b")
         return builder.or_(a_bool, b_bool, name=name)
 
-    def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
-        result = self.operation(builder, a, b, name=context.get_result_name(instr))
-        context.store_result(instr, result)
-        return result
-
 
 class LNotStrategy(InstructionStrategy):
     """逻辑非策略 (!)"""
@@ -1407,7 +1405,9 @@ class LNotStrategy(InstructionStrategy):
     opcode = Opcode.L_NOT
 
     def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
+        a = self._ensure_value_type(
+            builder, context.get_value(instr.operands[0]), context
+        )
         # 逻辑非：先转为布尔，再取反
         a_bool = builder.icmp_signed("!=", a, a.type(0), name="lnot_a")
         result = builder.icmp_signed(
@@ -1428,6 +1428,18 @@ class BitwiseStrategy(InstructionStrategy):
         """执行位运算"""
         pass
 
+    def compile(self, builder, instr, context):
+        """通用编译方法：自动处理指针解引用"""
+        a = self._ensure_value_type(
+            builder, context.get_value(instr.operands[0]), context
+        )
+        b = self._ensure_value_type(
+            builder, context.get_value(instr.operands[1]), context
+        )
+        result = self.operation(builder, a, b, name=context.get_result_name(instr))
+        context.store_result(instr, result)
+        return result
+
 
 class AndStrategy(BitwiseStrategy):
     """按位与策略"""
@@ -1437,13 +1449,6 @@ class AndStrategy(BitwiseStrategy):
     @staticmethod
     def operation(builder, a, b, name):
         return builder.and_(a, b, name=name)
-
-    def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
-        result = self.operation(builder, a, b, name=context.get_result_name(instr))
-        context.store_result(instr, result)
-        return result
 
 
 class OrStrategy(BitwiseStrategy):
@@ -1455,13 +1460,6 @@ class OrStrategy(BitwiseStrategy):
     def operation(builder, a, b, name):
         return builder.or_(a, b, name=name)
 
-    def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
-        result = self.operation(builder, a, b, name=context.get_result_name(instr))
-        context.store_result(instr, result)
-        return result
-
 
 class XorStrategy(BitwiseStrategy):
     """按位异或策略"""
@@ -1472,13 +1470,6 @@ class XorStrategy(BitwiseStrategy):
     def operation(builder, a, b, name):
         return builder.xor(a, b, name=name)
 
-    def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
-        result = self.operation(builder, a, b, name=context.get_result_name(instr))
-        context.store_result(instr, result)
-        return result
-
 
 class NotStrategy(InstructionStrategy):
     """按位取反策略"""
@@ -1486,7 +1477,9 @@ class NotStrategy(InstructionStrategy):
     opcode = Opcode.NOT
 
     def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
+        a = self._ensure_value_type(
+            builder, context.get_value(instr.operands[0]), context
+        )
         result = builder.not_(a, name=context.get_result_name(instr))
         context.store_result(instr, result)
         return result
@@ -1498,8 +1491,12 @@ class ShlStrategy(InstructionStrategy):
     opcode = Opcode.SHL
 
     def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
+        a = self._ensure_value_type(
+            builder, context.get_value(instr.operands[0]), context
+        )
+        b = self._ensure_value_type(
+            builder, context.get_value(instr.operands[1]), context
+        )
         result = builder.shl(a, b, name=context.get_result_name(instr))
         context.store_result(instr, result)
         return result
@@ -1511,8 +1508,12 @@ class ShrStrategy(InstructionStrategy):
     opcode = Opcode.SHR
 
     def compile(self, builder, instr, context):
-        a = context.get_value(instr.operands[0])
-        b = context.get_value(instr.operands[1])
+        a = self._ensure_value_type(
+            builder, context.get_value(instr.operands[0]), context
+        )
+        b = self._ensure_value_type(
+            builder, context.get_value(instr.operands[1]), context
+        )
         result = builder.lshr(a, b, name=context.get_result_name(instr))
         context.store_result(instr, result)
         return result
@@ -1530,7 +1531,9 @@ class ZextStrategy(ConversionStrategy):
     opcode = Opcode.ZEXT
 
     def compile(self, builder, instr, context):
-        val = context.get_value(instr.operands[0])
+        val = self._ensure_value_type(
+            builder, context.get_value(instr.operands[0]), context
+        )
         target_type = context.get_type_from_operand(
             instr.operands[1] if len(instr.operands) > 1 else None
         )
@@ -1545,7 +1548,9 @@ class SextStrategy(ConversionStrategy):
     opcode = Opcode.SEXT
 
     def compile(self, builder, instr, context):
-        val = context.get_value(instr.operands[0])
+        val = self._ensure_value_type(
+            builder, context.get_value(instr.operands[0]), context
+        )
         target_type = context.get_type_from_operand(
             instr.operands[1] if len(instr.operands) > 1 else None
         )
@@ -1560,7 +1565,9 @@ class TruncStrategy(ConversionStrategy):
     opcode = Opcode.TRUNC
 
     def compile(self, builder, instr, context):
-        val = context.get_value(instr.operands[0])
+        val = self._ensure_value_type(
+            builder, context.get_value(instr.operands[0]), context
+        )
         target_type = context.get_type_from_operand(
             instr.operands[1] if len(instr.operands) > 1 else None
         )
@@ -1575,7 +1582,9 @@ class BitcastStrategy(ConversionStrategy):
     opcode = Opcode.BITCAST
 
     def compile(self, builder, instr, context):
-        val = context.get_value(instr.operands[0])
+        val = self._ensure_value_type(
+            builder, context.get_value(instr.operands[0]), context
+        )
         target_type = context.get_type_from_operand(
             instr.operands[1] if len(instr.operands) > 1 else None
         )
