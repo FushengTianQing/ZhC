@@ -47,13 +47,14 @@ class TestGEP001MultiDimensionalArray:
         ctx.builder = builder
 
         # 测试索引列表不以零开头
-        indices = [ll.Constant(i32, 5), ll.Constant(i32, 10)]
+        indices = [ll.Constant(ll.IntType(32), 5), ll.Constant(ll.IntType(32), 10)]
         result_indices = strategy._ensure_first_index(indices, builder, ctx)
 
         # 应该在开头插入零索引
         assert len(result_indices) == 3
         assert isinstance(result_indices[0], ll.Constant)
         assert result_indices[0].constant == 0
+        assert result_indices[1].constant == 5
 
     def test_first_index_already_zero(self):
         """测试首元素索引已经是零的情况"""
@@ -71,12 +72,13 @@ class TestGEP001MultiDimensionalArray:
         ctx.builder = builder
 
         # 测试索引列表已经以零开头
-        indices = [ll.Constant(i32, 0), ll.Constant(i32, 5)]
+        indices = [ll.Constant(i32, 0), ll.Constant(ll.IntType(32), 5)]
         result_indices = strategy._ensure_first_index(indices, builder, ctx)
 
         # 应该保持不变
         assert len(result_indices) == 2
         assert result_indices[0].constant == 0
+        assert result_indices[1].constant == 5
         assert result_indices[1].constant == 5
 
     def test_empty_indices(self):
@@ -140,7 +142,6 @@ class TestGEP002NestedStructAccess:
     def test_resolve_single_field_index(self):
         """测试解析单个字段索引"""
         strategy = AdvancedGEPInstruction()
-        i32 = ll.IntType(32)
 
         module = ll.Module("test")
         ctx = CompilationContext()
@@ -162,12 +163,13 @@ class TestGEP002NestedStructAccess:
         ctx.module = module
 
         # 测试不以零开头的索引
-        indices = [ll.Constant(i32, 5), ll.Constant(i32, 10)]
+        indices = [ll.Constant(ll.IntType(32), 5), ll.Constant(ll.IntType(32), 10)]
         result_indices = strategy._ensure_first_index_gep(indices, ctx)
 
         # 应该在开头插入零索引
         assert len(result_indices) == 3
         assert result_indices[0].constant == 0
+        assert result_indices[1].constant == 5
 
 
 class TestGEP003BoundsCheck:
