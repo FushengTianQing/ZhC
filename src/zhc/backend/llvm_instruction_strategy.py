@@ -1119,15 +1119,16 @@ class CallStrategy(InstructionStrategy):
 
         result_name = context.get_result_name(instr)
 
-        # 尝试查找函数
-        callee_func = context.get_function(callee_name)
-        if callee_func:
-            result = builder.call(callee_func, args, name=result_name or "")
-        else:
-            # 外部函数 - 使用参数的实际类型
-            import llvmlite.ir as ll
+        # 外部函数 - 使用参数的实际类型
+        import llvmlite.ir as ll
 
-            # 获取每个参数的实际类型
+        # 检查模块是否已存在该函数
+        if callee_name in context.module.globals:
+            external_func = context.module.globals[callee_name]
+            # 使用已存在的函数
+            result = builder.call(external_func, args, name=result_name or "")
+        else:
+            # 创建新的函数声明
             arg_types = [arg.type for arg in args]
             func_ty = ll.FunctionType(ll.IntType(32), arg_types)
             external_func = ll.Function(context.module, func_ty, callee_name)
