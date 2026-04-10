@@ -2137,7 +2137,11 @@ class Parser(GenericParserMixin):
                 from .ast_nodes import ComplexLiteralNode
 
                 return ComplexLiteralNode(numeric_value, 1.0, token.line, token.column)
-            return FloatLiteralNode(float(token.value), token.line, token.column)
+            # 浮点数字面量（支持 f/F 后缀）
+            val = token.value
+            if val.lower().endswith("f"):
+                val = val[:-1]
+            return FloatLiteralNode(float(val), token.line, token.column)
 
         # 字符串字面量
         if self.match(TokenType.STRING_LITERAL):

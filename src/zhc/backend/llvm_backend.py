@@ -20,7 +20,7 @@ try:
     import llvmlite.ir as ll
     import llvmlite.binding as llvm
     import llvmlite.binding.newpassmanagers as npm
-    
+
     LLVM_AVAILABLE = True
 except ImportError:
     LLVM_AVAILABLE = False
@@ -28,7 +28,7 @@ except ImportError:
     llvm = None
     npm = None
 
-from zhc.ir.program import IRProgram, IRFunction, IRGlobalVar
+from zhc.ir.program import IRProgram, IRFunction, IRGlobalVar, IRStructDef
 from zhc.ir.instructions import IRBasicBlock, IRInstruction
 from zhc.ir.opcodes import Opcode
 
@@ -341,6 +341,10 @@ class LLVMBackend(BackendBase):
         self.context.values.clear()
         self.context.string_constants.clear()
 
+        # 编译结构体定义（创建 LLVM struct types）
+        for struct_def in ir.structs:
+            self._compile_struct_def(struct_def)
+
         # 编译全局变量
         for gv in ir.global_vars:
             self._compile_global_var(gv)
@@ -350,6 +354,23 @@ class LLVMBackend(BackendBase):
             self._compile_function(func)
 
         return self.module
+
+    def _compile_struct_def(self, struct_def: "IRStructDef") -> None:
+        """编译结构体定义：创建 LLVM struct type 并注册到上下文"""
+        # 获取各字段的 LLVM 类型
+        field_types = []
+        field_info = []
+        for field_name, field_ty in struct_def.members.items():
+            field_llvm_type = self._get_llvm_type(field_ty)
+            field_types.append(field_llvm_type)
+            field_info.append((field_name, field_llvm_type))
+
+        # 创建 LLVM 结构体类型（literal struct）
+        struct_type = ll.global_context.get_identified_type(struct_def.name)
+        struct_type.set_body(*field_types)
+
+        # 注册到编译上下文
+        self.context.register_struct_type(struct_def.name, struct_type, field_info)
 
     def _compile_global_var(self, gv: IRGlobalVar) -> None:
         """编译全局变量"""
@@ -581,13 +602,13 @@ class LLVMBackend(BackendBase):
         # 使用 New PassManager 进行优化 (llvmlite 0.47+)
         target = llvm.Target.from_default_triple()
         tm = target.create_target_machine()
-        
+
         pto = npm.create_pipeline_tuning_options()
         pto.speed_level = 2  # O2 优化
-        
+
         pb = npm.PassBuilder(tm, pto)
         mpm = npm.create_new_module_pass_manager()
-        
+
         # 添加标准优化 passes
         mpm.add_always_inliner_pass()
         mpm.add_instruction_combine_pass()
@@ -597,7 +618,7 @@ class LLVMBackend(BackendBase):
         mpm.add_simplify_cfg_pass()
         mpm.add_dead_code_elimination_pass()
         mpm.add_global_opt_pass()
-        
+
         mpm.run(mod, pb)
 
         # 生成 bitcode
@@ -627,13 +648,13 @@ class LLVMBackend(BackendBase):
         # 使用 New PassManager 进行优化 (llvmlite 0.47+)
         target = llvm.Target.from_default_triple()
         tm = target.create_target_machine()
-        
+
         pto = npm.create_pipeline_tuning_options()
         pto.speed_level = 2  # O2 优化
-        
+
         pb = npm.PassBuilder(tm, pto)
         mpm = npm.create_new_module_pass_manager()
-        
+
         # 添加标准优化 passes
         mpm.add_always_inliner_pass()
         mpm.add_instruction_combine_pass()
@@ -643,7 +664,7 @@ class LLVMBackend(BackendBase):
         mpm.add_simplify_cfg_pass()
         mpm.add_dead_code_elimination_pass()
         mpm.add_global_opt_pass()
-        
+
         mpm.run(mod, pb)
 
         # 生成目标代码

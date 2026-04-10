@@ -476,6 +476,7 @@ class Lexer:
         支持：
         - 整数：123
         - 浮点数：3.14
+        - 浮点数(f后缀)：3.14f, 0.0F
         - 科学计数法：1e10
         - 虚数字面量：3.14i, 2.5I, 3i
         """
@@ -510,6 +511,15 @@ class Lexer:
             value += self.advance()  # 消费 'i'
             is_imaginary = True
             # 虚数字面量被视为一种特殊的浮点字面量
+            is_float = True
+
+        # 检查浮点数后缀 'f' 或 'F'（仅限非虚数字面量）
+        if (
+            not is_imaginary
+            and self.current_char()
+            and self.current_char().lower() == "f"
+        ):
+            value += self.advance()  # 消费 'f'
             is_float = True
 
         if is_imaginary:

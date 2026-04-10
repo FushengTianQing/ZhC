@@ -663,7 +663,8 @@ class GepStrategy(InstructionStrategy):
         if not indices:
             result = ptr
         else:
-            # 简化处理：直接使用索引
+            # 【GEP-001】确保首元素索引存在，避免 gep %arr, i32 0 返回数组指针而非元素指针
+            indices = self._ensure_first_index(indices, builder, context)
             result = builder.gep(ptr, indices, name=context.get_result_name(instr))
 
         context.store_result(instr, result)

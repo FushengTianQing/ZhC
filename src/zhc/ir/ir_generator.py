@@ -347,12 +347,14 @@ class IRGenerator(ASTVisitor):
     ):
         """处理数组初始化：为每个元素生成 STORE 指令"""
         elements = array_init.elements
+        zero_val = IRValue("0", "整数型", ValueKind.CONST, const_value=0)
         for i, elem in enumerate(elements):
-            # 计算元素地址
+            # 计算元素地址：GEP 需要两个索引 [0, i]
+            # 第一个 0 解引用数组指针，第二个是元素索引
             idx_val = IRValue(str(i), "整数型", ValueKind.CONST, const_value=i)
             elem_ptr = self._new_temp()
             # GEP 需要指针作为第一个操作数，使用 alloc_result（指针）而不是 var_value
-            self._emit(Opcode.GEP, [alloc_result, idx_val], [elem_ptr])
+            self._emit(Opcode.GEP, [alloc_result, zero_val, idx_val], [elem_ptr])
 
             # 求值元素值
             elem_val = self._eval_expr(elem)
@@ -483,8 +485,12 @@ class IRGenerator(ASTVisitor):
 
     def _eval_float_literal(self, node: ASTNode) -> IRValue:
         """求值浮点字面量"""
+        val = getattr(node, "value", "0.0")
+        # 去掉 f/F 后缀（如 3.14f -> 3.14）
+        if isinstance(val, str) and val.lower().endswith("f"):
+            val = val[:-1]
         return self._eval_literal(
-            node, "双精度浮点型", float(getattr(node, "value", 0.0))
+            node, "双精度浮点型", float(val) if isinstance(val, str) else val
         )
 
     def _eval_string_literal(self, node: ASTNode) -> IRValue:
@@ -826,8 +832,9 @@ class IRGenerator(ASTVisitor):
 
                 index = self._eval_expr(getattr(target_node, "index", None))
                 if base and index:
+                    zero_val = IRValue("0", "整数型", ValueKind.CONST, const_value=0)
                     elem_ptr = self._new_temp()
-                    self._emit(Opcode.GEP, [base, index], [elem_ptr])
+                    self._emit(Opcode.GEP, [base, zero_val, index], [elem_ptr])
                     if value:
                         self._emit(Opcode.STORE, [value, elem_ptr])
                     return value
@@ -842,6 +849,45 @@ class IRGenerator(ASTVisitor):
                         value = self._coerce_store_value(value, target_ty)
                         self._emit(Opcode.STORE, [value, ptr])
                     return value
+            elif nt == "MEMBER_EXPR":
+                # 结构体字段赋值：p.x = 10
+                obj_node = getattr(target_node, "obj", None)
+                member_name = getattr(target_node, "member", "")
+                obj_name = getattr(obj_node, "name", "") if obj_node else ""
+
+                if obj_name in self.var_ptr_map:
+                    ptr = self.var_ptr_map[obj_name]
+                    ptr_ty = getattr(ptr, "ty", "")
+
+                    # 通过查找结构体定义来检测是否是结构体类型
+                    struct_def = None
+                    for s in self.module.structs:
+                        if s.name == ptr_ty:
+                            struct_def = s
+                            break
+
+                    if struct_def and member_name in struct_def.members:
+                        field_idx = list(struct_def.members.keys()).index(member_name)
+                        idx_val = IRValue(
+                            str(field_idx),
+                            "整数型",
+                            ValueKind.CONST,
+                            const_value=field_idx,
+                        )
+
+                        # GEP 获取字段地址：需要两个索引 [0, field_idx]
+                        zero_val = IRValue(
+                            "0", "整数型", ValueKind.CONST, const_value=0
+                        )
+                        field_ptr = self._new_temp()
+                        self._emit(Opcode.GEP, [ptr, zero_val, idx_val], [field_ptr])
+
+                        # STORE 写入字段值
+                        if value:
+                            target_ty = struct_def.members[member_name]
+                            value = self._coerce_store_value(value, target_ty)
+                            self._emit(Opcode.STORE, [value, field_ptr])
+                        return value
 
         # 回退：使用原始的 _eval_expr
         target = self._eval_expr(target_node)
@@ -866,8 +912,52 @@ class IRGenerator(ASTVisitor):
         return result
 
     def _eval_member(self, node: ASTNode) -> Optional[IRValue]:
-        """求值成员访问表达式"""
-        obj = self._eval_expr(getattr(node, "obj", None))
+        """求值成员访问表达式
+
+        结构体字段访问需要三步：
+        1. 获取结构体指针（从 var_ptr_map，不 LOAD）
+        2. GEP: 获取字段地址
+        3. LOAD: 读取字段值
+        """
+        obj_node = getattr(node, "obj", None)
+        member_name = getattr(node, "member", "")
+
+        # 获取对象名
+        obj_name = getattr(obj_node, "name", "") if obj_node else ""
+
+        # 检查是否是局部变量（有 ALLOC）
+        if obj_name in self.var_ptr_map:
+            ptr = self.var_ptr_map[obj_name]
+            ptr_ty = getattr(ptr, "ty", "")
+
+            # 通过查找结构体定义来检测是否是结构体类型
+            struct_def = None
+            for s in self.module.structs:
+                if s.name == ptr_ty:
+                    struct_def = s
+                    break
+
+            if struct_def and member_name in struct_def.members:
+                # 获取字段索引
+                field_idx = list(struct_def.members.keys()).index(member_name)
+                idx_val = IRValue(
+                    str(field_idx), "整数型", ValueKind.CONST, const_value=field_idx
+                )
+
+                # GEP 获取字段地址：需要两个索引 [0, field_idx]
+                # 第一个 0 解引用结构体指针，第二个是字段索引
+                zero_val = IRValue("0", "整数型", ValueKind.CONST, const_value=0)
+                field_ptr = self._new_temp()
+                self._emit(Opcode.GEP, [ptr, zero_val, idx_val], [field_ptr])
+
+                # LOAD 读取字段值
+                field_ty = struct_def.members[member_name]
+                result = self._new_temp(field_ty)
+                self._emit(Opcode.LOAD, [field_ptr], [result])
+                return result
+
+        # 回退：使用原始逻辑
+        obj = self._eval_expr(obj_node)
         result = self._new_temp()
         self._emit(Opcode.GETPTR, [obj] if obj else [], [result])
         return result
@@ -901,8 +991,9 @@ class IRGenerator(ASTVisitor):
         self._generate_array_bounds_check(array_name, index, node)
 
         # 第一步：获取元素地址
+        zero_val = IRValue("0", "整数型", ValueKind.CONST, const_value=0)
         addr = self._new_temp()
-        self._emit(Opcode.GEP, [base, index], [addr])
+        self._emit(Opcode.GEP, [base, zero_val, index], [addr])
 
         # 第二步：读取元素值
         result = self._new_temp()

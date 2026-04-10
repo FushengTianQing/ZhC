@@ -99,9 +99,6 @@ class TestBasicTypes:
         assert success, output
         assert "i8" in output or "i32" in output
 
-    @pytest.mark.xfail(
-        reason="已知后端Bug: float类型处理异常 — 编译器后端未完全支持float字面量"
-    )
     def test_float_type(self, tmp_path):
         """测试浮点型"""
         success, output = _run_zhc_compile(
@@ -135,7 +132,6 @@ class TestBasicTypes:
         assert success, output
         assert "double" in output
 
-    @pytest.mark.xfail(reason="已知后端Bug: 数组初始化列表语法处理异常")
     def test_array_basic(self, tmp_path):
         """测试数组基础"""
         success, output = _run_zhc_compile(
@@ -270,7 +266,6 @@ class TestAdvancedFeatures:
         )
         assert success, output
 
-    @pytest.mark.xfail(reason="已知后端Bug: 结构体字段访问/赋值时类型不匹配")
     def test_struct(self, tmp_path):
         """测试结构体"""
         success, output = _run_zhc_compile(
