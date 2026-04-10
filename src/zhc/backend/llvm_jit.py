@@ -53,10 +53,9 @@ class LLVMJIT:
         self._module: Optional[ll.Module] = None
         self._compiled: bool = False
 
-        # 初始化 LLVM
-        llvm.initialize()
-        llvm.initialize_native_target()
-        llvm.initialize_native_asmprinter()
+        # 初始化 LLVM (llvmlite 0.47+: 使用新 API)
+        llvm.initialize_all_targets()
+        llvm.initialize_all_asmprinters()
 
     def compile(self, ir: IRProgram, module_name: str = "zhc_jit_module"):
         """编译 ZhC IR

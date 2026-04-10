@@ -204,9 +204,13 @@ class TypeInfoRegistry:
         current_type = base_type
 
         for idx_type in indices:
-            # 解引用指针
+            # 解引用指针（兼容 opaque pointer）
             if isinstance(current_type, ll.PointerType):
-                current_type = current_type.pointee
+                if hasattr(current_type, "pointee") and current_type.pointee is not None:
+                    current_type = current_type.pointee
+                else:
+                    # opaque pointer 模式下无法推断 pointee 类型
+                    return None
 
             # 如果是数组类型，获取元素类型
             if isinstance(current_type, ll.ArrayType):
@@ -604,7 +608,9 @@ class CompilationContext:
         if hasattr(base_value, "type"):
             ptr_type = base_value.type
             if isinstance(ptr_type, ll.PointerType):
-                return ptr_type.pointee
+                # 兼容 opaque pointer：有 pointee 则返回，否则返回 None
+                if hasattr(ptr_type, "pointee") and ptr_type.pointee is not None:
+                    return ptr_type.pointee
         return None
 
     def create_gep_constant_index(self, value: int) -> "ll.Value":
@@ -718,9 +724,12 @@ class CompilationContext:
                     if idx.constant < 0:
                         return False, f"索引 {i} 不能为负数"
 
-            # 解引用当前类型
+            # 解引用当前类型（兼容 opaque pointer）
             if isinstance(current_type, ll.PointerType):
-                current_type = current_type.pointee
+                if hasattr(current_type, "pointee") and current_type.pointee is not None:
+                    current_type = current_type.pointee
+                else:
+                    break
             elif isinstance(current_type, ll.ArrayType):
                 # 检查索引是否超过数组大小
                 if isinstance(idx, ll.Constant) and hasattr(idx, "constant"):
@@ -841,12 +850,13 @@ class CompilationContext:
         if panic_func:
             # 创建错误消息字符串（使用全局变量指针）
             global_str = self._create_global_string("array index out of bounds")
-            # 获取 i8* 指针
-            i8_ptr_type = ll.PointerType(ll.IntType(8))
-            if isinstance(global_str.type.pointee, ll.ArrayType):
+            # 获取 i8* 指针（兼容 opaque pointer）
+            pointee_type = getattr(global_str.type, "pointee", None)
+            if pointee_type is not None and isinstance(pointee_type, ll.ArrayType):
                 zero = ll.Constant(ll.IntType(32), 0)
                 msg_ptr = builder.gep(global_str, [zero, zero], name="msg_ptr")
             else:
+                i8_ptr_type = ll.PointerType(ll.IntType(8))
                 msg_ptr = builder.bitcast(global_str, i8_ptr_type, name="msg_ptr")
             builder.call(panic_func, [msg_ptr], name="panic_call")
 

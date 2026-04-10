@@ -125,10 +125,10 @@ class LLVMBackend(BackendBase):
         self._register_closure_strategies()
         self._register_memory_strategies()
 
-        # 初始化 LLVM
-        llvm.initialize()
-        llvm.initialize_native_target()
-        llvm.initialize_native_asmprinter()
+        # 初始化 LLVM (llvmlite 0.47+: 使用新 API)
+        if LLVM_AVAILABLE:
+            llvm.initialize_all_targets()
+            llvm.initialize_all_asmprinters()
 
         # TASK-P3-003：优化提示配置
         self.enable_optimization_hints = (
@@ -576,13 +576,27 @@ class LLVMBackend(BackendBase):
         llvm_ir = str(self.module)
         mod = llvm.parse_assembly(llvm_ir)
 
-        # 优化
-        pmb = llvm.PassManagerBuilder()
-        pmb.opt_level = 2
-
-        pm = llvm.ModulePassManager()
-        pmb.populate(pm)
-        pm.run(mod)
+        # 使用 New PassManager 进行优化 (llvmlite 0.47+)
+        target = llvm.Target.from_default_triple()
+        tm = target.create_target_machine()
+        
+        pto = npm.create_pipeline_tuning_options()
+        pto.speed_level = 2  # O2 优化
+        
+        pb = npm.PassBuilder(tm, pto)
+        mpm = npm.create_new_module_pass_manager()
+        
+        # 添加标准优化 passes
+        mpm.add_always_inliner_pass()
+        mpm.add_instruction_combine_pass()
+        mpm.add_reassociate_pass()
+        mpm.add_sroa_pass()
+        mpm.add_new_gvn_pass()
+        mpm.add_simplify_cfg_pass()
+        mpm.add_dead_code_elimination_pass()
+        mpm.add_global_opt_pass()
+        
+        mpm.run(mod, pb)
 
         # 生成 bitcode
         return mod.as_bitcode()
@@ -608,19 +622,30 @@ class LLVMBackend(BackendBase):
         llvm_ir = str(self.module)
         mod = llvm.parse_assembly(llvm_ir)
 
-        # 优化
-        pmb = llvm.PassManagerBuilder()
-        pmb.opt_level = 2
-
-        pm = llvm.ModulePassManager()
-        pmb.populate(pm)
-        pm.run(mod)
+        # 使用 New PassManager 进行优化 (llvmlite 0.47+)
+        target = llvm.Target.from_default_triple()
+        tm = target.create_target_machine()
+        
+        pto = npm.create_pipeline_tuning_options()
+        pto.speed_level = 2  # O2 优化
+        
+        pb = npm.PassBuilder(tm, pto)
+        mpm = npm.create_new_module_pass_manager()
+        
+        # 添加标准优化 passes
+        mpm.add_always_inliner_pass()
+        mpm.add_instruction_combine_pass()
+        mpm.add_reassociate_pass()
+        mpm.add_sroa_pass()
+        mpm.add_new_gvn_pass()
+        mpm.add_simplify_cfg_pass()
+        mpm.add_dead_code_elimination_pass()
+        mpm.add_global_opt_pass()
+        
+        mpm.run(mod, pb)
 
         # 生成目标代码
-        target = llvm.Target.from_default_triple()
-        target_machine = target.create_target_machine()
-
-        obj = target_machine.emit_object(mod)
+        obj = tm.emit_object(mod)
 
         with open(filepath, "wb") as f:
             f.write(obj)

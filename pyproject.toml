@@ -15,7 +15,7 @@ version = "6.0.0"
 description = "中文C编译器 - 将中文语法的C代码编译为机器码"
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 authors = [
     {name = "ZHC Team", email = "team@zhc-lang.org"},
 ]
@@ -25,15 +25,16 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Compilers",
 ]
 
 dependencies = [
-    # 运行时依赖（如果需要）
+    "llvmlite>=0.47.0",
 ]
 
 # ---------------------------------------------------------------------------

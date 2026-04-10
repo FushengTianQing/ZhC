@@ -89,10 +89,12 @@ class LambdaStrategy(InstructionStrategy):
         """创建闭包结构体类型"""
         import llvmlite.ir as ll
 
-        # 检查是否已定义
+        # 检查是否已定义（兼容 opaque pointer）
         struct_name = "struct.ZhCClosure"
         if struct_name in context.module.globals:
-            return context.module.globals[struct_name].type.pointee
+            gv_type = context.module.globals[struct_name].type
+            if hasattr(gv_type, "pointee") and gv_type.pointee is not None:
+                return gv_type.pointee
 
         # 定义结构体字段
         void_ptr_ty = ll.IntType(8).as_pointer()
@@ -199,7 +201,9 @@ class ClosureCreateStrategy(InstructionStrategy):
 
         struct_name = "struct.ZhCClosure"
         if struct_name in context.module.globals:
-            return context.module.globals[struct_name].type.pointee
+            gv_type = context.module.globals[struct_name].type
+            if hasattr(gv_type, "pointee") and gv_type.pointee is not None:
+                return gv_type.pointee
 
         void_ptr_ty = ll.IntType(8).as_pointer()
         void_ptr_ptr_ty = void_ptr_ty.as_pointer()

@@ -162,9 +162,13 @@ class CTypeMapper:
         elif isinstance(llvm_type, ll.VoidType):
             return "空型"
         elif isinstance(llvm_type, ll.PointerType):
-            pointee = llvm_type.pointee
-            base_type = self.llvm_to_zhc(pointee)
-            return f"{base_type}指针"
+            # 兼容 opaque pointer
+            pointee = getattr(llvm_type, "pointee", None)
+            if pointee is not None:
+                base_type = self.llvm_to_zhc(pointee)
+                return f"{base_type}指针"
+            else:
+                return "指针"  # opaque pointer
 
         return "整数型"
 

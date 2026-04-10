@@ -1158,9 +1158,9 @@ class CallStrategy(InstructionStrategy):
         # 如果是全局变量指针（字符串常量），需要用 GEP 获取 i8* 指针
         if isinstance(value, ll.GlobalVariable):
             # llvmlite 的 GlobalVariable.type 是指针类型 (e.g., [12 x i8]*)
-            # 检查指针指向的类型是否是数组
-            pointee_type = value.type.pointee
-            if isinstance(pointee_type, ll.ArrayType):
+            # 检查指针指向的类型是否是数组（兼容 opaque pointer）
+            pointee_type = getattr(value.type, "pointee", None)
+            if pointee_type is not None and isinstance(pointee_type, ll.ArrayType):
                 # 创建 GEP 获取第一个元素的指针 (i8*)
                 zero = ll.Constant(ll.IntType(32), 0)
                 ptr = builder.gep(value, [zero, zero], name="str_ptr")

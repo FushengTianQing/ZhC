@@ -40,8 +40,9 @@ class FunctionPointerTypeInfo:
             return "unknown"
 
         if isinstance(self.llvm_type, ll.PointerType):
-            func_type = self.llvm_type.pointee
-            if hasattr(func_type, "return_type"):
+            # 兼容 opaque pointer
+            func_type = getattr(self.llvm_type, "pointee", None)
+            if func_type is not None and hasattr(func_type, "return_type"):
                 ret = str(func_type.return_type)
                 args = (
                     ", ".join(str(a) for a in func_type.args)
