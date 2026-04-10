@@ -41,6 +41,13 @@ from .base import (
 from .type_system import get_type_mapper
 from .compilation_context import CompilationContext
 from .llvm_instruction_strategy import InstructionStrategyFactory
+from .closure_strategies import (
+    LambdaStrategy,
+    ClosureCreateStrategy,
+    ClosureCallStrategy,
+    UpvalueGetStrategy,
+    UpvalueSetStrategy,
+)
 
 # 优化提示模块（可选依赖）
 try:
@@ -104,6 +111,9 @@ class LLVMBackend(BackendBase):
         # 初始化编译上下文
         self.context = CompilationContext()
 
+        # 注册闭包策略
+        self._register_closure_strategies()
+
         # 初始化 LLVM
         llvm.initialize()
         llvm.initialize_native_target()
@@ -118,6 +128,14 @@ class LLVMBackend(BackendBase):
 
         if self.enable_optimization_hints:
             self.hint_adapter = LLVMBackendHintAdapter()
+
+    def _register_closure_strategies(self) -> None:
+        """注册闭包相关策略"""
+        InstructionStrategyFactory.register(LambdaStrategy())
+        InstructionStrategyFactory.register(ClosureCreateStrategy())
+        InstructionStrategyFactory.register(ClosureCallStrategy())
+        InstructionStrategyFactory.register(UpvalueGetStrategy())
+        InstructionStrategyFactory.register(UpvalueSetStrategy())
 
     def _create_debug_listener(self, source_file: str, output_file: str = "debug.json"):
         """

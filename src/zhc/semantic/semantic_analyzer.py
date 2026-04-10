@@ -49,6 +49,7 @@ from ..parser.ast_nodes import (
     CatchClauseNode,
     FinallyClauseNode,
     ThrowStmtNode,
+    LambdaExprNode,
 )
 from ..exception import (
     ExceptionRegistry,
@@ -1957,6 +1958,10 @@ class SemanticAnalyzer:
                         return self.type_checker.get_type(result_type)
             return None
 
+        # Lambda 表达式
+        elif nt == ASTNodeType.LAMBDA_EXPR:
+            return self._infer_lambda_type(node)
+
         # Phase 8: 后备 — 使用 Hindley-Milner 类型推导引擎
         return self._infer_with_engine(node)
 
@@ -1986,6 +1991,52 @@ class SemanticAnalyzer:
             pass  # 类型推导失败，静默返回 None
 
         return None
+
+    def _infer_lambda_type(self, node: "LambdaExprNode"):
+        """
+        推导 Lambda 表达式的类型
+
+        Lambda 表达式的类型是函数类型：
+            (参数类型1, 参数类型2, ...) -> 返回类型
+
+        Args:
+            node: LambdaExprNode
+
+        Returns:
+            TypeInfo: 函数指针类型
+        """
+        from ..type_system.function_pointer import FunctionPointerType
+
+        # 推导参数类型
+        param_types = []
+        for param in node.params:
+            if hasattr(param, "param_type") and param.param_type:
+                param_type_name = self._get_type_name(param.param_type)
+                param_types.append(param_type_name)
+            else:
+                # 没有类型声明，尝试从上下文推导
+                param_types.append("未知型")
+
+        # 推导返回类型
+        return_type_name = "空型"
+        if node.return_type:
+            return_type_name = self._get_type_name(node.return_type)
+        elif hasattr(node, "body"):
+            # 从函数体推导返回类型
+            body_type = self._infer_expr_type(node.body)
+            if body_type:
+                return_type_name = body_type.name
+
+        # 创建函数指针类型
+        func_type = FunctionPointerType(
+            param_types=param_types,
+            return_type=return_type_name,
+            is_variadic=False,
+        )
+
+        # 获取或创建函数指针类型
+        type_name = func_type.get_signature()
+        return self.type_checker.get_type(type_name)
 
     def _symbol_to_infer_type(self, data_type: str):
         """将符号表类型转换为 TypeInferenceEngine 的类型"""

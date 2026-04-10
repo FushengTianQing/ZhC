@@ -1790,6 +1790,13 @@ class InstructionStrategyFactory:
         BitcastStrategy,
         Int2PtrStrategy,
         Ptr2IntStrategy,
+        # 闭包/函数式
+        # 注意：闭包策略从 closure_strategies.py 导入
+        # LambdaStrategy,
+        # ClosureCreateStrategy,
+        # ClosureCallStrategy,
+        # UpvalueGetStrategy,
+        # UpvalueSetStrategy,
         # 其他
         ConstStrategy,
         NopStrategy,
