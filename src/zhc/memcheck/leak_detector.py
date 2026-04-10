@@ -8,6 +8,7 @@ from enum import Enum
 
 from .tracker import MemTracker
 from .data import MemBlock
+from .call_stack import CallStackTracer, CallStack
 
 
 class LeakType(Enum):
@@ -28,15 +29,26 @@ class LeakReport:
     severity: str  # critical, high, medium, low
     description: str
     suggested_fix: str
+    call_stack: Optional[CallStack] = None  # 调用栈信息
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "leak_type": self.leak_type.value,
             "block": self.block.to_dict(),
             "severity": self.severity,
             "description": self.description,
             "suggested_fix": self.suggested_fix,
         }
+        if self.call_stack:
+            result["call_stack"] = [
+                {
+                    "file": f.filename,
+                    "line": f.line_number,
+                    "function": f.function_name,
+                }
+                for f in self.call_stack.frames
+            ]
+        return result
 
 
 class LeakDetector:
@@ -65,13 +77,17 @@ class LeakDetector:
     ```
     """
 
-    def __init__(self, tracker: MemTracker):
+    def __init__(
+        self, tracker: MemTracker, call_stack_tracer: Optional[CallStackTracer] = None
+    ):
         """初始化泄漏检测器
 
         Args:
             tracker: 内存追踪器
+            call_stack_tracer: 调用栈追踪器（可选）
         """
         self.tracker = tracker
+        self.call_stack_tracer = call_stack_tracer
         self.leaks: List[LeakReport] = []
 
     def detect(self) -> List[LeakReport]:
@@ -105,6 +121,11 @@ class LeakDetector:
         Returns:
             泄漏报告，如果无泄漏返回 None
         """
+        # 获取调用栈信息
+        call_stack = None
+        if self.call_stack_tracer:
+            call_stack = self.call_stack_tracer.get_stack_by_ptr(block.ptr)
+
         # 根据大小分类
         if block.size >= 1024 * 1024:  # >= 1MB
             return LeakReport(
@@ -113,6 +134,7 @@ class LeakDetector:
                 severity="critical",
                 description=f"大内存泄漏: {block.size} bytes ({block.file}:{block.line})",
                 suggested_fix="确保在适当的时机释放大内存块，考虑使用智能指针或对象池",
+                call_stack=call_stack,
             )
 
         elif block.size >= 100 * 1024:  # >= 100KB
@@ -122,6 +144,7 @@ class LeakDetector:
                 severity="high",
                 description=f"中等内存泄漏: {block.size} bytes ({block.file}:{block.line})",
                 suggested_fix="检查是否所有代码路径都能正确释放内存",
+                call_stack=call_stack,
             )
 
         elif block.size >= 10 * 1024:  # >= 10KB
@@ -131,6 +154,7 @@ class LeakDetector:
                 severity="medium",
                 description=f"小内存泄漏: {block.size} bytes ({block.file}:{block.line})",
                 suggested_fix="确认所有分配的内存都有对应的释放代码",
+                call_stack=call_stack,
             )
 
         else:
@@ -140,6 +164,7 @@ class LeakDetector:
                 severity="low",
                 description=f"微量内存泄漏: {block.size} bytes ({block.file}:{block.line})",
                 suggested_fix="检查是否有遗漏的释放代码",
+                call_stack=call_stack,
             )
 
     def get_summary(self) -> Dict[str, Any]:

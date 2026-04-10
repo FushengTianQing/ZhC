@@ -372,6 +372,10 @@ class Parser(GenericParserMixin):
         if self.match(TokenType.COROUTINE):
             return self.parse_coroutine_def()
 
+        # --- 智能指针声明 ---
+        if self.match(TokenType.UNIQUE_PTR, TokenType.SHARED_PTR, TokenType.WEAK_PTR):
+            return self.parse_smart_ptr_decl()
+
         # --- 类型关键字：函数声明 vs 变量声明 ---
         if self.match(
             TokenType.INT,
@@ -551,6 +555,87 @@ class Parser(GenericParserMixin):
             body,
             self.tokens[self.pos - 1].line,
             self.tokens[self.pos - 1].column,
+        )
+
+    def parse_smart_ptr_decl(self) -> ASTNode:
+        """解析智能指针声明
+
+        语法：
+            独享指针<类型> 名称;
+            独享指针<类型> 名称 = 表达式;
+            共享指针<类型> 名称;
+            共享指针<类型> 名称 = 表达式;
+            弱指针<类型> 名称;
+            弱指针<类型> 名称 = 表达式;
+        """
+        from .ast_nodes import SmartPtrDeclNode
+
+        token = self.current_token()
+        kind_map = {
+            TokenType.UNIQUE_PTR: "unique",
+            TokenType.SHARED_PTR: "shared",
+            TokenType.WEAK_PTR: "weak",
+        }
+        pointer_kind = kind_map[token.type]
+        self.advance()  # 消耗 独享指针/共享指针/弱指针
+
+        # 期望 '<' （注意中文可能使用 '<' 或者尖括号用其他方式表示）
+        if not self.match(TokenType.LT):
+            self.errors.append(
+                ParserError(
+                    f"智能指针声明中期望 '<'，得到 '{self.current_token().value}'",
+                    self._token_location(self.current_token()),
+                )
+            )
+            # 尝试恢复：假设后面是类型
+            inner_type = PrimitiveTypeNode("空型")
+        else:
+            self.advance()  # 消耗 '<'
+
+            # 解析内部类型
+            inner_type = self.parse_type()
+
+            # 期望 '>'
+            if not self.match(TokenType.GT):
+                self.errors.append(
+                    ParserError(
+                        f"智能指针声明中期望 '>'，得到 '{self.current_token().value}'",
+                        self._token_location(self.current_token()),
+                    )
+                )
+            else:
+                self.advance()  # 消耗 '>'
+
+        # 变量名
+        name = ""
+        if self.match(TokenType.IDENTIFIER):
+            name = self.current_token().value
+            self.advance()
+        else:
+            self.errors.append(
+                ParserError(
+                    f"智能指针声明中期望变量名，得到 '{self.current_token().value}'",
+                    self._token_location(self.current_token()),
+                )
+            )
+
+        # 可选初始化表达式
+        initializer = None
+        if self.match(TokenType.ASSIGN):
+            self.advance()
+            initializer = self.parse_expression()
+
+        # 消耗分号
+        if self.match(TokenType.SEMICOLON):
+            self.advance()
+
+        return SmartPtrDeclNode(
+            pointer_kind=pointer_kind,
+            inner_type=inner_type,
+            name=name,
+            initializer=initializer,
+            line=token.line,
+            column=token.column,
         )
 
     def parse_coroutine_def(self) -> "CoroutineDefNode":
@@ -1920,6 +2005,36 @@ class Parser(GenericParserMixin):
                 operand,
                 await_token.line,
                 await_token.column,
+            )
+
+        # 移动语义表达式: 移动(变量)
+        if self.match(TokenType.MOVE):
+            from .ast_nodes import MoveExprNode
+
+            move_token = self.advance()
+            if not self.match(TokenType.LPAREN):
+                self.errors.append(
+                    ParserError(
+                        f"移动表达式中期望 '('，得到 '{self.current_token().value}'",
+                        self._token_location(move_token),
+                    )
+                )
+                return IdentifierExprNode("<error>", move_token.line, move_token.column)
+            self.advance()  # 消耗 '('
+            operand = self.parse_expression()
+            if not self.match(TokenType.RPAREN):
+                self.errors.append(
+                    ParserError(
+                        f"移动表达式中期望 ')'，得到 '{self.current_token().value}'",
+                        self._token_location(self.current_token()),
+                    )
+                )
+            else:
+                self.advance()  # 消耗 ')'
+            return MoveExprNode(
+                operand=operand,
+                line=move_token.line,
+                column=move_token.column,
             )
 
         # 让出表达式

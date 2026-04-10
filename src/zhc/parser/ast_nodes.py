@@ -106,6 +106,14 @@ class ASTNodeType(Enum):
     WIDE_CHAR_LITERAL = auto()  # 宽字符字面量
     WIDE_STRING_LITERAL = auto()  # 宽字符串字面量
 
+    # 内存管理
+    UNIQUE_PTR_DECL = auto()  # 独享指针声明
+    SHARED_PTR_DECL = auto()  # 共享指针声明
+    WEAK_PTR_DECL = auto()  # 弱指针声明
+    SMART_PTR_TYPE = auto()  # 智能指针类型
+    MOVE_EXPR = auto()  # 移动语义表达式
+    DESTRUCTOR_DECL = auto()  # 析构函数声明
+
     # 错误恢复
     ERROR_NODE = auto()  # 错误节点（用于错误恢复）
 
@@ -1762,6 +1770,143 @@ class YieldExprNode(ASTNode):
         return f"YieldExprNode(line={self.line}:{self.column})"
 
 
+# ============================================================================
+# 内存管理节点
+# ============================================================================
+
+
+class SmartPointerTypeNode(ASTNode):
+    """智能指针类型节点
+
+    用作类型注解，表示独享指针<T>、共享指针<T>、弱指针<T>。
+
+    属性：
+        pointer_kind: "unique" | "shared" | "weak"
+        inner_type: 被管理的内部类型（ASTNode）
+    """
+
+    def __init__(
+        self,
+        pointer_kind: str,
+        inner_type: ASTNode,
+        line: int = 0,
+        column: int = 0,
+        end_line: Optional[int] = None,
+        end_column: Optional[int] = None,
+    ):
+        super().__init__(
+            ASTNodeType.SMART_PTR_TYPE,
+            line,
+            column,
+            end_line=end_line,
+            end_column=end_column,
+        )
+        self.pointer_kind = pointer_kind  # "unique" | "shared" | "weak"
+        self.inner_type = inner_type
+        self._set_parent(inner_type)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_smart_ptr_type(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        return [self.inner_type] if self.inner_type else []
+
+    def __repr__(self):
+        return f"SmartPointerTypeNode({self.pointer_kind}, line={self.line})"
+
+
+class SmartPtrDeclNode(ASTNode):
+    """智能指针声明节点
+
+    语法：
+        独享指针<类型> 名称 = 表达式;
+        共享指针<类型> 名称 = 表达式;
+        弱指针<类型> 名称 = 表达式;
+
+    属性：
+        pointer_kind: "unique" | "shared" | "weak"
+        inner_type: 被管理类型
+        name: 变量名
+        initializer: 初始化表达式（可选）
+    """
+
+    def __init__(
+        self,
+        pointer_kind: str,
+        inner_type: ASTNode,
+        name: str,
+        initializer: Optional[ASTNode] = None,
+        line: int = 0,
+        column: int = 0,
+        end_line: Optional[int] = None,
+        end_column: Optional[int] = None,
+    ):
+        node_type = {
+            "unique": ASTNodeType.UNIQUE_PTR_DECL,
+            "shared": ASTNodeType.SHARED_PTR_DECL,
+            "weak": ASTNodeType.WEAK_PTR_DECL,
+        }[pointer_kind]
+        super().__init__(
+            node_type, line, column, end_line=end_line, end_column=end_column
+        )
+        self.pointer_kind = pointer_kind
+        self.inner_type = inner_type
+        self.name = name
+        self.initializer = initializer
+        self._set_parent(inner_type)
+        self._set_parent(initializer)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_smart_ptr_decl(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        children = [self.inner_type] if self.inner_type else []
+        if self.initializer:
+            children.append(self.initializer)
+        return children
+
+    def __repr__(self):
+        return f"SmartPtrDeclNode({self.pointer_kind}<{self.inner_type}> {self.name}, line={self.line})"
+
+
+class MoveExprNode(ASTNode):
+    """移动语义表达式节点
+
+    语法：
+        移动(变量名)
+
+    属性：
+        operand: 被移动的表达式
+    """
+
+    def __init__(
+        self,
+        operand: ASTNode,
+        line: int = 0,
+        column: int = 0,
+        end_line: Optional[int] = None,
+        end_column: Optional[int] = None,
+    ):
+        super().__init__(
+            ASTNodeType.MOVE_EXPR,
+            line,
+            column,
+            end_line=end_line,
+            end_column=end_column,
+        )
+        self.operand = operand
+        self._set_parent(operand)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_move_expr(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        return [self.operand] if self.operand else []
+
+    def __repr__(self):
+        return f"MoveExprNode(line={self.line}:{self.column})"
+
+
 class ArrayInitNode(ASTNode):
     """数组初始化节点 {1, 2, 3}"""
 
@@ -2319,6 +2464,22 @@ class ASTVisitor(ABC):
         """让出表达式"""
         pass
 
+    # ===== 内存管理访问方法 =====
+    @abstractmethod
+    def visit_smart_ptr_type(self, node: "SmartPointerTypeNode") -> Any:
+        """智能指针类型"""
+        pass
+
+    @abstractmethod
+    def visit_smart_ptr_decl(self, node: "SmartPtrDeclNode") -> Any:
+        """智能指针声明"""
+        pass
+
+    @abstractmethod
+    def visit_move_expr(self, node: "MoveExprNode") -> Any:
+        """移动语义表达式"""
+        pass
+
 
 class ASTPrinter(ASTVisitor):
     """AST打印器"""
@@ -2554,6 +2715,33 @@ class ASTPrinter(ASTVisitor):
 
     def visit_yield_expr(self, node: "YieldExprNode") -> Any:
         self._print("YieldExpr")
+
+    # ===== 内存管理 =====
+    def visit_smart_ptr_type(self, node: "SmartPointerTypeNode") -> Any:
+        self._print(f"SmartPointerType({node.pointer_kind})")
+        self.indent += 1
+        if node.inner_type:
+            node.inner_type.accept(self)
+        self.indent -= 1
+
+    def visit_smart_ptr_decl(self, node: "SmartPtrDeclNode") -> Any:
+        self._print(f"SmartPtrDecl({node.pointer_kind} {node.name})")
+        self.indent += 1
+        if node.inner_type:
+            node.inner_type.accept(self)
+        if node.initializer:
+            self._print("Initializer:")
+            self.indent += 1
+            node.initializer.accept(self)
+            self.indent -= 1
+        self.indent -= 1
+
+    def visit_move_expr(self, node: "MoveExprNode") -> Any:
+        self._print("MoveExpr")
+        self.indent += 1
+        if node.operand:
+            node.operand.accept(self)
+        self.indent -= 1
 
 
 if __name__ == "__main__":

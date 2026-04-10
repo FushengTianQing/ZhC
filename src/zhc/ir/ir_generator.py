@@ -72,6 +72,11 @@ from zhc.parser.ast_nodes import (
     CatchClauseNode,
     FinallyClauseNode,
     ThrowStmtNode,
+    CoroutineDefNode,
+    AwaitExprNode,
+    ChannelExprNode,
+    SpawnExprNode,
+    YieldExprNode,
 )
 
 from zhc.ir.program import IRProgram, IRFunction, IRStructDef, IRGlobalVar
@@ -422,6 +427,11 @@ class IRGenerator(ASTVisitor):
         "CHANNEL_EXPR": "_eval_channel",
         "SPAWN_EXPR": "_eval_spawn",
         "YIELD_EXPR": "_eval_yield",
+        # 内存管理
+        "UNIQUE_PTR_DECL": "_eval_smart_ptr_decl",
+        "SHARED_PTR_DECL": "_eval_smart_ptr_decl",
+        "WEAK_PTR_DECL": "_eval_smart_ptr_decl",
+        "MOVE_EXPR": "_eval_move",
     }
 
     def _eval_expr(self, node: ASTNode) -> Optional[IRValue]:
@@ -968,6 +978,57 @@ class IRGenerator(ASTVisitor):
         # yield 是终止指令，跳转到协程的恢复点
         self._emit(Opcode.COROUTINE_YIELD, [value_value] if value_value else [])
         return None
+
+    # =========================================================================
+    # 内存管理求值方法
+    # =========================================================================
+
+    def _eval_smart_ptr_decl(self, node) -> Optional[IRValue]:
+        """求值智能指针声明
+
+        生成 SMART_PTR_CREATE 指令，分配智能指针并初始化。
+        """
+        kind = getattr(node, "pointer_kind", "unique")
+        name = getattr(node, "name", "")
+        inner_type = getattr(node, "inner_type", None)
+        initializer = getattr(node, "initializer", None)
+
+        # 求值初始化表达式
+        init_value = self._eval_expr(initializer) if initializer else None
+
+        # 获取内部类型名
+        inner_type_name = ""
+        if inner_type:
+            inner_type_name = getattr(inner_type, "type_name", str(inner_type))
+
+        # 创建智能指针
+        ptr = self._emit(
+            Opcode.SMART_PTR_CREATE,
+            [kind, inner_type_name, init_value],
+        )
+
+        # 注册到局部变量表
+        if name:
+            self._set_var(name, ptr)
+
+        return ptr
+
+    def _eval_move(self, node) -> Optional[IRValue]:
+        """求值移动语义表达式
+
+        生成 MOVE 指令，将资源的所有权从源转移到目标。
+        """
+        operand = getattr(node, "operand", None)
+        operand_value = self._eval_expr(operand) if operand else None
+
+        # 生成移动指令
+        result = self._emit(Opcode.MOVE, [operand_value])
+
+        # 如果操作数是标识符，清除源变量的引用
+        if operand and hasattr(operand, "name"):
+            self._set_var(operand.name, None)
+
+        return result
 
     def visit_binary_expr(self, node: BinaryExprNode):
         """二元表达式"""

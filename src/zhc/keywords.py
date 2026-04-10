@@ -166,6 +166,12 @@ M = {
     "最终": "finally",
     "抛出": "throw",
     "异常": "exception",
+    # 内存管理关键字
+    "独享指针": "unique_ptr",
+    "共享指针": "shared_ptr",
+    "弱指针": "weak_ptr",
+    "析构函数": "__destructor__",
+    "移动": "std::move",
 }
 
 # 添加前缀版本（兼容"中文"前缀）

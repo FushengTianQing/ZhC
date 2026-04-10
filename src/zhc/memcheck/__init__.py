@@ -36,6 +36,13 @@ from .leak_detector import (
     LeakType,
 )
 
+from .call_stack import (
+    CallStackTracer,
+    CallStack,
+    StackFrame,
+    get_call_stack_tracer,
+)
+
 __all__ = [
     # Data classes
     "MemBlock",
@@ -57,6 +64,11 @@ __all__ = [
     "LeakDetector",
     "LeakReport",
     "LeakType",
+    # Call stack tracer
+    "CallStackTracer",
+    "CallStack",
+    "StackFrame",
+    "get_call_stack_tracer",
 ]
 
 

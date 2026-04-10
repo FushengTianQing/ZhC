@@ -123,6 +123,7 @@ class LLVMBackend(BackendBase):
 
         # 注册闭包策略
         self._register_closure_strategies()
+        self._register_memory_strategies()
 
         # 初始化 LLVM
         llvm.initialize()
@@ -148,6 +149,38 @@ class LLVMBackend(BackendBase):
         InstructionStrategyFactory.register(UpvalueSetStrategy())
 
         # 注册协程策略
+        InstructionStrategyFactory.register(CoroutineCreateStrategy())
+        InstructionStrategyFactory.register(CoroutineResumeStrategy())
+        InstructionStrategyFactory.register(CoroutineYieldStrategy())
+        InstructionStrategyFactory.register(CoroutineAwaitStrategy())
+        InstructionStrategyFactory.register(CoroutineSpawnStrategy())
+        InstructionStrategyFactory.register(ChannelCreateStrategy())
+        InstructionStrategyFactory.register(ChannelSendStrategy())
+        InstructionStrategyFactory.register(ChannelRecvStrategy())
+
+    def _register_memory_strategies(self) -> None:
+        """注册内存管理相关策略"""
+        from .memory_strategies import (
+            SmartPtrCreateStrategy,
+            SmartPtrGetStrategy,
+            SmartPtrResetStrategy,
+            SmartPtrReleaseStrategy,
+            SmartPtrUseCountStrategy,
+            MoveStrategy,
+            ScopePushStrategy,
+            ScopePopStrategy,
+            DestructorCallStrategy,
+        )
+
+        InstructionStrategyFactory.register(SmartPtrCreateStrategy())
+        InstructionStrategyFactory.register(SmartPtrGetStrategy())
+        InstructionStrategyFactory.register(SmartPtrResetStrategy())
+        InstructionStrategyFactory.register(SmartPtrReleaseStrategy())
+        InstructionStrategyFactory.register(SmartPtrUseCountStrategy())
+        InstructionStrategyFactory.register(MoveStrategy())
+        InstructionStrategyFactory.register(ScopePushStrategy())
+        InstructionStrategyFactory.register(ScopePopStrategy())
+        InstructionStrategyFactory.register(DestructorCallStrategy())
         InstructionStrategyFactory.register(CoroutineCreateStrategy())
         InstructionStrategyFactory.register(CoroutineResumeStrategy())
         InstructionStrategyFactory.register(CoroutineYieldStrategy())

@@ -529,6 +529,18 @@ class SemanticAnalyzer:
         elif nt == ASTNodeType.LAMBDA_EXPR:
             self._analyze_lambda_expr(node)
 
+        # 内存管理节点
+        elif nt == ASTNodeType.UNIQUE_PTR_DECL:
+            self._analyze_smart_ptr_decl(node)
+        elif nt == ASTNodeType.SHARED_PTR_DECL:
+            self._analyze_smart_ptr_decl(node)
+        elif nt == ASTNodeType.WEAK_PTR_DECL:
+            self._analyze_smart_ptr_decl(node)
+        elif nt == ASTNodeType.MOVE_EXPR:
+            self._analyze_move_expr(node)
+        elif nt == ASTNodeType.SMART_PTR_TYPE:
+            self._analyze_smart_ptr_type(node)
+
         # 字面量和类型节点无需深入分析
         else:
             pass
@@ -1627,6 +1639,94 @@ class SemanticAnalyzer:
             self._analyze_node(node.body)
 
         self.symbol_table.exit_scope()
+
+    # =========================================================================
+    # 内存管理分析方法
+    # =========================================================================
+
+    def _analyze_smart_ptr_decl(self, node) -> None:
+        """分析智能指针声明
+
+        检查：
+        1. 内部类型有效
+        2. 初始化表达式类型匹配
+        3. 注册到符号表
+        """
+        loc = self._node_location(node)
+
+        # 分析内部类型
+        if node.inner_type:
+            self._analyze_node(node.inner_type)
+
+        # 分析初始化表达式
+        if node.initializer:
+            self._analyze_node(node.initializer)
+
+        # 推断智能指针类型
+        inner_type_name = (
+            self._get_type_name(node.inner_type) if node.inner_type else "未知"
+        )
+        ptr_type_name = f"{node.pointer_kind}_ptr<{inner_type_name}>"
+        node.inferred_type = ptr_type_name
+
+        # 注册到符号表
+        ptr_symbol = Symbol(
+            name=node.name,
+            symbol_type="智能指针",
+            data_type=ptr_type_name,
+            definition_location=loc,
+            is_defined=True,
+        )
+        ptr_symbol.attributes["pointer_kind"] = node.pointer_kind
+        ptr_symbol.attributes["inner_type"] = inner_type_name
+
+        if not self.symbol_table.add_symbol(ptr_symbol):
+            self._add_error(
+                "重复定义",
+                f"智能指针 '{node.name}' 重复定义",
+                loc,
+            )
+
+    def _analyze_move_expr(self, node) -> None:
+        """分析移动语义表达式
+
+        检查：
+        1. 操作数是有效的左值
+        2. 操作数类型支持移动语义
+        """
+        loc = self._node_location(node)
+
+        # 分析操作数
+        if node.operand:
+            self._analyze_node(node.operand)
+
+            # 检查操作数是否是标识符（左值）
+            if node.operand.node_type == ASTNodeType.IDENTIFIER_EXPR:
+                # 查找符号
+                sym = self.symbol_table.lookup(node.operand.name)
+                if sym:
+                    # 标记符号已被移动
+                    sym.attributes["moved"] = True
+                    node.inferred_type = sym.data_type
+                else:
+                    self._add_warning(
+                        "未声明变量",
+                        f"移动表达式中变量 '{node.operand.name}' 未声明",
+                        loc,
+                    )
+            else:
+                # 非标识符的操作数，推断类型
+                if hasattr(node.operand, "inferred_type"):
+                    node.inferred_type = node.operand.inferred_type
+
+    def _analyze_smart_ptr_type(self, node) -> None:
+        """分析智能指针类型节点"""
+        if node.inner_type:
+            self._analyze_node(node.inner_type)
+        inner_type_name = (
+            self._get_type_name(node.inner_type) if node.inner_type else "未知"
+        )
+        node.inferred_type = f"{node.pointer_kind}_ptr<{inner_type_name}>"
 
     def _get_case_value_str(self, value_node: ASTNode) -> Optional[str]:
         """获取 case 值的字符串表示（用于重复检测）"""

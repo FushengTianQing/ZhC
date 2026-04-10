@@ -7,6 +7,16 @@
 
 from .smart_ptr import ControlBlock, UniquePtr, SharedPtr, WeakPtr
 from .cycle_detector import CycleDetector
+from .raii import (
+    DestructorInfo,
+    CleanupStack,
+    CleanupPriority,
+    ScopeGuard,
+    DestructorRegistry,
+    scope_guard,
+    get_global_cleanup_stack,
+    get_global_destructor_registry,
+)
 
 __all__ = [
     "ControlBlock",
@@ -14,4 +24,12 @@ __all__ = [
     "SharedPtr",
     "WeakPtr",
     "CycleDetector",
+    "DestructorInfo",
+    "CleanupStack",
+    "CleanupPriority",
+    "ScopeGuard",
+    "DestructorRegistry",
+    "scope_guard",
+    "get_global_cleanup_stack",
+    "get_global_destructor_registry",
 ]

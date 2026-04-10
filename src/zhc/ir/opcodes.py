@@ -119,6 +119,17 @@ class Opcode(Enum):
     CHANNEL_SEND = ("channel_send", "协程", "通道发送", False, False)  # 通道发送
     CHANNEL_RECV = ("channel_recv", "协程", "通道接收", False, True)  # 通道接收
 
+    # ========== 内存管理 ==========
+    SMART_PTR_CREATE = ("smart_ptr_create", "内存管理", "创建智能指针", False, True)
+    SMART_PTR_GET = ("smart_ptr_get", "内存管理", "获取智能指针值", False, True)
+    SMART_PTR_RESET = ("smart_ptr_reset", "内存管理", "重置智能指针", False, False)
+    SMART_PTR_RELEASE = ("smart_ptr_release", "内存管理", "释放智能指针", False, False)
+    SMART_PTR_USE_COUNT = ("smart_ptr_use_count", "内存管理", "引用计数", False, True)
+    MOVE = ("move", "内存管理", "移动语义", False, True)
+    SCOPE_PUSH = ("scope_push", "内存管理", "进入作用域", False, False)
+    SCOPE_POP = ("scope_pop", "内存管理", "退出作用域", False, False)
+    DESTRUCTOR_CALL = ("destructor_call", "内存管理", "调用析构函数", False, False)
+
     # ========== 其他 ==========
     CONST = ("const", "其他", "常量", False, True)  # 常量值
     NOP = ("nop", "其他", "空操作", False, False)  # 空操作

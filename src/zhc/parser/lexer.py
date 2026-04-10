@@ -191,6 +191,13 @@ class TokenType(Enum):
     # 定点数类型关键字
     FIXED_POINT = auto()  # 定点数
 
+    # 内存管理关键字
+    UNIQUE_PTR = auto()  # 独享指针
+    SHARED_PTR = auto()  # 共享指针
+    WEAK_PTR = auto()  # 弱指针
+    DESTRUCTOR = auto()  # 析构函数
+    MOVE = auto()  # 移动
+
     # 特殊
     EOF = auto()  # 文件结束
     UNKNOWN = auto()  # 未知字符
@@ -367,6 +374,12 @@ class Lexer:
         "抛出": TokenType.THROW,
         "异常": TokenType.EXCEPTION,
         "异常类": TokenType.EXCEPTION_CLASS,
+        # 内存管理关键字
+        "独享指针": TokenType.UNIQUE_PTR,
+        "共享指针": TokenType.SHARED_PTR,
+        "弱指针": TokenType.WEAK_PTR,
+        "析构函数": TokenType.DESTRUCTOR,
+        "移动": TokenType.MOVE,
     }
 
     def __init__(self, source: str):
