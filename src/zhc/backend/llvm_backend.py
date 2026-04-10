@@ -19,12 +19,14 @@ try:
     import llvmlite
     import llvmlite.ir as ll
     import llvmlite.binding as llvm
-
+    import llvmlite.binding.newpassmanagers as npm
+    
     LLVM_AVAILABLE = True
 except ImportError:
     LLVM_AVAILABLE = False
     ll = None
     llvm = None
+    npm = None
 
 from zhc.ir.program import IRProgram, IRFunction, IRGlobalVar
 from zhc.ir.instructions import IRBasicBlock, IRInstruction
