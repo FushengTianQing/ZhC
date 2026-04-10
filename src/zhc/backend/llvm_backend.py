@@ -28,6 +28,7 @@ except ImportError:
 
 from zhc.ir.program import IRProgram, IRFunction, IRGlobalVar
 from zhc.ir.instructions import IRBasicBlock, IRInstruction
+from zhc.ir.opcodes import Opcode
 
 from .base import (
     BackendBase,
@@ -315,6 +316,13 @@ class LLVMBackend(BackendBase):
         self.context.functions[func.name] = llvm_func
         self.context.current_function = llvm_func
 
+        # 检测是否有异常处理指令
+        has_eh = self._has_exception_handling(func)
+
+        # 如果有异常处理，设置 personality 函数并声明 EH intrinsics
+        if has_eh:
+            self._setup_exception_handling(llvm_func)
+
         # 先创建所有基本块（避免跳转引用未创建的基本块）
         for bb in func.basic_blocks:
             block = llvm_func.append_basic_block(bb.label)
@@ -323,6 +331,65 @@ class LLVMBackend(BackendBase):
         # 然后编译每个基本块的指令
         for bb in func.basic_blocks:
             self._compile_basic_block(llvm_func, bb)
+
+    def _has_exception_handling(self, func: IRFunction) -> bool:
+        """
+        检测函数是否包含异常处理指令
+
+        Args:
+            func: IR 函数
+
+        Returns:
+            bool: 是否包含异常处理指令
+        """
+        eh_opcodes = {
+            Opcode.TRY,
+            Opcode.CATCH,
+            Opcode.THROW,
+            Opcode.RESUME,
+            Opcode.LANDINGPAD,
+            Opcode.INVOKE,
+        }
+
+        for bb in func.basic_blocks:
+            for instr in bb.instructions:
+                if instr.opcode in eh_opcodes:
+                    return True
+        return False
+
+    def _setup_exception_handling(self, llvm_func: ll.Function) -> None:
+        """
+        设置异常处理支持：
+        1. 设置 personality 函数
+        2. 声明必要的 EH intrinsic 函数
+
+        Args:
+            llvm_func: LLVM 函数
+        """
+        # 设置 personality 函数
+        personality_name = "__zhc_personality"
+        personality_ty = ll.FunctionType(ll.IntType(32), [])
+        personality_func = ll.Function(self.module, personality_ty, personality_name)
+        llvm_func.attributes._personality = personality_func
+
+        # 声明 EH intrinsic 函数
+        self._declare_eh_intrinsics()
+
+    def _declare_eh_intrinsics(self) -> None:
+        """声明必要的 EH intrinsic 函数"""
+        i8_ptr = ll.IntType(8).as_pointer()
+
+        # llvm.eh.typeid.for
+        if not self.module.get_global("llvm.eh.typeid.for.p0i8"):
+            self.module.declare_intrinsic("llvm.eh.typeid.for", [i8_ptr])
+
+        # llvm.eh.begincatch (可选，用于 C++ 异常处理)
+        if not self.module.get_global("llvm.eh.begincatch"):
+            self.module.declare_intrinsic("llvm.eh.begincatch", [i8_ptr])
+
+        # llvm.eh.endcatch (可选，用于 C++ 异常处理)
+        if not self.module.get_global("llvm.eh.endcatch"):
+            self.module.declare_intrinsic("llvm.eh.endcatch", [])
 
     def _apply_function_hints(self, llvm_func: ll.Function, func_name: str):
         """
