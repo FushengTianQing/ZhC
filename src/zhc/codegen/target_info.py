@@ -166,8 +166,15 @@ class TargetInfo:
         return self.target.default_cpu
 
     def get_feature_string(self) -> str:
-        """获取特性字符串"""
-        return ",".join(self.target.default_features)
+        """获取特性字符串
+
+        LLVM 要求 feature flags 必须以 '+' 或 '-' 开头。
+        例如: '+neon,+aes,+sha2'
+        """
+        return ",".join(
+            f"+{f}" if not f.startswith(("+", "-")) else f
+            for f in self.target.default_features
+        )
 
     def get_register_class(self, name: str) -> Optional[Any]:
         """获取寄存器类"""

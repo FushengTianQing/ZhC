@@ -118,23 +118,24 @@ class LLVMTypeMapper:
 
         # 复数类型 - 用结构体表示 {real, imag}
         # 浮点复数: {float, float}
-        float_complex_type = ll.StructType(
-            [ll.FloatType(), ll.FloatType()], name="complex_float"
-        )
+        float_complex_type = ll.IdentifiedStructType(ll.global_context, "complex_float")
+        float_complex_type.set_body(ll.FloatType(), ll.FloatType())
         self._llvm_types["浮点复数型"] = float_complex_type
         self._llvm_types["float _Complex"] = float_complex_type
 
         # 双精度复数: {double, double}
-        double_complex_type = ll.StructType(
-            [ll.DoubleType(), ll.DoubleType()], name="complex_double"
+        double_complex_type = ll.IdentifiedStructType(
+            ll.global_context, "complex_double"
         )
+        double_complex_type.set_body(ll.DoubleType(), ll.DoubleType())
         self._llvm_types["双精度复数型"] = double_complex_type
         self._llvm_types["double _Complex"] = double_complex_type
 
         # 长双精度复数: {long double, long double}
-        long_double_complex_type = ll.StructType(
-            [ll.DoubleType(), ll.DoubleType()], name="complex_long_double"
+        long_double_complex_type = ll.IdentifiedStructType(
+            ll.global_context, "complex_long_double"
         )
+        long_double_complex_type.set_body(ll.DoubleType(), ll.DoubleType())
         self._llvm_types["长双精度复数型"] = long_double_complex_type
         self._llvm_types["long double _Complex"] = long_double_complex_type
 

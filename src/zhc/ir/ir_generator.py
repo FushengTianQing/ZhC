@@ -1993,3 +1993,19 @@ class IRGenerator(ASTVisitor):
     def visit_fixed_point_type(self, node):
         """定点数类型"""
         pass
+
+    # ========== 内存管理（智能指针/移动语义）==========
+
+    def visit_smart_ptr_type(self, node):
+        """智能指针类型 — 纯类型节点，无需生成 IR"""
+        pass
+
+    def visit_smart_ptr_decl(self, node):
+        """智能指针声明"""
+        self._ensure_block()
+        self._eval_smart_ptr_decl(node)
+
+    def visit_move_expr(self, node):
+        """移动语义表达式"""
+        self._ensure_block()
+        self._eval_move(node)
