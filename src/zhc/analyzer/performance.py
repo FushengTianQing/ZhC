@@ -40,32 +40,50 @@ class ScopeType(Enum):
 
 
 class SymbolInfo:
-    def __init__(self, *a, **kw):
-        pass
+    def __init__(self, name: str = "", *a, **kw):
+        self.name = name
+        self.scope_type = ScopeType.MODULE
+
+
+class _StubScope:
+    """作用域存根"""
+
+    def __init__(self, name: str = "", scope_type=None):
+        self.name = name
+        self.type = scope_type
 
 
 class ScopeManager:
     def __init__(self):
-        pass
+        self._scopes: list = []
+        self._symbols: dict = {}
 
     @property
     def current_scope(self):
+        if self._scopes:
+            return self._scopes[-1]
         return None
 
+    @property
     def all_symbols(self):
-        return {}
+        return self._symbols
 
-    def lookup_symbol(self, *a, **kw):
-        return None
+    def lookup_symbol(self, name: str, *a, **kw):
+        return self._symbols.get(name)
 
-    def add_symbol(self, *a, **kw):
-        return None
+    def add_symbol(self, name: str, *a, **kw):
+        info = SymbolInfo(name)
+        self._symbols[name] = info
+        return info
 
-    def enter_scope(self, *a, **kw):
-        pass
+    def enter_scope(self, name: str = "", scope_type=None):
+        scope = _StubScope(name, scope_type)
+        self._scopes.append(scope)
+        return scope
 
     def exit_scope(self, *a, **kw):
-        pass
+        if self._scopes:
+            self._scopes.pop()
 
 
 class ModuleParser:
@@ -217,7 +235,7 @@ class PerformanceAnalyzer:
 
 
 # Phase 7 M7 TD2: 废弃（依赖 day3.scope_manager.ScopeManager
-class OptimizedScopeManager:
+class OptimizedScopeManager(ScopeManager):
     """优化后的作用域管理器"""
 
     def __init__(self):
@@ -252,7 +270,11 @@ class OptimizedScopeManager:
 
     def lookup_symbol(self, name: str) -> Optional[SymbolInfo]:
         """查找符号（带缓存优化）"""
-        if self._cache_enabled and self.current_scope.type == ScopeType.MODULE:
+        if (
+            self._cache_enabled
+            and self.current_scope
+            and self.current_scope.type == ScopeType.MODULE
+        ):
             module_name = self.current_scope.name
             if module_name in self._symbol_cache:
                 # 先在缓存中查找
@@ -311,6 +333,17 @@ class SymbolLookupOptimizer:
     def get_module_symbols(self, module_name: str) -> Set[str]:
         """获取模块的所有符号"""
         return self._module_index.get(module_name, set())
+
+    def register_symbol(self, name: str, scope: str, value=None):
+        """注册符号"""
+        info = SymbolInfo(name)
+        if name not in self._symbol_index:
+            self._symbol_index[name] = []
+        self._symbol_index[name].append(info)
+
+    def lookup_symbol(self, name: str) -> Optional[SymbolInfo]:
+        """查找符号"""
+        return self.fast_lookup(name)
 
 
 def benchmark_module_parsing(test_size: int = 100) -> Dict[str, float]:

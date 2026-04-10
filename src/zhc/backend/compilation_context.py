@@ -567,8 +567,8 @@ class CompilationContext:
         if struct_info and hasattr(struct_info, "llvm_type") and struct_info.llvm_type:
             return struct_info.llvm_type
 
-        # 检查是否有通过 register_struct_type 注册的结构体
-        for st_name, st_info in self.type_registry._struct_types.items():
+        # 检查是否有通过 register_struct 注册的结构体
+        for st_name, st_info in self.type_registry._struct_info.items():
             if (
                 st_name == type_name
                 and hasattr(st_info, "llvm_type")

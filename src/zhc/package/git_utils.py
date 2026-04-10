@@ -188,20 +188,18 @@ class GitUtils:
             if len(parts) >= 4:
                 try:
                     # 解析日期：格式为 "2026-04-10 00:24:53 +0800"
-                    date_str = parts[3]
-                    # 移除时区信息，只保留日期时间
-                    date_str = date_str.replace(" ", "T", 1).split("+")[0].split("-")[0]
-                    # 实际上，我们直接使用原始字符串
-                    # 简单处理：将空格替换为 T，然后解析
-                    date_str = parts[3].replace(" ", "T", 1)
-                    # 移除时区信息（+0800）
+                    date_str = parts[3].strip()
+                    # 将空格替换为 T，变成 ISO 格式
+                    date_str = date_str.replace(" ", "T", 1)
+                    # 移除时区信息（+0800 或 -0500）
                     if "+" in date_str:
                         date_str = date_str.split("+")[0]
                     elif date_str.count("-") > 2:
-                        # 处理负时区
+                        # 处理负时区（日期本身有 2 个 '-'）
                         last_dash = date_str.rfind("-")
                         date_str = date_str[:last_dash]
 
+                    date_str = date_str.strip()
                     date = datetime.fromisoformat(date_str)
 
                     commits.append(
