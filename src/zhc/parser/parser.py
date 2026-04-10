@@ -1864,54 +1864,173 @@ class Parser(GenericParserMixin):
             params = []
             is_lambda = False
 
-            # 如果下一个 token 是 ) 或者类型关键字，可能是 Lambda
-            if not self.match(TokenType.RPAREN):
-                # 尝试解析第一个参数（可能是类型标识符）
+            # 检查是否是空参数 Lambda: () -> ...
+            if self.match(TokenType.RPAREN):
+                # 空参数，检查后面是否有 ->
+                after_paren_pos = self.pos + 1  # 记录 ) 后面的位置
+                self.advance()  # 消耗 )
+                if self.match(TokenType.ARROW):
+                    is_lambda = True
+                else:
+                    # 不是 ->，需要回溯
+                    self.pos = after_paren_pos
+            else:
+                # 尝试解析参数列表
                 # Lambda: (整数型 x, 整数型 y) -> ...
                 # 或者: (x, y) -> ... （使用自动类型推导）
 
                 # 记录起始位置
                 param_start = self.pos
 
+                # 辅助函数：检查是否是类型关键字（不包括 IDENTIFIER）
+                def is_type_keyword():
+                    return self.match(
+                        TokenType.INT,
+                        TokenType.FLOAT,
+                        TokenType.CHAR,
+                        TokenType.BOOL,
+                        TokenType.VOID,
+                        TokenType.STRING,
+                        TokenType.BYTE,
+                        TokenType.DOUBLE,
+                        TokenType.BOOL_TYPE,
+                        TokenType.LONG,
+                        TokenType.SHORT,
+                        TokenType.UNSIGNED,
+                        TokenType.SIGNED,
+                        TokenType.AUTO,
+                        TokenType.STRUCT,
+                        TokenType.ENUM,
+                    )
+
+                # 辅助函数：获取类型字符串
+                def get_type_string():
+                    token = self.current_token()
+                    # 映射类型关键字到中文类型名
+                    type_map = {
+                        TokenType.INT: "整数型",
+                        TokenType.FLOAT: "浮点型",
+                        TokenType.CHAR: "字符型",
+                        TokenType.BOOL: "布尔型",
+                        TokenType.VOID: "空型",
+                        TokenType.STRING: "字符串型",
+                        TokenType.BYTE: "字节型",
+                        TokenType.DOUBLE: "双精度浮点型",
+                        TokenType.BOOL_TYPE: "逻辑型",
+                        TokenType.LONG: "长整数型",
+                        TokenType.SHORT: "短整数型",
+                        TokenType.UNSIGNED: "无符号",
+                        TokenType.SIGNED: "有符号",
+                        TokenType.AUTO: "自动",
+                        TokenType.STRUCT: "结构体",
+                        TokenType.ENUM: "枚举",
+                    }
+                    if token.type in type_map:
+                        return type_map[token.type]
+                    else:
+                        return token.value  # 自定义类型
+
                 # 尝试解析参数
                 try:
                     # 检查是否是空参数
                     if not self.match(TokenType.RPAREN):
-                        # 解析第一个参数（简单方案：只支持标识符或类型+标识符）
+                        # 解析第一个参数
                         first_token = self.current_token()
-
-                        # 情况1: 类型 + 标识符 (整数型 x)
-                        if self.match(TokenType.IDENTIFIER):
-                            param_name = self.advance().value
-                            # 检查下一个 token 是否是逗号或右括号
-                            if self.match(TokenType.COMMA, TokenType.RPAREN):
-                                # 标识符可能是类型名，检查后面是否有标识符
-                                pass
-                            elif self.match(TokenType.IDENTIFIER):
-                                # 第一个标识符是类型，第二个是参数名
-                                param_type = first_token.value
+                        
+                        # 检查是否是类型关键字
+                        def is_type_keyword():
+                            return self.match(
+                                TokenType.INT,
+                                TokenType.FLOAT,
+                                TokenType.CHAR,
+                                TokenType.BOOL,
+                                TokenType.VOID,
+                                TokenType.STRING,
+                                TokenType.BYTE,
+                                TokenType.DOUBLE,
+                                TokenType.BOOL_TYPE,
+                                TokenType.LONG,
+                                TokenType.SHORT,
+                                TokenType.UNSIGNED,
+                                TokenType.SIGNED,
+                                TokenType.AUTO,
+                                TokenType.STRUCT,
+                                TokenType.ENUM,
+                            )
+                        
+                        # 情况1: 类型关键字 + 标识符 (整数型 x)
+                        if is_type_keyword():
+                            param_type = self.current_token().value
+                            self.advance()  # 消耗类型
+                            
+                            if self.match(TokenType.IDENTIFIER):
                                 param_name = self.advance().value
                                 params.append((param_type, param_name))
                             else:
-                                # 可能是自动类型的参数
-                                params.append(("自动", first_token.value))
-
-                        # 继续解析更多参数
-                        while self.match(TokenType.COMMA):
-                            self.advance()
-                            if self.match(TokenType.IDENTIFIER):
-                                param_type = "自动"  # 默认自动类型
+                                # (类型) 模式，可能是括号表达式，不是 Lambda
+                                is_lambda = False
+                        # 情况2: 标识符 (可能是参数名或自定义类型)
+                        elif self.match(TokenType.IDENTIFIER):
+                            # 检查下一个 token 来判断是 (类型 名) 还是 (名)
+                            next_tok = self.peek_token()
+                            if next_tok.type == TokenType.IDENTIFIER:
+                                # (类型 名) 模式，第一个标识符是类型
+                                param_type = self.advance().value
                                 param_name = self.advance().value
-                                # 检查是否是类型+标识符
-                                if self.match(TokenType.IDENTIFIER):
-                                    param_type = params[0][0] if params else "整数型"  # 使用前面的类型
-                                    param_name = self.current_token().value
-                                    self.advance()
                                 params.append((param_type, param_name))
+                            elif next_tok.type in (TokenType.COMMA, TokenType.RPAREN):
+                                # (名) 或 (名, ...) 模式，自动类型
+                                param_name = self.advance().value
+                                params.append(("自动", param_name))
+                            else:
+                                # 其他情况，不是 Lambda 参数
+                                is_lambda = False
+                        else:
+                            # 不是标识符或类型关键字，不是 Lambda
+                            is_lambda = False
 
-                        # 检查是否有 ->
-                        if self.match(TokenType.ARROW):
-                            is_lambda = True
+                        # 继续解析更多参数（无论 is_lambda 状态，都继续解析逗号分隔的参数）
+                        parsing_args = True
+                        while parsing_args:
+                            if self.match(TokenType.COMMA):
+                                self.advance()  # 消耗逗号
+                                
+                                if is_type_keyword():
+                                    param_type = self.current_token().value
+                                    self.advance()  # 消耗类型
+                                    
+                                    if self.match(TokenType.IDENTIFIER):
+                                        param_name = self.advance().value
+                                        params.append((param_type, param_name))
+                                    else:
+                                        parsing_args = False
+                                elif self.match(TokenType.IDENTIFIER):
+                                    next_tok = self.peek_token()
+                                    if next_tok.type == TokenType.IDENTIFIER:
+                                        param_type = self.advance().value
+                                        param_name = self.advance().value
+                                        params.append((param_type, param_name))
+                                    elif next_tok.type in (TokenType.COMMA, TokenType.RPAREN, TokenType.EOF):
+                                        param_name = self.advance().value
+                                        params.append(("自动", param_name))
+                                    else:
+                                        parsing_args = False
+                                else:
+                                    parsing_args = False
+                            else:
+                                parsing_args = False
+
+                        # 消耗 )
+                        if self.match(TokenType.RPAREN):
+                            self.advance()
+                            # 检查是否有 ->
+                            if self.match(TokenType.ARROW):
+                                is_lambda = True
+                            else:
+                                # 不是 ->，可能不是 Lambda，需要回溯
+                                self.pos = param_start
+                                params = []
+                                is_lambda = False
                 except Exception:
                     # 解析失败，不是 Lambda
                     is_lambda = False
@@ -1921,8 +2040,27 @@ class Parser(GenericParserMixin):
                 self.advance()
 
                 # 解析返回类型（可选）
+                # 只有当当前 token 是类型关键字时才解析返回类型
+                # 这样可以避免将 Lambda body 中的变量名误认为返回类型
                 return_type = None
-                if self.match(TokenType.IDENTIFIER) and not self.match(TokenType.LPAREN):
+                if self.match(
+                    TokenType.INT,
+                    TokenType.FLOAT,
+                    TokenType.CHAR,
+                    TokenType.BOOL,
+                    TokenType.VOID,
+                    TokenType.STRING,
+                    TokenType.BYTE,
+                    TokenType.DOUBLE,
+                    TokenType.BOOL_TYPE,
+                    TokenType.LONG,
+                    TokenType.SHORT,
+                    TokenType.UNSIGNED,
+                    TokenType.SIGNED,
+                    TokenType.AUTO,
+                    TokenType.STRUCT,
+                    TokenType.ENUM,
+                ):
                     # 可能是返回类型
                     return_type = self.parse_type()
 
