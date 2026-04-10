@@ -117,6 +117,7 @@ class ArithmeticStrategy(InstructionStrategy):
         b = self._ensure_value_type(
             builder, context.get_value(instr.operands[1]), context
         )
+
         result = self.operation(builder, a, b, name=context.get_result_name(instr))
         context.store_result(instr, result)
         return result
@@ -205,6 +206,7 @@ class ComparisonStrategy(InstructionStrategy):
         b = self._ensure_value_type(
             builder, context.get_value(instr.operands[1]), context
         )
+
         result = self.comparison(
             builder, self._get_pred(), a, b, name=context.get_result_name(instr)
         )
@@ -554,23 +556,15 @@ class StoreStrategy(InstructionStrategy):
     opcode = Opcode.STORE
 
     def compile(self, builder, instr, context):
-        # 值
-        val_op = instr.operands[0]
-        if hasattr(val_op, "const_value") and val_op.const_value is not None:
-            import llvmlite.ir as ll
-
-            val = ll.Constant(ll.IntType(32), int(val_op.const_value))
-        else:
-            val = context.get_value(val_op)
-            # 只有当值确实 是指针类型时才 load（这表示它是个需要解引用的变量）
-            # 不要自动 load 所有值
-
-        # 指针
+        # 指针（目标地址）
         ptr_op = instr.operands[1]
         if hasattr(ptr_op, "name"):
             ptr = context.get_value(ptr_op.name)
         else:
             ptr = context.get_value(ptr_op)
+
+        # 值（IR 生成器已确保常量类型正确）
+        val = context.get_value(instr.operands[0])
 
         builder.store(val, ptr)
         return None

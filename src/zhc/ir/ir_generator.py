@@ -338,6 +338,8 @@ class IRGenerator(ASTVisitor):
             else:
                 init_result = self._eval_expr(node.init)
                 if init_result:
+                    # STORE 前修正常量类型，使 init_result 与目标指针类型匹配
+                    init_result = self._coerce_store_value(init_result, ty)
                     self._emit(Opcode.STORE, [init_result, alloc_result])
 
     def _handle_array_init(
@@ -519,7 +521,6 @@ class IRGenerator(ASTVisitor):
         - 如果是数组变量，直接返回数组指针（数组退化）
         """
         name = getattr(node, "name", "")
-        ty = getattr(node, "inferred_type", "整数型")
 
         # 检查是否是局部变量（有 ALLOC）
         if name in self.var_ptr_map:
@@ -535,6 +536,9 @@ class IRGenerator(ASTVisitor):
                 return ptr
             else:
                 # 普通变量：生成 LOAD 指令
+                # 优先使用指针的 ty（来自 ALLOC），其次用 node.inferred_type，最后用默认值
+                # 这样确保 LOAD 结果的类型与变量的实际类型一致
+                ty = ptr_ty or getattr(node, "inferred_type", "整数型")
                 result = self._new_temp(ty)
                 self._emit(Opcode.LOAD, [ptr], [result])
                 return result
@@ -547,7 +551,150 @@ class IRGenerator(ASTVisitor):
                     return param
 
         # 默认返回变量引用
+        ty = getattr(node, "inferred_type", "整数型")
         return IRValue(name, ty, ValueKind.VAR)
+
+    # 类型宽度表（用于类型统一推断）
+    _TYPE_WIDTHS = {
+        "布尔型": 1,
+        "字符型": 8,
+        "字节型": 8,
+        "整数型": 32,
+        "浮点型": 32,
+        "双精度浮点型": 64,
+    }
+
+    def _unify_binary_types(
+        self, left: Optional[IRValue], right: Optional[IRValue]
+    ) -> tuple:
+        """推断二元运算的结果类型，并将常量操作数修正为正确类型。
+
+        规则：
+        - 两个操作数都是整数系（布尔/字符/字节/整数），取更宽的类型
+        - 任一操作数是浮点系，取更宽的浮点类型
+        - 常量操作数的 ty 字段修正为统一后的类型
+
+        Returns:
+            (left, right, result_type_name) — 可能返回修正后的新 IRValue
+        """
+        if left is None or right is None:
+            return left, right, "整数型"
+
+        left_ty = getattr(left, "ty", None) or "整数型"
+        right_ty = getattr(right, "ty", None) or "整数型"
+
+        left_width = self._TYPE_WIDTHS.get(left_ty)
+        right_width = self._TYPE_WIDTHS.get(right_ty)
+
+        # 如果任一方不在宽度表中（如字符串型、数组型等），不处理
+        if left_width is None or right_width is None:
+            return left, right, left_ty
+
+        # 判断是否涉及浮点
+        float_types = {"浮点型", "双精度浮点型"}
+        left_is_float = left_ty in float_types
+        right_is_float = right_ty in float_types
+
+        if left_is_float or right_is_float:
+            # 浮点统一：取更宽的浮点类型
+            if left_ty == "双精度浮点型" or right_ty == "双精度浮点型":
+                unified_ty = "双精度浮点型"
+            else:
+                unified_ty = "浮点型"
+        else:
+            # 整数系统一：取更宽的类型
+            if left_width >= right_width:
+                unified_ty = left_ty
+            else:
+                unified_ty = right_ty
+
+        # 修正常量操作数的 ty
+        left = self._coerce_const_type(left, unified_ty)
+        right = self._coerce_const_type(right, unified_ty)
+
+        # 对非常量操作数，生成类型转换指令（ZEXT/SEXT/TRUNC）
+        left = self._emit_type_coercion(left, unified_ty)
+        right = self._emit_type_coercion(right, unified_ty)
+
+        return left, right, unified_ty
+
+    def _emit_type_coercion(self, val: IRValue, target_ty: str) -> IRValue:
+        """如果 val 是非常量且 ty 与 target_ty 不同，生成类型转换指令。
+
+        整数类型间：窄→宽用 SEXT（符号扩展），宽→窄用 TRUNC（截断）。
+        浮点类型间：由后端处理 fpext/fptrunc。
+        """
+        if val is None:
+            return val
+        kind = getattr(val, "kind", None)
+        # 常量已由 _coerce_const_type 处理
+        if kind == ValueKind.CONST:
+            return val
+        cur_ty = getattr(val, "ty", None)
+        if cur_ty == target_ty or cur_ty is None:
+            return val
+
+        # 检查类型宽度是否不同
+        cur_width = self._TYPE_WIDTHS.get(cur_ty)
+        target_width = self._TYPE_WIDTHS.get(target_ty)
+        if cur_width is None or target_width is None:
+            return val
+
+        if cur_width == target_width:
+            return val
+
+        # 生成转换指令
+        result = self._new_temp(target_ty)
+        # 创建一个仅携带目标类型的虚拟操作数，供后端 SextStrategy/TruncStrategy
+        # 通过 instr.operands[1] 获取目标 LLVM 类型
+        type_hint = IRValue(
+            target_ty, target_ty, ValueKind.CONST, const_value=target_ty
+        )
+        if cur_width < target_width:
+            # 窄→宽：符号扩展（SEXT）
+            self._emit(Opcode.SEXT, [val, type_hint], [result])
+        else:
+            # 宽→窄：截断（TRUNC）
+            self._emit(Opcode.TRUNC, [val, type_hint], [result])
+        return result
+
+    def _coerce_const_type(self, val: IRValue, target_ty: str) -> IRValue:
+        """如果 val 是常量且 ty 与 target_ty 不同，创建一个修正类型的 IRValue"""
+        if val is None:
+            return val
+        kind = getattr(val, "kind", None)
+        if kind != ValueKind.CONST:
+            return val
+        cur_ty = getattr(val, "ty", None)
+        if cur_ty == target_ty:
+            return val
+        # 常量类型需要修正 — 创建新的 IRValue
+        const_val = getattr(val, "const_value", None)
+        if const_val is None:
+            const_val = val.name
+        # 对于浮点系常量，确保 const_value 是浮点数
+        if target_ty in ("浮点型", "双精度浮点型"):
+            try:
+                const_val = float(const_val)
+            except (ValueError, TypeError):
+                const_val = 0.0
+        return IRValue(
+            str(const_val), target_ty, ValueKind.CONST, const_value=const_val
+        )
+
+    def _coerce_store_value(self, val: IRValue, target_ty: str) -> IRValue:
+        """STORE 前修正常量值类型。
+
+        当常量的 ty 与目标变量类型不一致时（如 整数型常量 存入 字符型变量），
+        修正常量的 ty 为目标类型，确保后端生成正确的 LLVM 常量。
+        """
+        if val is None:
+            return val
+        if getattr(val, "kind", None) != ValueKind.CONST:
+            return val
+        if getattr(val, "ty", None) == target_ty:
+            return val
+        return self._coerce_const_type(val, target_ty)
 
     def _eval_binary(self, node: ASTNode) -> Optional[IRValue]:
         """求值二元表达式"""
@@ -596,7 +743,24 @@ class IRGenerator(ASTVisitor):
             opcode = Opcode[opcode_name]
         except (KeyError, ValueError):
             opcode = Opcode.ADD
-        result = self._new_temp()
+
+        # 类型推断：统一操作数类型，修正常量 ty
+        left, right, result_ty = self._unify_binary_types(left, right)
+
+        # 比较运算结果类型固定为布尔型
+        if opcode in (
+            Opcode.EQ,
+            Opcode.NE,
+            Opcode.LT,
+            Opcode.LE,
+            Opcode.GT,
+            Opcode.GE,
+            Opcode.L_AND,
+            Opcode.L_OR,
+        ):
+            result_ty = "布尔型"
+
+        result = self._new_temp(result_ty)
         self._emit(opcode, [left, right], [result])
         return result
 
@@ -654,6 +818,9 @@ class IRGenerator(ASTVisitor):
                 if var_name in self.var_ptr_map:
                     ptr = self.var_ptr_map[var_name]
                     if value:
+                        # STORE 前修正常量类型，使 value 与目标变量类型匹配
+                        target_ty = getattr(ptr, "ty", None)
+                        value = self._coerce_store_value(value, target_ty)
                         self._emit(Opcode.STORE, [value, ptr])
                     return value
 

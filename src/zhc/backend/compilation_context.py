@@ -206,7 +206,10 @@ class TypeInfoRegistry:
         for idx_type in indices:
             # 解引用指针（兼容 opaque pointer）
             if isinstance(current_type, ll.PointerType):
-                if hasattr(current_type, "pointee") and current_type.pointee is not None:
+                if (
+                    hasattr(current_type, "pointee")
+                    and current_type.pointee is not None
+                ):
                     current_type = current_type.pointee
                 else:
                     # opaque pointer 模式下无法推断 pointee 类型
@@ -273,13 +276,15 @@ class CompilationContext:
         if isinstance(operand, str):
             # 【重要】数字常量检查必须优先！否则 '0' 会错误匹配 values['0']
             try:
-                return ll.Constant(ll.IntType(32), int(operand))
+                int_val = int(operand)
+                return ll.Constant(ll.IntType(32), int_val)
             except ValueError:
                 pass
 
             # 浮点数常量
             try:
-                return ll.Constant(ll.FloatType(), float(operand))
+                float_val = float(operand)
+                return ll.Constant(ll.FloatType(), float_val)
             except ValueError:
                 pass
 
@@ -293,7 +298,8 @@ class CompilationContext:
 
             # 检查是否是浮点数常量
             try:
-                return ll.Constant(ll.FloatType(), float(operand))
+                float_val = float(operand)
+                return ll.Constant(ll.FloatType(), float_val)
             except ValueError:
                 pass
 
@@ -309,6 +315,12 @@ class CompilationContext:
         # 如果是 IRValue 对象（如 GEP/LOAD 的 operand 是 IRValue）
         if hasattr(operand, "name"):
             name = operand.name
+
+            # 【重要】常量 IRValue 必须优先处理，避免 '0' 被回退匹配到 '%0'
+            if hasattr(operand, "kind") and hasattr(operand, "const_value"):
+                if operand.const_value is not None:
+                    return self._create_constant_from_irvalue(operand)
+
             # 优先精确查找（含 % 前缀，如 '%0'）
             if name in self.values:
                 return self.values[name]
@@ -319,19 +331,6 @@ class CompilationContext:
             if not name.startswith("%") and ("%" + name) in self.values:
                 return self.values["%" + name]
 
-            # 处理常量
-            if hasattr(operand, "kind") and hasattr(operand, "const_value"):
-                if operand.const_value is not None:
-                    try:
-                        return ll.Constant(ll.IntType(32), int(operand.const_value))
-                    except (ValueError, TypeError):
-                        try:
-                            return ll.Constant(
-                                ll.FloatType(), float(operand.const_value)
-                            )
-                        except (ValueError, TypeError):
-                            pass
-
             # 无法解析：name 不在 values 里，返回常量 0 而非返回 operand 本身
             return ll.Constant(ll.IntType(32), 0)
 
@@ -341,6 +340,47 @@ class CompilationContext:
 
         # 默认返回常量 0
         return ll.Constant(ll.IntType(32), 0)
+
+    def _create_constant_from_irvalue(self, operand) -> "ll.Value":
+        """
+        从 IRValue 常量创建正确类型的 LLVM 常量。
+
+        IR 生成器已在 _eval_binary 中修正常量的 ty 字段，
+        因此这里直接使用 IRValue.ty 即可获得正确类型。
+
+        Args:
+            operand: IRValue 对象，kind==CONST，const_value 非空
+
+        Returns:
+            ll.Constant: 正确类型的 LLVM 常量
+        """
+        import llvmlite.ir as ll
+
+        const_value = operand.const_value
+
+        # 使用 IRValue 的 ty 字段确定类型（IR 生成器已保证正确）
+        ty_name = getattr(operand, "ty", None)
+        if ty_name:
+            llvm_type = self.get_llvm_type(ty_name)
+            if isinstance(llvm_type, ll.IntType):
+                try:
+                    return ll.Constant(llvm_type, int(const_value))
+                except (ValueError, TypeError):
+                    return ll.Constant(llvm_type, 0)
+            if isinstance(llvm_type, (ll.FloatType, ll.DoubleType)):
+                try:
+                    return ll.Constant(llvm_type, float(const_value))
+                except (ValueError, TypeError):
+                    return ll.Constant(llvm_type, 0.0)
+
+        # fallback：根据值的格式推断类型
+        try:
+            val_str = str(const_value)
+            if "." in val_str or "f" in val_str.lower():
+                return ll.Constant(ll.FloatType(), float(const_value))
+            return ll.Constant(ll.IntType(32), int(const_value))
+        except (ValueError, TypeError):
+            return ll.Constant(ll.IntType(32), 0)
 
     def store_result(self, instr: "IRInstruction", value: "ll.Value") -> None:
         """
@@ -726,7 +766,10 @@ class CompilationContext:
 
             # 解引用当前类型（兼容 opaque pointer）
             if isinstance(current_type, ll.PointerType):
-                if hasattr(current_type, "pointee") and current_type.pointee is not None:
+                if (
+                    hasattr(current_type, "pointee")
+                    and current_type.pointee is not None
+                ):
                     current_type = current_type.pointee
                 else:
                     break
