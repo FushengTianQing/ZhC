@@ -615,6 +615,10 @@ class SemanticAnalyzer:
         # Phase 8: 检查是否是泛型类型，若是则注册到 GenericManager
         self._register_generic_type(node)
 
+        # Phase 5 T5: 如果是异常类，注册到 ExceptionRegistry
+        if node.is_exception_class:
+            self._register_exception_class(node)
+
     def _analyze_variable_decl(self, node: VariableDeclNode) -> None:
         """分析变量声明节点"""
         loc = self._node_location(node)
@@ -1671,6 +1675,40 @@ class SemanticAnalyzer:
         except Exception:
             # 泛型注册失败不影响主流程
             pass
+
+    def _register_exception_class(self, node: StructDeclNode) -> None:
+        """
+        注册异常类到 ExceptionRegistry（Phase 5 T5）
+
+        Args:
+            node: 结构体声明节点（is_exception_class=True）
+        """
+        try:
+            from zhc.exception import ExceptionRegistry, ExceptionType, ExceptionField
+
+            # 构建字段列表
+            fields = []
+            for member in node.members:
+                if hasattr(member, "name") and hasattr(member, "var_type"):
+                    field_type = self._get_type_name(member.var_type)
+                    fields.append(ExceptionField(member.name, field_type))
+
+            # 创建异常类型并注册
+            exc_type = ExceptionType(
+                name=node.name,
+                base_class=node.base_class or "异常",  # 默认继承自"异常"
+                fields=fields,
+                is_builtin=False,
+                description=f"用户定义的异常类: {node.name}",
+            )
+            ExceptionRegistry.instance().register(exc_type)
+        except Exception as e:
+            # 异常类注册失败不影响主流程
+            self._add_warning(
+                "异常类注册失败",
+                f"异常类 '{node.name}' 注册失败: {e}",
+                self._node_location(node),
+            )
 
     def _register_function_instance(self, instance) -> None:
         """

@@ -365,6 +365,8 @@ class Parser(GenericParserMixin):
             return self._dispatch_union_or_var()
         if self.match(TokenType.ENUM):
             return self._dispatch_enum_or_var()
+        if self.match(TokenType.EXCEPTION_CLASS):
+            return self._dispatch_exception_class_or_var()
 
         # --- 类型关键字：函数声明 vs 变量声明 ---
         if self.match(
@@ -428,6 +430,17 @@ class Parser(GenericParserMixin):
         else:
             self.advance()
             return self.parse_variable_decl()
+
+    def _dispatch_exception_class_or_var(self) -> Optional[ASTNode]:
+        """EXCEPTION_CLASS lookahead: 异常类定义 vs 变量声明"""
+        next_tok = self.peek_token(1)
+        next_next_tok = self.peek_token(2)
+        if next_tok.type == TokenType.IDENTIFIER and next_next_tok.type in (
+            TokenType.LBRACE,
+            TokenType.COLON,
+        ):
+            return self.parse_struct_decl(is_exception_class=True)
+        return self.parse_variable_decl()
 
     def _dispatch_func_or_var(self) -> Optional[ASTNode]:
         """类型关键字 lookahead: 函数声明 vs 变量声明"""
@@ -717,12 +730,24 @@ class Parser(GenericParserMixin):
             column=start_column,
         )
 
-    def parse_struct_decl(self) -> StructDeclNode:
+    def parse_struct_decl(self, is_exception_class: bool = False) -> StructDeclNode:
         """解析结构体声明"""
-        self.advance()  # 消耗 '结构体'
+        self.advance()  # 消耗 '结构体' 或 '异常类'
 
         name = self.current_token().value
         self.expect(TokenType.IDENTIFIER, "期望结构体名")
+
+        # 检查是否有继承语法: : 基类名
+        base_class = None
+        if self.match(TokenType.COLON):
+            self.advance()
+            # 下一个 token 应该是基类名
+            if self.match(TokenType.IDENTIFIER):
+                base_class = self.current_token().value
+            elif self.match(TokenType.EXCEPTION):
+                base_class = "异常"
+            else:
+                self.error("期望基类名")
 
         self.expect(TokenType.LBRACE, "期望 '{'")
 
@@ -741,6 +766,8 @@ class Parser(GenericParserMixin):
             members,
             self.tokens[self.pos - 1].line,
             self.tokens[self.pos - 1].column,
+            base_class=base_class,
+            is_exception_class=is_exception_class,
         )
 
     def parse_union_decl(self) -> UnionDeclNode:

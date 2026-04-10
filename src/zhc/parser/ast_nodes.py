@@ -421,11 +421,19 @@ class StructDeclNode(ASTNode):
     """结构体声明节点"""
 
     def __init__(
-        self, name: str, members: List[ASTNode], line: int = 0, column: int = 0
+        self,
+        name: str,
+        members: List[ASTNode],
+        line: int = 0,
+        column: int = 0,
+        base_class: Optional[str] = None,
+        is_exception_class: bool = False,
     ):
         super().__init__(ASTNodeType.STRUCT_DECL, line, column)
         self.name = name
         self.members = members
+        self.base_class = base_class  # 继承的基类名
+        self.is_exception_class = is_exception_class  # 是否为异常类
         self._set_parent_list(members)
 
     def accept(self, visitor: "ASTVisitor") -> Any:

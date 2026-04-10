@@ -179,6 +179,7 @@ class TokenType(Enum):
     FINALLY = auto()  # 最终
     THROW = auto()  # 抛出
     EXCEPTION = auto()  # 异常
+    EXCEPTION_CLASS = auto()  # 异常类
 
     # 特殊
     EOF = auto()  # 文件结束
@@ -334,6 +335,7 @@ class Lexer:
         "最终": TokenType.FINALLY,
         "抛出": TokenType.THROW,
         "异常": TokenType.EXCEPTION,
+        "异常类": TokenType.EXCEPTION_CLASS,
     }
 
     def __init__(self, source: str):
