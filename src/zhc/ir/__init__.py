@@ -73,6 +73,16 @@ from .register_allocator import (
     GraphColorRegisterAllocator,
     simple_allocate,
 )
+from .exception import (
+    IRCatchHandler,
+    IRTryBlock,
+    IRThrow,
+    IRExceptionContext,
+    IRLandingPad,
+    IRInvoke,
+    ExceptionTableEntry,
+    ExceptionTable,
+)
 
 __all__ = [
     # Symbol 系统
@@ -150,4 +160,13 @@ __all__ = [
     "LinearScanRegisterAllocator",
     "GraphColorRegisterAllocator",
     "simple_allocate",
+    # 异常处理
+    "IRCatchHandler",
+    "IRTryBlock",
+    "IRThrow",
+    "IRExceptionContext",
+    "IRLandingPad",
+    "IRInvoke",
+    "ExceptionTableEntry",
+    "ExceptionTable",
 ]

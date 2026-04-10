@@ -81,6 +81,14 @@ class Opcode(Enum):
     INT2PTR = ("int2ptr", "转换", "整数到指针", False, True)  # 整数转指针
     PTR2INT = ("ptr2int", "转换", "指针到整数", False, True)  # 指针转整数
 
+    # ========== 异常处理 ==========
+    TRY = ("try", "异常处理", "尝试块", False, False)  # try 块开始
+    CATCH = ("catch", "异常处理", "捕获块", True, False)  # catch 处理器
+    THROW = ("throw", "异常处理", "抛出异常", True, False)  # 抛出异常
+    RESUME = ("resume", "异常处理", "恢复异常", True, False)  # 恢复异常
+    LANDINGPAD = ("landingpad", "异常处理", "着陆垫", False, True)  # landingpad 指令
+    INVOKE = ("invoke", "异常处理", "调用并捕获", False, True)  # 调用并设置异常处理
+
     # ========== 其他 ==========
     CONST = ("const", "其他", "常量", False, True)  # 常量值
     NOP = ("nop", "其他", "空操作", False, False)  # 空操作

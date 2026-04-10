@@ -173,6 +173,13 @@ class TokenType(Enum):
     PROMISE = auto()  # 承诺
     YIELD = auto()  # 让出
 
+    # 异常处理关键字
+    TRY = auto()  # 尝试
+    CATCH = auto()  # 捕获
+    FINALLY = auto()  # 最终
+    THROW = auto()  # 抛出
+    EXCEPTION = auto()  # 异常
+
     # 特殊
     EOF = auto()  # 文件结束
     UNKNOWN = auto()  # 未知字符
@@ -321,6 +328,12 @@ class Lexer:
         "任务": TokenType.TASK,
         "承诺": TokenType.PROMISE,
         "让出": TokenType.YIELD,
+        # 异常处理关键字
+        "尝试": TokenType.TRY,
+        "捕获": TokenType.CATCH,
+        "最终": TokenType.FINALLY,
+        "抛出": TokenType.THROW,
+        "异常": TokenType.EXCEPTION,
     }
 
     def __init__(self, source: str):

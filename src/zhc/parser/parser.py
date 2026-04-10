@@ -994,6 +994,14 @@ class Parser(GenericParserMixin):
         if self.match(TokenType.GOTO):
             return self.parse_goto_stmt()
 
+        # 尝试语句 (try-catch-finally)
+        if self.match(TokenType.TRY):
+            return self.parse_try_stmt()
+
+        # 抛出语句 (throw)
+        if self.match(TokenType.THROW):
+            return self.parse_throw_stmt()
+
         # Phase 6 T1.3: 标签检测（标识符 + 冒号）
         if (
             self.match(TokenType.IDENTIFIER)
@@ -1300,6 +1308,142 @@ class Parser(GenericParserMixin):
             self.advance()
 
         return GotoStmtNode(label_token.value, goto_token.line, goto_token.column)
+
+    def parse_try_stmt(self) -> TryStmtNode:
+        """解析尝试语句 (try-catch-finally)
+
+        语法:
+            尝试 {
+                // 可能抛出异常的代码
+            } 捕获 (异常类型 变量) {
+                // 处理异常
+            } 捕获 (其他异常类型 变量) {
+                // 处理其他异常
+            } 默认 {
+                // 处理其他所有异常
+            } 最终 {
+                // 清理代码
+            }
+        """
+        try_token = self.current_token()
+        self.advance()  # 消耗 '尝试'
+
+        # 解析 try 块主体
+        self.expect(TokenType.LBRACE, "期望 '{' 开始 try 块")
+        try_body = self.parse_block()
+
+        # 解析 catch 子句列表
+        catch_clauses = []
+        while self.match(TokenType.CATCH) or self.match(TokenType.DEFAULT):
+            catch_clause = self.parse_catch_clause()
+            catch_clauses.append(catch_clause)
+
+        # 解析 finally 子句（可选）
+        finally_clause = None
+        if self.match(TokenType.FINALLY):
+            finally_clause = self.parse_finally_clause()
+
+        return TryStmtNode(
+            try_body,
+            catch_clauses,
+            finally_clause,
+            try_token.line,
+            try_token.column,
+        )
+
+    def parse_catch_clause(self) -> CatchClauseNode:
+        """解析捕获子句
+
+        语法:
+            捕获 (异常类型 变量) {
+                // 处理代码
+            }
+            或
+            捕获 {
+                // 默认捕获（无异常类型和变量）
+            }
+        """
+        catch_token = self.current_token()
+        self.advance()  # 消耗 '捕获'
+
+        exception_type = None
+        variable_name = None
+        is_default = False
+
+        # 检查是否有捕获参数 (异常类型 变量)
+        if self.match(TokenType.LPAREN):
+            self.advance()  # 消耗 '('
+
+            # 解析异常类型（可选，如果无则为默认捕获）
+            if self.match(TokenType.IDENTIFIER):
+                type_token = self.advance()
+                exception_type = type_token.value
+
+                # 解析变量名
+                if self.match(TokenType.IDENTIFIER):
+                    var_token = self.advance()
+                    variable_name = var_token.value
+
+            self.expect(TokenType.RPAREN, "期望 ')' 结束 catch 参数")
+
+        if exception_type is None:
+            is_default = True  # 无异常类型表示默认捕获
+
+        # 解析 catch 块主体
+        self.expect(TokenType.LBRACE, "期望 '{' 开始 catch 块")
+        catch_body = self.parse_block()
+
+        return CatchClauseNode(
+            exception_type,
+            variable_name,
+            catch_body,
+            is_default,
+            catch_token.line,
+            catch_token.column,
+        )
+
+    def parse_finally_clause(self) -> FinallyClauseNode:
+        """解析最终子句
+
+        语法:
+            最终 {
+                // 清理代码，始终执行
+            }
+        """
+        finally_token = self.current_token()
+        self.advance()  # 消耗 '最终'
+
+        # 解析 finally 块主体
+        self.expect(TokenType.LBRACE, "期望 '{' 开始 finally 块")
+        finally_body = self.parse_block()
+
+        return FinallyClauseNode(finally_body, finally_token.line, finally_token.column)
+
+    def parse_throw_stmt(self) -> ThrowStmtNode:
+        """解析抛出语句
+
+        语法:
+            抛出 表达式;
+            抛出 "错误消息";
+        """
+        throw_token = self.current_token()
+        self.advance()  # 消耗 '抛出'
+
+        exception = None
+        message = ""
+
+        # 如果后面是字符串字面量，则作为消息处理
+        if self.match(TokenType.STRING_LITERAL):
+            message = self.advance().value
+        else:
+            # 解析异常表达式
+            exception = self.parse_expression()
+
+        # 期望 ';'
+        if self.match(TokenType.SEMICOLON):
+            self.advance()
+
+        return ThrowStmtNode(exception, message, throw_token.line, throw_token.column)
 
     def parse_expr_stmt(self) -> ExprStmtNode:
         """解析表达式语句"""

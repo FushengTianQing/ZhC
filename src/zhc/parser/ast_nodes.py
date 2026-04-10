@@ -56,6 +56,10 @@ class ASTNodeType(Enum):
     EXPR_STMT = auto()  # 表达式语句
     GOTO_STMT = auto()  # 去向语句
     LABEL_STMT = auto()  # 标签语句
+    TRY_STMT = auto()  # 尝试语句
+    CATCH_CLAUSE = auto()  # 捕获子句
+    FINALLY_CLAUSE = auto()  # 最终子句
+    THROW_STMT = auto()  # 抛出语句
 
     # 表达式
     BINARY_EXPR = auto()  # 二元表达式
@@ -900,6 +904,136 @@ class LabelStmtNode(ASTNode):
     def get_hash(self) -> str:
         content = f"{self.node_type.name}:name:{self.name}"
         return hashlib.md5(content.encode("utf-8")).hexdigest()
+
+
+# ============================================================================
+# 异常处理节点
+# ============================================================================
+
+
+class TryStmtNode(ASTNode):
+    """尝试语句节点
+
+    语法:
+        尝试 {
+            // 可能抛出异常的代码
+        } 捕获 (异常类型 变量) {
+            // 处理异常
+        } 默认 {
+            // 处理其他异常
+        } 最终 {
+            // 清理代码
+        }
+    """
+
+    def __init__(
+        self,
+        body: ASTNode,
+        catch_clauses: List["CatchClauseNode"],
+        finally_clause: Optional["FinallyClauseNode"],
+        line: int = 0,
+        column: int = 0,
+    ):
+        super().__init__(ASTNodeType.TRY_STMT, line, column)
+        self.body = body  # try 块主体
+        self.catch_clauses = catch_clauses  # catch 子句列表
+        self.finally_clause = finally_clause  # finally 子句（可选）
+        self._set_parent(body)
+        self._set_parent_list(catch_clauses)
+        if finally_clause:
+            self._set_parent(finally_clause)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_try_stmt(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        children = [self.body]
+        children.extend(self.catch_clauses)
+        if self.finally_clause:
+            children.append(self.finally_clause)
+        return children
+
+
+class CatchClauseNode(ASTNode):
+    """捕获子句节点
+
+    语法:
+        捕获 (异常类型 变量) {
+            // 处理代码
+        }
+    """
+
+    def __init__(
+        self,
+        exception_type: Optional[str],
+        variable_name: Optional[str],
+        body: ASTNode,
+        is_default: bool = False,
+        line: int = 0,
+        column: int = 0,
+    ):
+        super().__init__(ASTNodeType.CATCH_CLAUSE, line, column)
+        self.exception_type = exception_type  # 异常类型（None 表示默认捕获）
+        self.variable_name = variable_name  # 异常变量名
+        self.body = body  # 处理代码块
+        self.is_default = is_default  # 是否为默认捕获（默认）
+        self._set_parent(body)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_catch_clause(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        return [self.body]
+
+
+class FinallyClauseNode(ASTNode):
+    """最终子句节点
+
+    语法:
+        最终 {
+            // 清理代码，始终执行
+        }
+    """
+
+    def __init__(self, body: ASTNode, line: int = 0, column: int = 0):
+        super().__init__(ASTNodeType.FINALLY_CLAUSE, line, column)
+        self.body = body  # 清理代码块
+        self._set_parent(body)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_finally_clause(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        return [self.body]
+
+
+class ThrowStmtNode(ASTNode):
+    """抛出语句节点
+
+    语法:
+        抛出 表达式;
+        抛出 "错误消息";
+    """
+
+    def __init__(
+        self,
+        exception: Optional[ASTNode],
+        message: str = "",
+        line: int = 0,
+        column: int = 0,
+    ):
+        super().__init__(ASTNodeType.THROW_STMT, line, column)
+        self.exception = exception  # 异常对象（可以是表达式或标识符）
+        self.message = message  # 异常消息
+        self._set_parent(exception)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_throw_stmt(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        if self.exception:
+            return [self.exception]
+        return []
 
 
 # ============================================================================

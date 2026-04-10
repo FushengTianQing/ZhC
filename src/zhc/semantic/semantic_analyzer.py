@@ -45,6 +45,10 @@ from ..parser.ast_nodes import (
     MemberExprNode,
     IdentifierExprNode,
     AutoTypeNode,
+    TryStmtNode,
+    CatchClauseNode,
+    FinallyClauseNode,
+    ThrowStmtNode,
 )
 
 
@@ -260,6 +264,7 @@ class SemanticAnalyzer:
         self.current_struct: Optional[Symbol] = None
         self.in_loop: bool = False
         self.in_switch: bool = False  # Phase 6: switch 内 break 合法
+        self.in_try: bool = False  # Phase 5: try-catch 内异常处理
         self.source_file: str = ""  # 源文件路径（Phase 5 T1.1）
 
         # Phase 5 T2.2: 类型检查器
@@ -450,6 +455,14 @@ class SemanticAnalyzer:
             self._analyze_goto_stmt(node)
         elif nt == ASTNodeType.LABEL_STMT:
             self._analyze_label_stmt(node)
+        elif nt == ASTNodeType.TRY_STMT:
+            self._analyze_try_stmt(node)
+        elif nt == ASTNodeType.CATCH_CLAUSE:
+            self._analyze_catch_clause(node)
+        elif nt == ASTNodeType.FINALLY_CLAUSE:
+            self._analyze_finally_clause(node)
+        elif nt == ASTNodeType.THROW_STMT:
+            self._analyze_throw_stmt(node)
         elif nt in (ASTNodeType.CASE_STMT, ASTNodeType.DEFAULT_STMT):
             # case/default 语句：递归分析子节点
             for child in node.get_children():
@@ -1244,6 +1257,101 @@ class SemanticAnalyzer:
             )
 
         self.in_switch = old_in_switch
+
+    def _analyze_try_stmt(self, node: TryStmtNode) -> None:
+        """分析尝试语句
+
+        检查：
+        1. catch 子句类型匹配
+        2. 异常变量的作用域
+        3. finally 块的清理逻辑
+        """
+        old_in_try = self.in_try
+        self.in_try = True
+
+        # 分析 try 块
+        if node.body:
+            self._analyze_node(node.body)
+
+        # 分析 catch 子句
+        seen_exception_types: Set[str] = set()
+        for catch_clause in node.catch_clauses:
+            self._analyze_node(catch_clause)
+
+            # 检查 catch 子句类型重复
+            if catch_clause.exception_type and not catch_clause.is_default:
+                exc_type = catch_clause.exception_type
+                if exc_type in seen_exception_types:
+                    self._add_error(
+                        "重复 catch",
+                        f"catch 子句异常类型 '{exc_type}' 重复",
+                        self._node_location(catch_clause),
+                    )
+                seen_exception_types.add(exc_type)
+
+        # 分析 finally 块
+        if node.finally_clause:
+            self._analyze_node(node.finally_clause)
+
+        self.in_try = old_in_try
+
+    def _analyze_catch_clause(self, node: CatchClauseNode) -> None:
+        """分析捕获子句"""
+        # 为异常变量创建作用域
+        self.symbol_table.enter_scope(ScopeType.BLOCK, "catch_clause")
+
+        # 如果有异常变量，注册到符号表
+        if node.variable_name and node.exception_type:
+            exc_symbol = Symbol(
+                name=node.variable_name,
+                symbol_type="变量",
+                data_type=node.exception_type,
+                is_defined=True,
+            )
+            self.symbol_table.add_symbol(exc_symbol)
+
+        # 分析 catch 块体
+        if node.body:
+            self._analyze_node(node.body)
+
+        self.symbol_table.exit_scope()
+
+    def _analyze_finally_clause(self, node: FinallyClauseNode) -> None:
+        """分析最终子句
+
+        警告：如果 finally 块中有 return 语句
+        """
+        if node.body:
+            self._analyze_node(node.body)
+
+            # 检查 finally 中的 return 语句
+            self._check_finally_return(node)
+
+    def _analyze_throw_stmt(self, node: ThrowStmtNode) -> None:
+        """分析抛出语句
+
+        检查：
+        1. throw 语句不在 try 块外部（允许但会终止程序）
+        2. 异常表达式类型有效
+        """
+        if node.exception:
+            self._analyze_node(node.exception)
+        # throw 可以在任何地方使用，不强制要求在 try 中
+        # 语义分析阶段不报错，只在代码生成阶段处理
+
+    def _check_finally_return(self, node: FinallyClauseNode) -> None:
+        """检查 finally 块中的 return 语句（警告）"""
+        if not node.body or not hasattr(node.body, "statements"):
+            return
+
+        for stmt in node.body.statements:
+            if stmt.node_type == ASTNodeType.RETURN_STMT:
+                self._add_warning(
+                    "finally 中返回",
+                    "finally 块中的 return 语句可能阻止异常传播",
+                    self._node_location(stmt),
+                    suggestions=["考虑移除 finally 块中的 return 语句"],
+                )
 
     def _get_case_value_str(self, value_node: ASTNode) -> Optional[str]:
         """获取 case 值的字符串表示（用于重复检测）"""
