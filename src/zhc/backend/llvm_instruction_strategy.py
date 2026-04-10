@@ -834,7 +834,7 @@ class AdvancedGEPInstruction(InstructionStrategy):
 
         for field_name in fields:
             if current_type is None:
-                logger.warning(f"无法推断类型，使用索引 0")
+                logger.warning("无法推断类型，使用索引 0")
                 indices.append(ll.Constant(ll.IntType(32), 0))
                 continue
 
@@ -1137,6 +1137,186 @@ class CallStrategy(InstructionStrategy):
                 return ptr
 
         return value
+
+
+# ============================================================================
+# 异常处理策略
+# ============================================================================
+
+
+class InvokeStrategy(InstructionStrategy):
+    """
+    invoke 指令策略 - 调用函数并设置异常处理
+
+    使用方式：
+        %result = invoke @callee(args) to label %normal_dest unwind label %unwind_dest
+
+    INVOKE 是带异常处理的函数调用：
+    - 正常返回时跳转到 normal_dest
+    - 异常时跳转到 unwind_dest（通常是 landingpad 块）
+    """
+
+    opcode = Opcode.INVOKE
+
+    def compile(self, builder, instr, context):
+        callee_name = str(instr.operands[0])
+        args = [context.get_value(a) for a in instr.operands[1:]]
+
+        # 获取目标块
+        normal_label = str(instr.operands[-2]) if len(instr.operands) >= 2 else None
+        unwind_label = str(instr.operands[-1]) if instr.operands else None
+
+        result_name = context.get_result_name(instr)
+
+        # 查找函数
+        callee_func = context.get_function(callee_name)
+        if not callee_func:
+            import llvmlite.ir as ll
+
+            arg_types = [arg.type for arg in args]
+            func_ty = ll.FunctionType(ll.IntType(32), arg_types)
+            callee_func = ll.Function(context.module, func_ty, callee_name)
+
+        # 获取目标块
+        normal_block = context.get_block(normal_label) if normal_label else None
+        unwind_block = context.get_block(unwind_label) if unwind_label else None
+
+        if normal_block and unwind_block:
+            result = builder.invoke(
+                callee_func, args, normal_block, unwind_block, name=result_name or ""
+            )
+            if result and result_name:
+                context.store_result(instr, result)
+            return result
+
+        # 如果没有目标块，回退到普通调用
+        result = builder.call(callee_func, args, name=result_name or "")
+        if result and result_name:
+            context.store_result(instr, result)
+        return result
+
+
+class LandingPadStrategy(InstructionStrategy):
+    """
+    landingpad 指令策略 - 异常分发指令
+
+    使用方式：
+        %result = landingpad i8* personality @__zhc_personality
+                 catch i8* @exc_type_info
+                 filter [1 x i8*] @filter_array
+
+    landingpad 从栈展开中接收异常信息并分发到适当的 catch 处理器。
+    """
+
+    opcode = Opcode.LANDINGPAD
+
+    def compile(self, builder, instr, context):
+        import llvmlite.ir as ll
+
+        result_name = context.get_result_name(instr)
+
+        # 获取结果类型（通常是 i8*）
+        result_type = ll.IntType(8).as_pointer()
+        personality_name = "__zhc_personality"
+
+        # 查找 personality 函数
+        personality_func = None
+        if context.module:
+            for func in context.module.functions:
+                if func.name == personality_name:
+                    personality_func = func
+                    break
+
+        if not personality_func:
+            personality_ty = ll.FunctionType(ll.IntType(32), [])
+            personality_func = ll.Function(
+                context.module, personality_ty, personality_name
+            )
+
+        # 创建 landingpad
+        # llvmlite 的 builder.landingpad() 会自动将指令追加到当前块
+        landingpad_result = builder.landingpad(
+            result_type, personality_func, name=result_name or ""
+        )
+
+        # 存储结果
+        if result_name:
+            context.store_result(instr, landingpad_result)
+
+        return landingpad_result
+
+
+class ResumeStrategy(InstructionStrategy):
+    """
+    resume 指令策略 - 恢复异常
+
+    使用方式：
+        resume %landingpad_result
+
+    将异常重新抛出给上层处理器。
+    """
+
+    opcode = Opcode.RESUME
+
+    def compile(self, builder, instr, context):
+        if instr.operands:
+            lp_value = context.get_value(instr.operands[0])
+            builder.resume(lp_value)
+        else:
+            builder.resume(None)
+        return None
+
+
+class ThrowStrategy(InstructionStrategy):
+    """
+    throw 指令策略 - 抛出异常
+
+    使用方式：
+        throw
+        throw @exception_obj
+
+    抛出异常到上层处理器。
+    """
+
+    opcode = Opcode.THROW
+
+    def compile(self, builder, instr, context):
+        if instr.operands:
+            exc_value = context.get_value(instr.operands[0])
+            builder.throw(exc_value)
+        else:
+            builder.throw(None)
+        return None
+
+
+class TryStrategy(InstructionStrategy):
+    """
+    try 块标记策略 - 标记 try 块的开始
+
+    try 块本身不生成代码，只是作为一个标记。
+    实际的异常处理由 INVOKE/LANDINGPAD/CATCH 等指令处理。
+    """
+
+    opcode = Opcode.TRY
+
+    def compile(self, builder, instr, context):
+        # try 块只是标记，不生成代码
+        return None
+
+
+class CatchStrategy(InstructionStrategy):
+    """
+    catch 块标记策略 - 标记 catch 处理器的开始
+
+    catch 块本身不生成代码，只是作为一个标记。
+    实际的异常处理由 landingpad 后的分发逻辑处理。
+    """
+
+    opcode = Opcode.CATCH
+
+    def compile(self, builder, instr, context):
+        # catch 块只是标记，不生成代码
+        return None
 
 
 class LogicalStrategy(InstructionStrategy):
@@ -1583,6 +1763,13 @@ class InstructionStrategyFactory:
         SwitchStrategy,
         PhiStrategy,
         CallStrategy,
+        # 异常处理
+        InvokeStrategy,
+        LandingPadStrategy,
+        ResumeStrategy,
+        ThrowStrategy,
+        TryStrategy,
+        CatchStrategy,
         # 内存操作
         AllocStrategy,
         LoadStrategy,
