@@ -374,11 +374,10 @@ class LLVMBackend(BackendBase):
         # 创建函数
         llvm_func = ll.Function(self.module, func_ty, func.name)
 
-        # 设置参数名并映射到 context.values
+        # 设置参数名（提前映射，映射到 llvm_arg 本身，供 GEP 等指令直接使用）
         for i, param in enumerate(func.params):
             llvm_arg = llvm_func.args[i]
             llvm_arg.name = param.name
-            # 将参数映射到 values（使用 %N 格式的临时变量名）
             self.context.values[param.name] = llvm_arg
 
         # TASK-P3-003：应用优化提示
@@ -398,6 +397,21 @@ class LLVMBackend(BackendBase):
         for bb in func.basic_blocks:
             block = llvm_func.append_basic_block(bb.label)
             self.context.blocks[bb.label] = block
+
+        # 函数参数的 alloca/store：参数已是 llvm_arg，后续 IR load 会报错；
+        # 故在入口基本块的最前面插入 alloca/store，把参数存到栈上，
+        # 并将参数名映射到 alloca 指针。这样 load %argName 就能正常工作。
+        if func.params and func.basic_blocks:
+            entry_bb_label = func.basic_blocks[0].label
+            entry_block = self.context.blocks[entry_bb_label]
+            builder = ll.IRBuilder(entry_block)
+            builder.position_at_start(entry_block)  # alloca 在基本块最前面
+            for param in func.params:
+                param_ty = self._get_llvm_type(param.ty or "i32")
+                addr_ptr = builder.alloca(param_ty, name=f"{param.name}.addr")
+                builder.store(self.context.values[param.name], addr_ptr)
+                # 覆盖映射：参数名现在指向栈槽指针，load %name → 从栈槽加载
+                self.context.values[param.name] = addr_ptr
 
         # 然后编译每个基本块的指令
         for bb in func.basic_blocks:
