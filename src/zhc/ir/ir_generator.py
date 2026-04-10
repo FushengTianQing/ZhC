@@ -67,6 +67,10 @@ from zhc.parser.ast_nodes import (
     ArrayTypeNode,
     FunctionTypeNode,
     StructTypeNode,
+    TryStmtNode,
+    CatchClauseNode,
+    FinallyClauseNode,
+    ThrowStmtNode,
 )
 
 from zhc.ir.program import IRProgram, IRFunction, IRStructDef, IRGlobalVar
@@ -1461,4 +1465,211 @@ class IRGenerator(ASTVisitor):
 
     def visit_struct_type(self, node: StructTypeNode):
         """结构体类型"""
+        pass
+
+    # ========== P5: 异常处理 ==========
+
+    def visit_try_stmt(self, node: TryStmtNode):
+        """try 语句 → 生成异常处理 IR
+
+        生成结构：
+        1. try_body 块：执行可能抛出异常的代码
+        2. landingpad 块：异常分发
+        3. catch 块：处理特定类型异常
+        4. finally 块（如果有）：清理代码
+
+        try 块使用 INVOKE 指令包装可能抛出异常的函数调用，
+        正常返回时跳转到下一个块，异常时跳转到 landingpad。
+        """
+        self._ensure_block()
+
+        # 创建异常处理所需的基本块
+        try_label = self._new_bb_label("try")
+        landingpad_label = self._new_bb_label("landingpad")
+        catch_labels = []
+        finally_label = self._new_bb_label("finally") if node.finally_clause else None
+        merge_label = self._new_bb_label("try_merge")
+
+        # 创建基本块
+        try_bb = IRBasicBlock(try_label)
+        landingpad_bb = IRBasicBlock(landingpad_label)
+        self.current_function.basic_blocks.append(try_bb)
+        self.current_function.basic_blocks.append(landingpad_bb)
+
+        # 为每个 catch clause 创建基本块
+        for i, catch_clause in enumerate(node.catch_clauses):
+            catch_label = self._new_bb_label(f"catch_{i}")
+            catch_bb = IRBasicBlock(catch_label)
+            self.current_function.basic_blocks.append(catch_bb)
+            catch_labels.append(catch_label)
+            catch_clause._target_label = catch_label
+
+        # 创建 finally 块
+        if finally_label:
+            finally_bb = IRBasicBlock(finally_label)
+            self.current_function.basic_blocks.append(finally_bb)
+
+        # 创建 merge 块
+        merge_bb = IRBasicBlock(merge_label)
+        self.current_function.basic_blocks.append(merge_bb)
+
+        # 保存当前块，然后切换到 try 块
+        self._switch_block(try_bb)
+
+        # 生成 try body
+        old_try_context = getattr(self, "_try_context", None)
+        self._try_context = {
+            "landingpad_label": landingpad_label,
+            "catch_labels": catch_labels,
+            "finally_label": finally_label,
+            "merge_label": merge_label,
+            "exception_var": "__exception",
+        }
+
+        node.body.accept(self)
+
+        # try 块结束后跳转到 merge（如果没有异常）
+        if self.current_block and not self.current_block.is_terminated():
+            self._emit(Opcode.JMP, [merge_label])
+
+        self._try_context = old_try_context
+
+        # landingpad 块：接收异常
+        self._switch_block(landingpad_bb)
+
+        # 生成 landingpad 指令
+        lp_result = self._new_temp()
+        # 使用 LANDINGPAD 操作码
+        self._emit(Opcode.LANDINGPAD, [], [lp_result])
+
+        # 根据异常类型分发到对应的 catch 块
+        # 这里简化为直接跳转到第一个 catch 块（实际需要类型检查）
+        if catch_labels:
+            self._emit(Opcode.JMP, [catch_labels[0]])
+
+        # 生成 catch 块
+        for i, catch_clause in enumerate(node.catch_clauses):
+            self.current_function.basic_blocks[
+                self.current_function.basic_blocks.index(
+                    next(
+                        bb
+                        for bb in self.current_function.basic_blocks
+                        if bb.label == catch_labels[i]
+                    )
+                )
+            ]
+            self._switch_block(
+                next(
+                    bb
+                    for bb in self.current_function.basic_blocks
+                    if bb.label == catch_labels[i]
+                )
+            )
+            catch_clause.accept(self)
+
+            # catch 块结束后跳转到 finally 或 merge
+            if self.current_block and not self.current_block.is_terminated():
+                if finally_label:
+                    self._emit(Opcode.JMP, [finally_label])
+                else:
+                    self._emit(Opcode.JMP, [merge_label])
+
+        # 生成 finally 块
+        if finally_label and node.finally_clause:
+            self._switch_block(
+                next(
+                    bb
+                    for bb in self.current_function.basic_blocks
+                    if bb.label == finally_label
+                )
+            )
+            node.finally_clause.accept(self)
+
+            # finally 块结束后跳转到 merge
+            if self.current_block and not self.current_block.is_terminated():
+                self._emit(Opcode.JMP, [merge_label])
+
+        # 切换到 merge 块
+        self._switch_block(
+            next(
+                bb
+                for bb in self.current_function.basic_blocks
+                if bb.label == merge_label
+            )
+        )
+
+    def visit_throw_stmt(self, node: ThrowStmtNode):
+        """throw 语句 → 生成 throw IR
+
+        抛出异常时，需要：
+        1. 创建异常对象
+        2. 使用 RESUME 指令恢复异常（或通过 landingpad 分发）
+        """
+        self._ensure_block()
+
+        exception_value = None
+        if node.exception:
+            exception_value = self._eval_expr(node.exception)
+
+        # 使用 THROW 操作码发射 IR
+        if exception_value:
+            self._emit(Opcode.THROW, [exception_value])
+        else:
+            self._emit(Opcode.THROW)
+
+    def visit_catch_clause(self, node: CatchClauseNode):
+        """catch 子句 → 生成 catch 处理器 IR
+
+        catch 块负责：
+        1. 接收异常对象
+        2. 绑定到异常变量
+        3. 执行处理代码
+        """
+        self._ensure_block()
+
+        # 如果有异常变量，分配并存储
+        if node.variable_name:
+            # 分配异常变量
+            var_value = IRValue(name=node.variable_name, ty="i8*", kind=ValueKind.VAR)
+            alloc_result = self._new_temp("i8*")
+            self._emit(Opcode.ALLOC, [var_value], [alloc_result])
+
+            # 从当前上下文获取异常对象
+            if hasattr(self, "_try_context") and self._try_context:
+                exc_var = self._try_context.get("exception_var", "__exception")
+                exc_ptr = self.var_ptr_map.get(exc_var)
+                if exc_ptr:
+                    self._emit(Opcode.STORE, [exc_ptr, alloc_result])
+
+        # 生成 catch body
+        if node.body:
+            node.body.accept(self)
+
+    def visit_finally_clause(self, node: FinallyClauseNode):
+        """finally 子句 → 生成 finally 块 IR
+
+        finally 块始终执行，用于清理资源。
+        """
+        self._ensure_block()
+
+        # 生成 finally body
+        if node.body:
+            node.body.accept(self)
+
+    # ========== 宽字符/字符串支持（避免抽象类错误）==========
+
+    def visit_wide_char_literal(self, node):
+        """宽字符字面量"""
+        pass
+
+    def visit_wide_string_literal(self, node):
+        """宽字符串字面量"""
+        pass
+
+    def visit_wide_char_type(self, node):
+        """宽字符类型"""
+        pass
+
+    def visit_wide_string_type(self, node):
+        """宽字符串类型"""
         pass

@@ -1812,6 +1812,26 @@ class ASTVisitor(ABC):
     def visit_struct_init(self, node: "StructInitNode") -> Any:
         pass
 
+    @abstractmethod
+    def visit_try_stmt(self, node: "TryStmtNode") -> Any:
+        """try 语句"""
+        pass
+
+    @abstractmethod
+    def visit_throw_stmt(self, node: "ThrowStmtNode") -> Any:
+        """throw 语句"""
+        pass
+
+    @abstractmethod
+    def visit_catch_clause(self, node: "CatchClauseNode") -> Any:
+        """catch 子句"""
+        pass
+
+    @abstractmethod
+    def visit_finally_clause(self, node: "FinallyClauseNode") -> Any:
+        """finally 子句"""
+        pass
+
 
 class ASTPrinter(ASTVisitor):
     """AST打印器"""
