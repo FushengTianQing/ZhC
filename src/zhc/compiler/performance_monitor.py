@@ -35,10 +35,14 @@ except ImportError:
         def cpu_percent(self, interval=None):
             return 0.0
 
+    # 注意：Process lambda 需要接受可选参数（self 绑定方法和 pid 参数）
     psutil = type(
         "obj",
         (object,),
-        {"Process": lambda: MockProcess(), "cpu_percent": lambda interval: 0.0},
+        {
+            "Process": lambda pid=None: MockProcess(),
+            "cpu_percent": lambda interval: 0.0,
+        },
     )()
 
 

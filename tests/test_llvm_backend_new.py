@@ -225,15 +225,56 @@ class TestLLVMBackendError:
     """LLVMBackend 错误处理测试"""
 
     def test_missing_llvmlite(self):
-        """测试 llvmlite 未安装时的错误"""
-        # 这个测试检查当 llvmlite 不可用时是否有适当的错误处理
-        from zhc.backend import LLVM_BACKEND_AVAILABLE
+        """测试 llvmlite 未安装时的错误处理"""
+        import subprocess
+        import sys
 
-        if LLVM_BACKEND_AVAILABLE:
-            pytest.skip("llvmlite 已安装，跳过测试")
+        # 在子进程中测试，避免已缓存的模块干扰
+        code = """
+import sys
+import importlib.abc
 
-        # 如果 llvmlite 不可用，导入应该失败
-        # 这里不需要实际导入，因为 LLVM_BACKEND_AVAILABLE 已经告诉我们结果
+class BlockLlvmliteFinder(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path, target=None):
+        if fullname == 'llvmlite' or fullname.startswith('llvmlite.'):
+            raise ImportError(f'No module named {fullname}')
+        return None
+
+sys.meta_path.insert(0, BlockLlvmliteFinder())
+
+from zhc.backend import LLVMBackend, LLVMBackendError
+
+# 当 llvmlite 不可用时，LLVMBackend 类存在但实例化/使用应该失败
+try:
+    backend = LLVMBackend()
+    # 尝试使用后端，应该失败
+    from zhc.ir.program import IRProgram, IRFunction
+    from zhc.ir.instructions import IRBasicBlock, IRInstruction
+    from zhc.ir.opcodes import Opcode
+
+    ir = IRProgram()
+    func = IRFunction(name='test', return_type='整数型')
+    bb = IRBasicBlock(label='entry')
+    bb.instructions.append(IRInstruction(opcode=Opcode.RET, operands=['0']))
+    func.basic_blocks.append(bb)
+    ir.functions.append(func)
+
+    backend.compile_to_module(ir, 'test')
+    print('ERROR: LLVMBackend should have failed when llvmlite is not available')
+except (LLVMBackendError, AttributeError, TypeError, NameError) as e:
+    print(f'OK: LLVMBackend correctly fails without llvmlite: {type(e).__name__}: {e}')
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+        )
+        assert (
+            result.returncode == 0
+        ), f"子进程测试失败:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+        assert (
+            "OK:" in result.stdout
+        ), f"测试未通过:\nstdout: {result.stdout}\nstderr: {result.stderr}"
 
 
 class TestCompileToLLVM:

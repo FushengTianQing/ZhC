@@ -57,15 +57,11 @@ from .gcc_backend import GCCBackend
 from .clang_backend import ClangBackend
 
 # LLVM 后端（可选，需要 llvmlite）
-try:
-    from .llvm_backend import LLVMBackend, LLVMBackendError, compile_to_llvm
+# 注意：LLVMBackend 类定义在 try/except 外面，所以 import 永远成功
+# 需要检查 llvm_backend.LLVM_AVAILABLE 来判断 llvmlite 是否真正可用
+from .llvm_backend import LLVMBackend, LLVMBackendError, compile_to_llvm, LLVM_AVAILABLE
 
-    LLVM_BACKEND_AVAILABLE = True
-except ImportError:
-    LLVMBackend = None
-    LLVMBackendError = None
-    compile_to_llvm = None
-    LLVM_BACKEND_AVAILABLE = False
+LLVM_BACKEND_AVAILABLE = LLVM_AVAILABLE
 
 # WASM 后端（可选，需要 Emscripten）
 from .wasm_backend import WebAssemblyBackend, WASMCompileResult
