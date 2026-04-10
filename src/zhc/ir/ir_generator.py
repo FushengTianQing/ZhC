@@ -390,6 +390,8 @@ class IRGenerator(ASTVisitor):
         if node.value:
             result = self._eval_expr(node.value)
             if result:
+                # 将返回值强制转换为函数声明的返回类型
+                result = self._coerce_return_value(result)
                 self._emit(Opcode.RET, [result])
             else:
                 self._emit(Opcode.RET)
@@ -695,6 +697,23 @@ class IRGenerator(ASTVisitor):
         if getattr(val, "ty", None) == target_ty:
             return val
         return self._coerce_const_type(val, target_ty)
+
+    def _coerce_return_value(self, val: IRValue) -> IRValue:
+        """将返回值强制转换为函数声明的返回类型。
+
+        当返回表达式的类型与函数声明的返回类型不匹配时（如 i32 返回值赋给 i8 返回函数），
+        生成 TRUNC/ZEXT 指令进行类型转换。
+        """
+        if val is None or self.current_function is None:
+            return val
+
+        func_ret_ty = self.current_function.return_type
+        val_ty = getattr(val, "ty", None)
+        if val_ty == func_ret_ty:
+            return val
+
+        # 需要类型转换：生成 ZEXT/SEXT/TRUNC
+        return self._emit_type_coercion(val, func_ret_ty)
 
     def _eval_binary(self, node: ASTNode) -> Optional[IRValue]:
         """求值二元表达式"""
