@@ -1832,6 +1832,10 @@ class Parser(GenericParserMixin):
                         # 解析参数类型列表（支持可选参数名，如 整数型 a, 整数型 b）
                         param_types = []
                         while not self.match(TokenType.RPAREN) and not self.is_at_end():
+                            # 可变参数标记 '...'
+                            if self.match(TokenType.ELLIPSIS):
+                                self.advance()  # 消费 '...'
+                                break
                             param_types.append(self.parse_type())
                             # 用户可能写了参数名，静默跳过（不影响语义）
                             if self.match(TokenType.IDENTIFIER):

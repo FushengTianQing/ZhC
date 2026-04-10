@@ -256,8 +256,10 @@ def test_function_pointer_const():
 
 def test_function_pointer_variadic():
     """测试可变参数函数指针"""
-    # TODO: parser try_parse_function_pointer 未处理 ELLIPSIS，导致死循环
-    pytest.skip("可变参数函数指针解析存在死循环 Bug")
+    code = "整数型 (*处理器)(整数型, ...);"
+    parser = parse_code(code)
+    result = parser.parse_variable_decl()
+    assert isinstance(result, VariableDeclNode)
 
 
 def test_function_pointer_in_function_body():
