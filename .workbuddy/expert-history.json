@@ -77,7 +77,18 @@
         "usedAt": 1775806983832,
         "industryId": "all"
       }
+    ],
+    "778e93777e1a48fbbf26d0ebfc20ce0d": [
+      {
+        "expertId": "SeniorDeveloper",
+        "name": "Will",
+        "profession": "高级开发工程师",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/02-Engineering/SeniorDeveloper/SeniorDeveloper.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/02-Engineering/SeniorDeveloper/SeniorDeveloper_zh.md",
+        "usedAt": 1775814941375,
+        "industryId": "all"
+      }
     ]
   },
-  "lastUpdated": 1775810317977
+  "lastUpdated": 1775815074305
 }
