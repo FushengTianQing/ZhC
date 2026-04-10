@@ -138,30 +138,34 @@ def test_multiple_function_pointers():
 
 def test_function_pointer_array():
     """测试函数指针数组"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("函数指针数组语法暂未实现")
+    code = "整数型 (*arr[3])(整数型);"
+    parser = parse_code(code)
+    result = parser.parse_variable_decl()
+    assert isinstance(result, VariableDeclNode)
 
 
 def test_nested_function_pointer():
     """测试嵌套函数指针"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("嵌套函数指针语法暂未实现")
+    code = "整数型 (**pp)(整数型);"
+    parser = parse_code(code)
+    result = parser.parse_variable_decl()
+    assert isinstance(result, VariableDeclNode)
 
 
 def test_function_pointer_return_type():
     """测试函数指针返回类型"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("返回函数指针的函数语法暂未实现")
+    code = "整数型 (*返回回调())(整数型);"
+    parser = parse_code(code)
+    result = parser.parse()
+    assert result is not None
 
 
 def test_function_pointer_in_struct():
     """测试结构体中的函数指针"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("结构体中的函数指针语法暂未实现")
+    code = "结构体 回调表 { 整数型 (*处理)(整数型); };"
+    parser = parse_code(code)
+    result = parser.parse()
+    assert result is not None
 
 
 def test_function_pointer_comparison():
@@ -236,23 +240,24 @@ def test_function_pointer_with_multiple_types():
 
 def test_function_pointer_as_typedef():
     """测试函数指针类型定义"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("函数指针 typedef 语法暂未实现")
+    code = "类型定义 整数型 (*回调类型)(整数型);"
+    parser = parse_code(code)
+    result = parser.parse()
+    assert result is not None
 
 
 def test_function_pointer_const():
     """测试 const 函数指针"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("const 函数指针语法暂未实现")
+    code = "整数型 (*常量 回调)(整数型);"
+    parser = parse_code(code)
+    result = parser.parse()
+    assert result is not None
 
 
 def test_function_pointer_variadic():
     """测试可变参数函数指针"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("可变参数函数指针语法暂未实现")
+    # TODO: parser try_parse_function_pointer 未处理 ELLIPSIS，导致死循环
+    pytest.skip("可变参数函数指针解析存在死循环 Bug")
 
 
 def test_function_pointer_in_function_body():
@@ -308,9 +313,10 @@ def test_function_pointer_null_check():
 
 def test_function_pointer_as_struct_member():
     """测试函数指针作为结构体成员"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("结构体中的函数指针成员语法暂未实现")
+    code = "结构体 操作器 { 整数型 (*执行)(整数型, 整数型); };"
+    parser = parse_code(code)
+    result = parser.parse()
+    assert result is not None
 
 
 def test_function_pointer_callback_pattern():
@@ -335,58 +341,74 @@ def test_function_pointer_callback_pattern():
 
 def test_function_pointer_table():
     """测试函数指针表"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("函数指针表语法暂未实现")
+    code = "整数型 主函数() { 整数型 (*表[3])(整数型); 返回 0; }"
+    parser = parse_code(code)
+    result = parser.parse()
+    assert result is not None
 
 
 def test_function_pointer_with_default_param():
     """测试带默认参数的函数指针"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("函数指针默认参数语法暂未实现")
+    code = "整数型 回调(整数型 x = 0);"
+    parser = parse_code(code)
+    result = parser.parse()
+    assert result is not None
 
 
 def test_function_pointer_lambda():
     """测试 lambda 表达式赋值给函数指针"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("lambda 表达式语法暂未实现")
+    code = "返回 [](整数型 x) { 返回 x + 1; };"
+    parser = parse_code(code)
+    result = parser.parse_expression()
+    assert result is not None
 
 
 def test_function_pointer_stdlib():
     """测试标准库函数指针"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("标准库函数指针语法暂未实现")
+    code = "空型 排序(整数型 *arr, 整数型 n, 整数型 (*比较)(空型*, 空型*));"
+    parser = parse_code(code)
+    result = parser.parse()
+    assert result is not None
 
 
 def test_function_pointer_platform_specific():
     """测试平台特定的函数指针"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("平台特定函数指针语法暂未实现")
+    code = "整数型 (*平台回调)(整数型) 属性((平台特定));"
+    parser = parse_code(code)
+    result = parser.parse()
+    assert result is not None
 
 
 def test_function_pointer_error_handling():
     """测试函数指针错误处理"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("函数指针异常处理语法暂未实现")
+    code = """整数型 主函数() {
+    整数型 (*回调)(整数型) = 空指针;
+    尝试 {
+        回调(5);
+    } 捕获(异常) {
+        返回 -1;
+    }
+    返回 0;
+}"""
+    parser = parse_code(code)
+    result = parser.parse()
+    assert result is not None
 
 
 def test_function_pointer_thread_safety():
     """测试线程安全的函数指针"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("原子函数指针语法暂未实现")
+    code = "整数型 原子 (*回调)(整数型);"
+    parser = parse_code(code)
+    result = parser.parse()
+    assert result is not None
 
 
 def test_function_pointer_with_attributes():
     """测试带属性的函数指针"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("带属性的函数指针语法暂未实现")
+    code = "整数型 (*回调)(整数型) 属性((内联));"
+    parser = parse_code(code)
+    result = parser.parse()
+    assert result is not None
 
 
 def test_function_pointer_reflection():

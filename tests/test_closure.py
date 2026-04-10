@@ -226,13 +226,12 @@ class TestLambdaCompilation:
             返回 f();
         }
         """
-        try:
-            from zhc.compiler import compile
-
-            result = compile(source, backend="llvm", output_format="llvm_ir")
-            assert result is not None, "编译失败"
-        except Exception as e:
-            pytest.skip(f"编译器暂不支持: {e}")
+        lexer = Lexer(source)
+        tokens = lexer.tokenize()
+        parser = Parser(tokens)
+        result = parser.parse()
+        assert result is not None
+        assert len(result.declarations) > 0
 
 
 class TestClosurePatterns:
