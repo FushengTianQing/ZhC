@@ -417,6 +417,11 @@ class IRGenerator(ASTVisitor):
         "TERNARY_EXPR": "_eval_ternary",
         "CAST_EXPR": "_eval_cast",
         "LAMBDA_EXPR": "_eval_lambda",
+        "COROUTINE_DEF": "_eval_coroutine_def",
+        "AWAIT_EXPR": "_eval_await",
+        "CHANNEL_EXPR": "_eval_channel",
+        "SPAWN_EXPR": "_eval_spawn",
+        "YIELD_EXPR": "_eval_yield",
     }
 
     def _eval_expr(self, node: ASTNode) -> Optional[IRValue]:
@@ -871,6 +876,98 @@ class IRGenerator(ASTVisitor):
         self._emit(Opcode.LAMBDA, [], [result])
 
         return result
+
+    def _eval_coroutine_def(self, node) -> Optional[IRValue]:
+        """求值协程定义
+
+        协程定义创建一个协程函数。
+        目前生成占位指令。
+
+        Returns:
+            IRValue - 协程函数值
+        """
+        # TODO: 实际创建协程需要：
+        # 1. 为协程体创建一个内部函数
+        # 2. 设置协程入口点和恢复点
+        # 3. 创建协程上下文结构体
+
+        result = self._new_temp("函数型")
+        self._emit(Opcode.COROUTINE_CREATE, [], [result])
+        return result
+
+    def _eval_await(self, node) -> Optional[IRValue]:
+        """求值等待表达式
+
+        等待一个协程或任务完成。
+        目前生成占位指令。
+
+        Returns:
+            IRValue - 等待的结果值
+        """
+        # 获取要等待的表达式
+        expr = getattr(node, "expression", None)
+        expr_value = self._eval_expr(expr) if expr else None
+
+        result = self._new_temp("空型")
+        self._emit(Opcode.COROUTINE_AWAIT, [expr_value] if expr_value else [], [result])
+        return result
+
+    def _eval_channel(self, node) -> Optional[IRValue]:
+        """求值通道创建表达式
+
+        创建一个用于协程间通信的通道。
+        目前生成占位指令。
+
+        Returns:
+            IRValue - 通道值
+        """
+        # 获取元素类型
+        element_type = getattr(node, "element_type", None)
+        element_type_name = (
+            self._get_type_name(element_type) if element_type else "空型"
+        )
+
+        result = self._new_temp(f"通道型[{element_type_name}]")
+        self._emit(Opcode.CHANNEL_CREATE, [], [result])
+        return result
+
+    def _eval_spawn(self, node) -> Optional[IRValue]:
+        """求值启动协程表达式
+
+        启动一个新的协程。
+        目前生成占位指令。
+
+        Returns:
+            IRValue - 任务/协程 ID
+        """
+        # 获取要启动的协程
+        coroutine = getattr(node, "coroutine", None)
+        coroutine_value = self._eval_expr(coroutine) if coroutine else None
+
+        result = self._new_temp("任务型")
+        self._emit(
+            Opcode.COROUTINE_SPAWN,
+            [coroutine_value] if coroutine_value else [],
+            [result],
+        )
+        return result
+
+    def _eval_yield(self, node) -> Optional[IRValue]:
+        """求值让出表达式
+
+        协程主动让出执行权。
+        目前生成占位指令。
+
+        Returns:
+            None（yield 是终止指令）
+        """
+        # 获取让出的值
+        value = getattr(node, "value", None)
+        value_value = self._eval_expr(value) if value else None
+
+        # yield 是终止指令，跳转到协程的恢复点
+        self._emit(Opcode.COROUTINE_YIELD, [value_value] if value_value else [])
+        return None
 
     def visit_binary_expr(self, node: BinaryExprNode):
         """二元表达式"""

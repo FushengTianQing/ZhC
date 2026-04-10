@@ -50,6 +50,11 @@ from ..parser.ast_nodes import (
     FinallyClauseNode,
     ThrowStmtNode,
     LambdaExprNode,
+    CoroutineDefNode,
+    AwaitExprNode,
+    ChannelExprNode,
+    SpawnExprNode,
+    YieldExprNode,
 )
 from ..exception import (
     ExceptionRegistry,
@@ -509,6 +514,20 @@ class SemanticAnalyzer:
             # 复合表达式/初始化：递归分析子节点
             for child in node.get_children():
                 self._analyze_node(child)
+
+        # 协程/异步表达式
+        elif nt == ASTNodeType.COROUTINE_DEF:
+            self._analyze_coroutine_def(node)
+        elif nt == ASTNodeType.AWAIT_EXPR:
+            self._analyze_await_expr(node)
+        elif nt == ASTNodeType.CHANNEL_EXPR:
+            self._analyze_channel_expr(node)
+        elif nt == ASTNodeType.SPAWN_EXPR:
+            self._analyze_spawn_expr(node)
+        elif nt == ASTNodeType.YIELD_EXPR:
+            self._analyze_yield_expr(node)
+        elif nt == ASTNodeType.LAMBDA_EXPR:
+            self._analyze_lambda_expr(node)
 
         # 字面量和类型节点无需深入分析
         else:
@@ -1471,6 +1490,143 @@ class SemanticAnalyzer:
                     self._node_location(stmt),
                     suggestions=["考虑移除 finally 块中的 return 语句"],
                 )
+
+    # ========================================================================
+    # 协程/异步表达式分析
+    # ========================================================================
+
+    def _analyze_coroutine_def(self, node: "CoroutineDefNode") -> None:
+        """分析协程定义
+
+        检查：
+        1. 协程函数参数类型有效
+        2. 返回类型有效
+        3. 函数体中的语句有效
+        """
+        # 创建协程作用域
+        self.symbol_table.enter_scope(ScopeType.FUNCTION, node.name)
+        self.current_function = node.name
+
+        # 分析参数
+        for param in node.params:
+            self._analyze_node(param)
+
+        # 分析返回类型
+        if node.return_type:
+            self._analyze_node(node.return_type)
+
+        # 分析函数体
+        if node.body:
+            self._analyze_node(node.body)
+
+        self.symbol_table.exit_scope()
+        self.current_function = None
+
+    def _analyze_await_expr(self, node: "AwaitExprNode") -> None:
+        """分析等待表达式
+
+        检查：
+        1. await 表达式只能出现在协程函数中
+        2. await 的操作数类型有效（应该是协程或任务类型）
+        """
+        loc = self._node_location(node)
+
+        # 检查是否在协程函数中
+        if not self.current_function:
+            self._add_warning(
+                "非协程中等待",
+                "等待表达式出现在非协程函数中，可能无法正常挂起",
+                loc,
+            )
+
+        # 分析操作数
+        if node.expression:
+            self._analyze_node(node.expression)
+
+            # 检查操作数类型
+            # TODO: 检查是否为协程或任务类型
+            # 目前暂时允许任何类型
+
+    def _analyze_channel_expr(self, node: "ChannelExprNode") -> None:
+        """分析通道表达式
+
+        检查：
+        1. 通道元素类型有效
+        2. 缓冲区大小有效（如果指定）
+        """
+        loc = self._node_location(node)
+
+        # 分析元素类型
+        if node.element_type:
+            self._analyze_node(node.element_type)
+
+        # 检查缓冲区大小
+        if node.buffer_size < 0:
+            self._add_error(
+                "无效缓冲区大小",
+                "通道缓冲区大小不能为负数",
+                loc,
+            )
+
+    def _analyze_spawn_expr(self, node: "SpawnExprNode") -> None:
+        """分析启动协程表达式
+
+        检查：
+        1. spawn 只能出现在函数中
+        2. 要启动的协程有效
+        """
+        loc = self._node_location(node)
+
+        # 检查是否在函数中
+        if not self.current_function:
+            self._add_warning(
+                "非函数中启动",
+                "启动协程表达式出现在非函数上下文中",
+                loc,
+            )
+
+        # 分析协程表达式
+        if node.coroutine:
+            self._analyze_node(node.coroutine)
+
+    def _analyze_yield_expr(self, node: "YieldExprNode") -> None:
+        """分析让出表达式
+
+        检查：
+        1. yield 只能出现在协程函数中
+        2. 让出的值类型有效
+        """
+        loc = self._node_location(node)
+
+        # 检查是否在协程函数中
+        if not self.current_function:
+            self._add_warning(
+                "非协程中让出",
+                "让出表达式出现在非协程函数中，可能无法正常挂起",
+                loc,
+            )
+
+        # 分析让出的值
+        if node.value:
+            self._analyze_node(node.value)
+
+    def _analyze_lambda_expr(self, node: "LambdaExprNode") -> None:
+        """分析 Lambda 表达式
+
+        Phase 5 F1: 闭包支持 - Lambda 表达式分析
+        """
+        # 创建闭包作用域
+        self.symbol_table.enter_scope(ScopeType.FUNCTION, "<lambda>")
+
+        # 分析参数
+        for param in node.params:
+            self._analyze_node(param)
+
+        # 分析函数体
+        if node.body:
+            self._analyze_node(node.body)
+
+        self.symbol_table.exit_scope()
 
     def _get_case_value_str(self, value_node: ASTNode) -> Optional[str]:
         """获取 case 值的字符串表示（用于重复检测）"""

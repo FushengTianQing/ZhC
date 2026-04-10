@@ -172,6 +172,9 @@ class TokenType(Enum):
     TASK = auto()  # 任务
     PROMISE = auto()  # 承诺
     YIELD = auto()  # 让出
+    COROUTINE = auto()  # 协程
+    CHANNEL = auto()  # 通道
+    SPAWN = auto()  # 启动（启动协程）
 
     # 异常处理关键字
     TRY = auto()  # 尝试
@@ -329,6 +332,9 @@ class Lexer:
         "任务": TokenType.TASK,
         "承诺": TokenType.PROMISE,
         "让出": TokenType.YIELD,
+        "协程": TokenType.COROUTINE,
+        "通道": TokenType.CHANNEL,
+        "启动": TokenType.SPAWN,
         # 异常处理关键字
         "尝试": TokenType.TRY,
         "捕获": TokenType.CATCH,

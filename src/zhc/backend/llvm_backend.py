@@ -48,6 +48,16 @@ from .closure_strategies import (
     UpvalueGetStrategy,
     UpvalueSetStrategy,
 )
+from .coroutine_strategies import (
+    CoroutineCreateStrategy,
+    CoroutineResumeStrategy,
+    CoroutineYieldStrategy,
+    CoroutineAwaitStrategy,
+    CoroutineSpawnStrategy,
+    ChannelCreateStrategy,
+    ChannelSendStrategy,
+    ChannelRecvStrategy,
+)
 
 # 优化提示模块（可选依赖）
 try:
@@ -136,6 +146,16 @@ class LLVMBackend(BackendBase):
         InstructionStrategyFactory.register(ClosureCallStrategy())
         InstructionStrategyFactory.register(UpvalueGetStrategy())
         InstructionStrategyFactory.register(UpvalueSetStrategy())
+
+        # 注册协程策略
+        InstructionStrategyFactory.register(CoroutineCreateStrategy())
+        InstructionStrategyFactory.register(CoroutineResumeStrategy())
+        InstructionStrategyFactory.register(CoroutineYieldStrategy())
+        InstructionStrategyFactory.register(CoroutineAwaitStrategy())
+        InstructionStrategyFactory.register(CoroutineSpawnStrategy())
+        InstructionStrategyFactory.register(ChannelCreateStrategy())
+        InstructionStrategyFactory.register(ChannelSendStrategy())
+        InstructionStrategyFactory.register(ChannelRecvStrategy())
 
     def _create_debug_listener(self, source_file: str, output_file: str = "debug.json"):
         """

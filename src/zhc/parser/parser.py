@@ -368,6 +368,10 @@ class Parser(GenericParserMixin):
         if self.match(TokenType.EXCEPTION_CLASS):
             return self._dispatch_exception_class_or_var()
 
+        # --- 协程声明 ---
+        if self.match(TokenType.COROUTINE):
+            return self.parse_coroutine_def()
+
         # --- 类型关键字：函数声明 vs 变量声明 ---
         if self.match(
             TokenType.INT,
@@ -545,6 +549,103 @@ class Parser(GenericParserMixin):
             body,
             self.tokens[self.pos - 1].line,
             self.tokens[self.pos - 1].column,
+        )
+
+    def parse_coroutine_def(self) -> "CoroutineDefNode":
+        """解析协程定义
+
+        语法：
+            协程 函数 函数名(参数列表) -> 返回类型 {
+                函数体
+            }
+
+            异步 函数 函数名(参数列表) {
+                函数体
+            }
+
+        例如：
+            协程 函数 获取数据(字符串 url) -> 字符串 {
+                字符串 数据 = 等待 HTTP请求(url);
+                返回 数据;
+            }
+
+            异步 函数 主函数() {
+                字符串 结果 = 等待 获取数据("https://api.example.com");
+                打印(结果);
+            }
+        """
+        # 消耗 '协程' 或 '异步'
+        token = self.current_token()
+        is_async = token.type == TokenType.ASYNC
+        self.advance()
+
+        # 期望 '函数' 关键字
+        if not self.match(TokenType.FUNCTION):
+            self.errors.append(
+                ParserError(
+                    f"协程定义中期望 '函数' 关键字",
+                    self._token_location(token),
+                )
+            )
+            # 尝试继续解析
+            if self.match(TokenType.IDENTIFIER):
+                name = self.current_token().value
+                self.advance()
+            else:
+                return CoroutineDefNode(
+                    name="<error>",
+                    params=[],
+                    body=BlockStmtNode([], token.line, token.column),
+                    is_async=is_async,
+                    line=token.line,
+                    column=token.column,
+                )
+
+        self.advance()  # 消耗 '函数'
+
+        # 解析返回类型
+        return_type = self.parse_type()
+
+        # 函数名
+        name = self.current_token().value
+        if not self.expect(TokenType.IDENTIFIER, "期望函数名"):
+            return CoroutineDefNode(
+                name=name
+                if self.current_token().type == TokenType.IDENTIFIER
+                else "<error>",
+                params=[],
+                body=BlockStmtNode([], token.line, token.column),
+                is_async=is_async,
+                line=token.line,
+                column=token.column,
+            )
+        self.advance()
+
+        # 参数列表
+        params = []
+        if self.match(TokenType.LPAREN):
+            self.advance()
+            self.recovery.enter_paren()
+            if not self.match(TokenType.RPAREN):
+                params.append(self.parse_param_decl())
+                while self.match(TokenType.COMMA):
+                    self.advance()
+                    params.append(self.parse_param_decl())
+            self.expect(TokenType.RPAREN, "期望 ')'")
+
+        # 函数体
+        body = None
+        if self.match(TokenType.LBRACE):
+            body = self.parse_block()
+
+        return CoroutineDefNode(
+            name,
+            params,
+            body,
+            return_type,
+            is_async,
+            token.line,
+            token.column,
         )
 
     def parse_function_decl_with_type(self) -> FunctionDeclNode:
@@ -1752,6 +1853,35 @@ class Parser(GenericParserMixin):
                 self.tokens[self.pos - 1].column,
             )
 
+        # 等待表达式
+        if self.match(TokenType.AWAIT):
+            await_token = self.advance()
+            operand = self.parse_unary()
+            return AwaitExprNode(
+                operand,
+                await_token.line,
+                await_token.column,
+            )
+
+        # 让出表达式
+        if self.match(TokenType.YIELD):
+            yield_token = self.advance()
+            # 让出表达式后面可以跟一个值
+            value = None
+            if not self.match(
+                TokenType.SEMICOLON,
+                TokenType.COMMA,
+                TokenType.RPAREN,
+                TokenType.RBRACKET,
+                TokenType.RBRACE,
+            ):
+                value = self.parse_unary()
+            return YieldExprNode(
+                value,
+                yield_token.line,
+                yield_token.column,
+            )
+
         # 后缀运算符
         return self.parse_postfix()
 
@@ -1852,6 +1982,67 @@ class Parser(GenericParserMixin):
             self.advance()
             return IdentifierExprNode(token.value, token.line, token.column)
 
+        # 启动协程表达式: 启动 协程 协程函数(参数)
+        if self.match(TokenType.SPAWN):
+            spawn_token = self.advance()
+            # 期望 '协程' 关键字
+            if not self.match(TokenType.COROUTINE):
+                self.errors.append(
+                    ParserError(
+                        f"启动表达式中期望 '协程' 关键字",
+                        self._token_location(spawn_token),
+                    )
+                )
+                return IdentifierExprNode(
+                    "<error>", spawn_token.line, spawn_token.column
+                )
+            self.advance()  # 消耗 '协程'
+            # 解析协程调用
+            coroutine = self.parse_postfix()
+            return SpawnExprNode(
+                coroutine,
+                with_args=isinstance(coroutine, CallExprNode),
+                line=spawn_token.line,
+                column=spawn_token.column,
+            )
+
+        # 创建通道表达式: 创建通道[元素类型]() 或 创建通道[元素类型](缓冲区大小)
+        # 检查是否是 '通道' 关键字后面跟着 '['
+        if self.match(TokenType.CHANNEL) or (
+            self.match(TokenType.IDENTIFIER) and token.value == "创建通道"
+        ):
+            channel_token = self.advance()
+            # 解析泛型类型参数 [元素类型]
+            if not self.match(TokenType.LBRACKET):
+                self.errors.append(
+                    ParserError(
+                        f"通道表达式中期望 '['",
+                        self._token_location(channel_token),
+                    )
+                )
+                return IdentifierExprNode(
+                    "<error>", channel_token.line, channel_token.column
+                )
+            self.advance()  # 消耗 '['
+            element_type = self.parse_type()
+            self.expect(TokenType.RBRACKET, "期望 ']'")
+
+            # 解析缓冲区大小 (可选)
+            buffer_size = 0
+            if self.match(TokenType.LPAREN):
+                self.advance()
+                if self.match(TokenType.INT_LITERAL):
+                    buffer_size = int(self.current_token().value)
+                    self.advance()
+                self.expect(TokenType.RPAREN, "期望 ')'")
+
+            return ChannelExprNode(
+                element_type,
+                buffer_size,
+                channel_token.line,
+                channel_token.column,
+            )
+
         # Lambda 表达式: (参数列表) -> 表达式 或 (参数列表) -> { 语句块 }
         if self.match(TokenType.LPAREN):
             # 保存当前位置，用于回溯
@@ -1934,9 +2125,6 @@ class Parser(GenericParserMixin):
                 try:
                     # 检查是否是空参数
                     if not self.match(TokenType.RPAREN):
-                        # 解析第一个参数
-                        first_token = self.current_token()
-                        
                         # 检查是否是类型关键字
                         def is_type_keyword():
                             return self.match(
@@ -1957,12 +2145,12 @@ class Parser(GenericParserMixin):
                                 TokenType.STRUCT,
                                 TokenType.ENUM,
                             )
-                        
+
                         # 情况1: 类型关键字 + 标识符 (整数型 x)
                         if is_type_keyword():
                             param_type = self.current_token().value
                             self.advance()  # 消耗类型
-                            
+
                             if self.match(TokenType.IDENTIFIER):
                                 param_name = self.advance().value
                                 params.append((param_type, param_name))
@@ -1994,11 +2182,11 @@ class Parser(GenericParserMixin):
                         while parsing_args:
                             if self.match(TokenType.COMMA):
                                 self.advance()  # 消耗逗号
-                                
+
                                 if is_type_keyword():
                                     param_type = self.current_token().value
                                     self.advance()  # 消耗类型
-                                    
+
                                     if self.match(TokenType.IDENTIFIER):
                                         param_name = self.advance().value
                                         params.append((param_type, param_name))
@@ -2010,7 +2198,11 @@ class Parser(GenericParserMixin):
                                         param_type = self.advance().value
                                         param_name = self.advance().value
                                         params.append((param_type, param_name))
-                                    elif next_tok.type in (TokenType.COMMA, TokenType.RPAREN, TokenType.EOF):
+                                    elif next_tok.type in (
+                                        TokenType.COMMA,
+                                        TokenType.RPAREN,
+                                        TokenType.EOF,
+                                    ):
                                         param_name = self.advance().value
                                         params.append(("自动", param_name))
                                     else:
@@ -2077,7 +2269,9 @@ class Parser(GenericParserMixin):
                 param_nodes = []
                 for param_type_str, param_name in params:
                     # 创建类型节点
-                    type_node = PrimitiveTypeNode(param_type_str, token.line, token.column)
+                    type_node = PrimitiveTypeNode(
+                        param_type_str, token.line, token.column
+                    )
                     # 创建参数节点
                     param_node = ParamDeclNode(
                         name=param_name,

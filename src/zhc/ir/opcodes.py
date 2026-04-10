@@ -96,6 +96,29 @@ class Opcode(Enum):
     UPVALUE_SET = ("upvalue_set", "闭包", "设置Upvalue", False, False)  # 设置 upvalue
     LAMBDA = ("lambda", "闭包", "Lambda表达式", False, True)  # Lambda 表达式
 
+    # ========== 协程/异步 ==========
+    COROUTINE_CREATE = ("coroutine_create", "协程", "创建协程", False, True)  # 创建协程
+    COROUTINE_RESUME = ("coroutine_resume", "协程", "恢复协程", False, True)  # 恢复协程
+    COROUTINE_YIELD = (
+        "coroutine_yield",
+        "协程",
+        "协程让出",
+        True,
+        False,
+    )  # 协程让出（终止指令）
+    COROUTINE_AWAIT = ("coroutine_await", "协程", "等待协程", False, True)  # 等待协程
+    COROUTINE_SPAWN = ("coroutine_spawn", "协程", "启动协程", False, True)  # 启动协程
+    COROUTINE_COMPLETE = (
+        "coroutine_complete",
+        "协程",
+        "协程完成",
+        False,
+        True,
+    )  # 协程完成检查
+    CHANNEL_CREATE = ("channel_create", "协程", "创建通道", False, True)  # 创建通道
+    CHANNEL_SEND = ("channel_send", "协程", "通道发送", False, False)  # 通道发送
+    CHANNEL_RECV = ("channel_recv", "协程", "通道接收", False, True)  # 通道接收
+
     # ========== 其他 ==========
     CONST = ("const", "其他", "常量", False, True)  # 常量值
     NOP = ("nop", "其他", "空操作", False, False)  # 空操作

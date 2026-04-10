@@ -82,6 +82,13 @@ class ASTNodeType(Enum):
     CAST_EXPR = auto()  # 类型转换表达式
     LAMBDA_EXPR = auto()  # Lambda 表达式
 
+    # 协程/异步表达式
+    COROUTINE_DEF = auto()  # 协程定义
+    AWAIT_EXPR = auto()  # 等待表达式
+    CHANNEL_EXPR = auto()  # 通道表达式
+    SPAWN_EXPR = auto()  # 启动协程表达式
+    YIELD_EXPR = auto()  # 让出表达式
+
     # 类型
     PRIMITIVE_TYPE = auto()  # 基本类型
     POINTER_TYPE = auto()  # 指针类型
@@ -1468,7 +1475,258 @@ class LambdaExprNode(ASTNode):
         return children
 
     def __repr__(self):
-        return f"LambdaExprNode(params={len(self.params)}, line={self.line}:{self.column})"
+        return (
+            f"LambdaExprNode(params={len(self.params)}, line={self.line}:{self.column})"
+        )
+
+
+# ============================================================================
+# 协程/异步表达式节点
+# ============================================================================
+
+
+class CoroutineDefNode(ASTNode):
+    """协程定义节点
+
+    语法：
+        协程 函数 函数名(参数列表) -> 返回类型 {
+            函数体
+        }
+
+    例如：
+        协程 函数 获取数据(字符串 url) -> 字符串 {
+            字符串 数据 = 等待 HTTP请求(url);
+            返回 数据;
+        }
+
+    属性：
+        name: 协程函数名
+        params: 参数列表
+        body: 函数体
+        return_type: 返回类型
+        is_async: 是否为异步函数
+    """
+
+    def __init__(
+        self,
+        name: str,
+        params: List["ParamDeclNode"],
+        body: ASTNode,
+        return_type: Optional[ASTNode] = None,
+        is_async: bool = False,
+        line: int = 0,
+        column: int = 0,
+        end_line: Optional[int] = None,
+        end_column: Optional[int] = None,
+    ):
+        super().__init__(
+            ASTNodeType.COROUTINE_DEF,
+            line,
+            column,
+            end_line=end_line,
+            end_column=end_column,
+        )
+        self.name = name
+        self.params = params
+        self.body = body
+        self.return_type = return_type
+        self.is_async = is_async
+        self._set_parent_list(params)
+        self._set_parent(body)
+        if return_type:
+            self._set_parent(return_type)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_coroutine_def(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        children = self.params + [self.body]
+        if self.return_type:
+            children.append(self.return_type)
+        return children
+
+    def __repr__(self):
+        return f"CoroutineDefNode({self.name}, line={self.line}:{self.column})"
+
+
+class AwaitExprNode(ASTNode):
+    """等待表达式节点
+
+    语法：
+        等待 表达式
+
+    例如：
+        字符串 数据 = 等待 HTTP请求(url);
+        整数型 结果 = 等待 计算任务();
+
+    属性：
+        expression: 要等待的表达式（通常是协程调用或任务）
+    """
+
+    def __init__(
+        self,
+        expression: ASTNode,
+        line: int = 0,
+        column: int = 0,
+        end_line: Optional[int] = None,
+        end_column: Optional[int] = None,
+    ):
+        super().__init__(
+            ASTNodeType.AWAIT_EXPR,
+            line,
+            column,
+            end_line=end_line,
+            end_column=end_column,
+        )
+        self.expression = expression
+        self._set_parent(expression)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_await_expr(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        return [self.expression]
+
+    def __repr__(self):
+        return f"AwaitExprNode(line={self.line}:{self.column})"
+
+
+class ChannelExprNode(ASTNode):
+    """通道表达式节点
+
+    语法：
+        创建通道[元素类型]()
+        创建通道[元素类型](缓冲区大小)
+
+    例如：
+        通道[整数型] 通道1 = 创建通道[整数型]();
+        通道[字符串] 通道2 = 创建通道[字符串](10);
+
+    属性：
+        element_type: 通道元素类型
+        buffer_size: 缓冲区大小（0 表示无缓冲）
+    """
+
+    def __init__(
+        self,
+        element_type: ASTNode,
+        buffer_size: int = 0,
+        line: int = 0,
+        column: int = 0,
+        end_line: Optional[int] = None,
+        end_column: Optional[int] = None,
+    ):
+        super().__init__(
+            ASTNodeType.CHANNEL_EXPR,
+            line,
+            column,
+            end_line=end_line,
+            end_column=end_column,
+        )
+        self.element_type = element_type
+        self.buffer_size = buffer_size
+        self._set_parent(element_type)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_channel_expr(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        return [self.element_type]
+
+    def __repr__(self):
+        return f"ChannelExprNode(buffer_size={self.buffer_size}, line={self.line}:{self.column})"
+
+
+class SpawnExprNode(ASTNode):
+    """启动协程表达式节点
+
+    语法：
+        启动 协程 协程函数(参数)
+        启动 协程 协程函数
+
+    例如：
+        任务 任务1 = 启动 协程 计算任务1();
+        启动 协程 生产者(通道1);
+
+    属性：
+        coroutine: 要启动的协程（可以是协程调用或协程标识符）
+        with_args: 是否有参数
+    """
+
+    def __init__(
+        self,
+        coroutine: ASTNode,
+        with_args: bool = False,
+        line: int = 0,
+        column: int = 0,
+        end_line: Optional[int] = None,
+        end_column: Optional[int] = None,
+    ):
+        super().__init__(
+            ASTNodeType.SPAWN_EXPR,
+            line,
+            column,
+            end_line=end_line,
+            end_column=end_column,
+        )
+        self.coroutine = coroutine
+        self.with_args = with_args
+        self._set_parent(coroutine)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_spawn_expr(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        return [self.coroutine]
+
+    def __repr__(self):
+        return f"SpawnExprNode(line={self.line}:{self.column})"
+
+
+class YieldExprNode(ASTNode):
+    """让出表达式节点
+
+    语法：
+        让出
+        让出 表达式
+
+    例如：
+        让出;
+        让出 计算结果;
+
+    属性：
+        value: 要让出的值（可选）
+    """
+
+    def __init__(
+        self,
+        value: Optional[ASTNode] = None,
+        line: int = 0,
+        column: int = 0,
+        end_line: Optional[int] = None,
+        end_column: Optional[int] = None,
+    ):
+        super().__init__(
+            ASTNodeType.YIELD_EXPR,
+            line,
+            column,
+            end_line=end_line,
+            end_column=end_column,
+        )
+        self.value = value
+        if value:
+            self._set_parent(value)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_yield_expr(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        if self.value:
+            return [self.value]
+        return []
+
+    def __repr__(self):
+        return f"YieldExprNode(line={self.line}:{self.column})"
 
 
 class ArrayInitNode(ASTNode):
@@ -1900,6 +2158,32 @@ class ASTVisitor(ABC):
         """finally 子句"""
         pass
 
+    # ===== 协程/异步表达式访问方法 =====
+    @abstractmethod
+    def visit_coroutine_def(self, node: "CoroutineDefNode") -> Any:
+        """协程定义"""
+        pass
+
+    @abstractmethod
+    def visit_await_expr(self, node: "AwaitExprNode") -> Any:
+        """等待表达式"""
+        pass
+
+    @abstractmethod
+    def visit_channel_expr(self, node: "ChannelExprNode") -> Any:
+        """通道表达式"""
+        pass
+
+    @abstractmethod
+    def visit_spawn_expr(self, node: "SpawnExprNode") -> Any:
+        """启动协程表达式"""
+        pass
+
+    @abstractmethod
+    def visit_yield_expr(self, node: "YieldExprNode") -> Any:
+        """让出表达式"""
+        pass
+
 
 class ASTPrinter(ASTVisitor):
     """AST打印器"""
@@ -2110,6 +2394,22 @@ class ASTPrinter(ASTVisitor):
 
     def visit_struct_init(self, node: "StructInitNode") -> Any:
         self._print("StructInit")
+
+    # ===== 协程/异步表达式打印方法 =====
+    def visit_coroutine_def(self, node: "CoroutineDefNode") -> Any:
+        self._print(f"CoroutineDef: {node.name}(async={node.is_async})")
+
+    def visit_await_expr(self, node: "AwaitExprNode") -> Any:
+        self._print("AwaitExpr")
+
+    def visit_channel_expr(self, node: "ChannelExprNode") -> Any:
+        self._print(f"ChannelExpr(buffer_size={node.buffer_size})")
+
+    def visit_spawn_expr(self, node: "SpawnExprNode") -> Any:
+        self._print("SpawnExpr")
+
+    def visit_yield_expr(self, node: "YieldExprNode") -> Any:
+        self._print("YieldExpr")
 
 
 if __name__ == "__main__":

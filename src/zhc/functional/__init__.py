@@ -21,6 +21,15 @@ from .closure import (
     ClosureContext,
 )
 from .analyzer import UpvalueAnalyzer
+from .coroutine import (
+    CoroutineState,
+    CoroutineStackFrame,
+    Coroutine,
+    Channel,
+    next_channel_id,
+)
+from .coroutine import CoroutineContext as CoroutineContext
+from .scheduler import Scheduler, get_scheduler
 
 __all__ = [
     # 闭包核心类型
@@ -31,4 +40,14 @@ __all__ = [
     "ClosureContext",
     # 分析器
     "UpvalueAnalyzer",
+    # 协程核心类型
+    "CoroutineState",
+    "CoroutineStackFrame",
+    "CoroutineContext",
+    "Coroutine",
+    "Channel",
+    "next_channel_id",
+    # 调度器
+    "Scheduler",
+    "get_scheduler",
 ]
