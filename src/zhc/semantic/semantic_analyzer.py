@@ -50,6 +50,10 @@ from ..parser.ast_nodes import (
     FinallyClauseNode,
     ThrowStmtNode,
 )
+from ..exception import (
+    ExceptionRegistry,
+    is_exception_type,
+)
 
 
 class ScopeType(Enum):
@@ -1265,6 +1269,7 @@ class SemanticAnalyzer:
         1. catch 子句类型匹配
         2. 异常变量的作用域
         3. finally 块的清理逻辑
+        4. 异常类型层次（子类不应在父类之后捕获）
         """
         old_in_try = self.in_try
         self.in_try = True
@@ -1274,13 +1279,17 @@ class SemanticAnalyzer:
             self._analyze_node(node.body)
 
         # 分析 catch 子句
+        registry = ExceptionRegistry.instance()
         seen_exception_types: Set[str] = set()
+        captured_types: List[str] = []  # 用于检测类型层次问题
+
         for catch_clause in node.catch_clauses:
             self._analyze_node(catch_clause)
 
-            # 检查 catch 子句类型重复
             if catch_clause.exception_type and not catch_clause.is_default:
                 exc_type = catch_clause.exception_type
+
+                # 检查 catch 子句类型重复
                 if exc_type in seen_exception_types:
                     self._add_error(
                         "重复 catch",
@@ -1289,6 +1298,42 @@ class SemanticAnalyzer:
                     )
                 seen_exception_types.add(exc_type)
 
+                # 检查是否与已捕获的类型形成层次冲突
+                # 如果一个子类型在父类型之后捕获，父类型的 catch 就永远达不到了
+                for captured in captured_types:
+                    if registry.is_subtype(captured, exc_type):
+                        self._add_warning(
+                            "不可达 catch",
+                            f"异常类型 '{exc_type}' 的子类 '{captured}' 已在之前捕获",
+                            self._node_location(catch_clause),
+                            suggestions=[
+                                f"将 '{exc_type}' 的 catch 子句移到 '{captured}' 之前",
+                            ],
+                        )
+
+                # 记录此类型及其所有父类型
+                captured_types.append(exc_type)
+                current = exc_type
+                while current:
+                    type_info = registry.lookup(current)
+                    if type_info and type_info.base_class:
+                        captured_types.append(type_info.base_class)
+                        current = type_info.base_class
+                    else:
+                        break
+
+        # 检查是否有默认 catch 和非默认 catch 的顺序问题
+        has_default = any(c.is_default for c in node.catch_clauses)
+        if has_default:
+            last_catch = node.catch_clauses[-1]
+            if not last_catch.is_default:
+                self._add_warning(
+                    "默认 catch 不在最后",
+                    "默认 catch 子句不在最后，可能导致前面的 catch 永远无法执行",
+                    self._node_location(last_catch),
+                    suggestions=["将默认 catch 移到所有类型特定的 catch 之后"],
+                )
+
         # 分析 finally 块
         if node.finally_clause:
             self._analyze_node(node.finally_clause)
@@ -1296,7 +1341,33 @@ class SemanticAnalyzer:
         self.in_try = old_in_try
 
     def _analyze_catch_clause(self, node: CatchClauseNode) -> None:
-        """分析捕获子句"""
+        """分析捕获子句
+
+        检查：
+        1. 异常类型是否为已注册的有效异常类型
+        2. 异常变量注册到符号表
+        """
+        # 验证异常类型是否有效
+        if node.exception_type and not node.is_default:
+            registry = ExceptionRegistry.instance()
+            exc_type = registry.lookup(node.exception_type)
+            if exc_type is None:
+                self._add_error(
+                    "无效异常类型",
+                    f"catch 子句中的异常类型 '{node.exception_type}' 未注册或不存在",
+                    self._node_location(node),
+                    suggestions=[
+                        "请使用已定义的内置异常类型（如 除零异常、空指针异常）",
+                        "或使用 异常 作为所有异常类型的基类",
+                    ],
+                )
+            elif not exc_type.is_builtin and exc_type.base_class is None:
+                self._add_warning(
+                    "异常类型无基类",
+                    f"自定义异常类型 '{node.exception_type}' 继承自 异常 基类",
+                    self._node_location(node),
+                )
+
         # 为异常变量创建作用域
         self.symbol_table.enter_scope(ScopeType.BLOCK, "catch_clause")
 
@@ -1306,6 +1377,15 @@ class SemanticAnalyzer:
                 name=node.variable_name,
                 symbol_type="变量",
                 data_type=node.exception_type,
+                is_defined=True,
+            )
+            self.symbol_table.add_symbol(exc_symbol)
+        elif node.variable_name and node.is_default:
+            # 默认 catch 使用 异常 作为类型
+            exc_symbol = Symbol(
+                name=node.variable_name,
+                symbol_type="变量",
+                data_type="异常",
                 is_defined=True,
             )
             self.symbol_table.add_symbol(exc_symbol)
@@ -1331,13 +1411,28 @@ class SemanticAnalyzer:
         """分析抛出语句
 
         检查：
-        1. throw 语句不在 try 块外部（允许但会终止程序）
-        2. 异常表达式类型有效
+        1. 异常表达式类型有效
+        2. 异常类型是否为已注册的有效异常类型（如果可以确定类型）
         """
         if node.exception:
             self._analyze_node(node.exception)
-        # throw 可以在任何地方使用，不强制要求在 try 中
-        # 语义分析阶段不报错，只在代码生成阶段处理
+
+            # 检查异常表达式是否引用了有效的异常类型
+            # 这需要类型推断结果的配合
+            if hasattr(node.exception, "inferred_type"):
+                inferred_type = node.exception.inferred_type
+                if inferred_type and not is_exception_type(inferred_type):
+                    # 只有当推断出的类型明确不是异常类型时才报警
+                    registry = ExceptionRegistry.instance()
+                    # 检查是否为用户自定义的异常类型
+                    user_type = registry.lookup(inferred_type)
+                    if user_type is None:
+                        self._add_warning(
+                            "非异常类型",
+                            f"抛出表达式的类型 '{inferred_type}' 不是异常类型",
+                            self._node_location(node),
+                            suggestions=["确保抛出的对象继承自 异常"],
+                        )
 
     def _check_finally_return(self, node: FinallyClauseNode) -> None:
         """检查 finally 块中的 return 语句（警告）"""
