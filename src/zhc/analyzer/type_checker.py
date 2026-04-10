@@ -26,6 +26,8 @@ class TypeCategory(Enum):
     STRUCT = "struct"  # 结构体类型
     VOID = "void"  # 空类型
     UNKNOWN = "unknown"  # 未知类型
+    COMPLEX = "complex"  # 复数类型
+    FIXED_POINT = "fixed_point"  # 定点数类型
 
 
 @dataclass
@@ -49,6 +51,16 @@ class TypeInfo:
     # 结构体类型特有属性
     members: Optional[Dict[str, "TypeInfo"]] = None
 
+    # 复数类型特有属性
+    complex_element_type: Optional[str] = (
+        None  # 元素类型: "float", "double", "long double"
+    )
+
+    # 定点数类型特有属性
+    fixed_point_format: Optional[str] = None  # 定点数格式: "fract", "accum" 等
+    fixed_point_total_bits: Optional[int] = None  # 总位宽
+    fixed_point_frac_bits: Optional[int] = None  # 小数位
+
     def __str__(self) -> str:
         """类型字符串表示"""
         if self.category == TypeCategory.VOID:
@@ -66,6 +78,12 @@ class TypeInfo:
         if self.category == TypeCategory.FUNCTION:
             params = ", ".join(str(p) for p in (self.param_types or []))
             return f"函数({params}) -> {self.return_type}"
+
+        if self.category == TypeCategory.COMPLEX:
+            return f"{self.complex_element_type or '双精度'}复数型"
+
+        if self.category == TypeCategory.FIXED_POINT:
+            return self.name
 
         return self.name
 
@@ -112,6 +130,14 @@ class TypeInfo:
     def is_void(self) -> bool:
         """是否空类型"""
         return self.category == TypeCategory.VOID
+
+    def is_complex(self) -> bool:
+        """是否复数类型"""
+        return self.category == TypeCategory.COMPLEX
+
+    def is_fixed_point(self) -> bool:
+        """是否定点数类型"""
+        return self.category == TypeCategory.FIXED_POINT
 
     def can_cast_to(self, target: "TypeInfo") -> bool:
         """是否可以转换到目标类型"""

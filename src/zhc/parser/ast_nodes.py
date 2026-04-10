@@ -98,6 +98,9 @@ class ASTNodeType(Enum):
     AUTO_TYPE = auto()  # 自动类型（自动推导）
     WIDE_CHAR_TYPE = auto()  # 宽字符类型
     WIDE_STRING_TYPE = auto()  # 宽字符串类型
+    COMPLEX_TYPE = auto()  # 复数类型
+    COMPLEX_LITERAL = auto()  # 复数字面量
+    FIXED_POINT_TYPE = auto()  # 定点数类型
 
     # 宽字符字面量
     WIDE_CHAR_LITERAL = auto()  # 宽字符字面量
@@ -1254,6 +1257,36 @@ class FloatLiteralNode(ASTNode):
         return hashlib.md5(content.encode("utf-8")).hexdigest()
 
 
+class ComplexLiteralNode(ASTNode):
+    """复数字面量节点
+
+    表示 a + bi 形式的复数字面量
+    """
+
+    def __init__(self, real: float, imag: float, line: int = 0, column: int = 0):
+        super().__init__(ASTNodeType.COMPLEX_LITERAL, line, column)
+        self.real = real
+        self.imag = imag
+
+    @property
+    def value(self) -> complex:
+        """返回 Python complex 值"""
+        return complex(self.real, self.imag)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_complex_literal(self)
+
+    def get_hash(self) -> str:
+        content = f"{self.node_type.name}:real:{self.real}:imag:{self.imag}"
+        return hashlib.md5(content.encode("utf-8")).hexdigest()
+
+    def __str__(self) -> str:
+        if self.imag >= 0:
+            return f"{self.real}+{self.imag}i"
+        else:
+            return f"{self.real}{self.imag}i"
+
+
 class StringLiteralNode(ASTNode):
     """字符串字面量节点"""
 
@@ -1918,6 +1951,96 @@ class WideStringTypeNode(ASTNode):
         return hashlib.md5(content.encode("utf-8")).hexdigest()
 
 
+class ComplexTypeNode(ASTNode):
+    """复数类型节点
+
+    语法：
+    - 浮点复数型  (对应 float _Complex)
+    - 双精度复数型  (对应 double _Complex)
+    - 长双精度复数型  (对应 long double _Complex)
+    """
+
+    # 复数元素类型
+    class ElementType(Enum):
+        FLOAT = "浮点复数型"
+        DOUBLE = "双精度复数型"
+        LONG_DOUBLE = "长双精度复数型"
+
+    def __init__(
+        self,
+        element_type: "ComplexTypeNode.ElementType" = None,
+        line: int = 0,
+        column: int = 0,
+    ):
+        super().__init__(ASTNodeType.COMPLEX_TYPE, line, column)
+        self.element_type = element_type or self.ElementType.DOUBLE
+
+    @property
+    def type_name(self) -> str:
+        return self.element_type.value
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_complex_type(self)
+
+    def get_hash(self) -> str:
+        content = f"{self.node_type.name}:element_type:{self.element_type.name}"
+        return hashlib.md5(content.encode("utf-8")).hexdigest()
+
+
+class FixedPointTypeNode(ASTNode):
+    """定点数类型节点
+
+    语法：
+    - 定点小数 (Q1.15)
+    - 定点累加 (Q16.16)
+    - 短定点小数、长定点小数
+    - 短定点累加、长定点累加
+    """
+
+    # 定点数格式
+    class Format(Enum):
+        FRACT_HALF = ("短定点小数", 1, 7, True)  # Q0.7
+        FRACT = ("定点小数", 1, 15, True)  # Q1.15
+        LONG_FRACT = ("长定点小数", 1, 31, True)  # Q1.31
+        ACCUM_SHORT = ("短定点累加", 8, 8, True)  # Q8.8
+        ACCUM = ("定点累加", 16, 16, True)  # Q16.16
+        LONG_ACCUM = ("长定点累加", 32, 32, True)  # Q32.32
+        FRACT_U = ("无符号定点小数", 0, 8, False)  # Q0.8
+        ACCUM_U = ("无符号定点累加", 8, 8, False)  # Q8.8
+
+        @property
+        def name_str(self) -> str:
+            return self.value[0]
+
+        @property
+        def int_bits(self) -> int:
+            return self.value[1]
+
+        @property
+        def frac_bits(self) -> int:
+            return self.value[2]
+
+        @property
+        def is_signed(self) -> bool:
+            return self.value[3]
+
+    def __init__(
+        self,
+        format: "FixedPointTypeNode.Format" = None,
+        line: int = 0,
+        column: int = 0,
+    ):
+        super().__init__(ASTNodeType.FIXED_POINT_TYPE, line, column)
+        self.format = format or self.Format.FRACT
+
+    @property
+    def type_name(self) -> str:
+        return self.format.name_str
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_fixed_point_type(self)
+
+
 # ============================================================================
 # AST访问者
 # ============================================================================
@@ -2076,6 +2199,18 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visit_wide_string_type(self, node: "WideStringTypeNode") -> Any:
+        pass
+
+    @abstractmethod
+    def visit_complex_type(self, node: "ComplexTypeNode") -> Any:
+        pass
+
+    @abstractmethod
+    def visit_complex_literal(self, node: "ComplexLiteralNode") -> Any:
+        pass
+
+    @abstractmethod
+    def visit_fixed_point_type(self, node: "FixedPointTypeNode") -> Any:
         pass
 
     @abstractmethod
@@ -2349,6 +2484,15 @@ class ASTPrinter(ASTVisitor):
 
     def visit_wide_string_type(self, node: "WideStringTypeNode") -> Any:
         self._print(f"WideStringType: {node.type_name}")
+
+    def visit_complex_type(self, node: "ComplexTypeNode") -> Any:
+        self._print(f"ComplexType: {node.type_name}")
+
+    def visit_complex_literal(self, node: "ComplexLiteralNode") -> Any:
+        self._print(f"ComplexLiteral: {node}")
+
+    def visit_fixed_point_type(self, node: "FixedPointTypeNode") -> Any:
+        self._print(f"FixedPointType: {node.type_name}")
 
     def visit_do_while_stmt(self, node: "DoWhileStmtNode") -> Any:
         self._print("DoWhileStmt")

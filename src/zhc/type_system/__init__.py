@@ -64,6 +64,61 @@ from .struct_layout import (
     get_struct_mapper,
 )
 
+# 复数类型
+from .complex import (
+    ComplexElementType,
+    ComplexType,
+    ComplexValue,
+    浮点复数型,
+    双精度复数型,
+    长双精度复数型,
+)
+
+# 复数数学函数
+from .complex_math import (
+    complex_sqrt,
+    complex_exp,
+    complex_log,
+    complex_log10,
+    complex_pow,
+    complex_sin,
+    complex_cos,
+    complex_tan,
+    complex_sinh,
+    complex_cosh,
+    complex_tanh,
+    complex_asin,
+    complex_acos,
+    complex_atan,
+    complex_asinh,
+    complex_acosh,
+    complex_atanh,
+    complex_add,
+    complex_sub,
+    complex_mul,
+    complex_div,
+    complex_neg,
+    complex_conj,
+    complex_abs,
+    complex_arg,
+    complex_polar,
+)
+
+# 定点数类型
+from .fixed_point import (
+    FixedPointFormat,
+    FixedPointType,
+    FixedPointValue,
+    短定点小数,
+    标准定点小数,
+    长定点小数,
+    短定点累加,
+    标准定点累加,
+    长定点累加,
+    无符号定点小数,
+    无符号定点累加,
+)
+
 __all__ = [
     # 数组类型
     "ArrayKind",
@@ -102,4 +157,50 @@ __all__ = [
     "StructGepStrategy",
     "NestedStructGepStrategy",
     "get_struct_mapper",
+    # 复数类型
+    "ComplexElementType",
+    "ComplexType",
+    "ComplexValue",
+    "浮点复数型",
+    "双精度复数型",
+    "长双精度复数型",
+    # 复数数学函数
+    "complex_sqrt",
+    "complex_exp",
+    "complex_log",
+    "complex_log10",
+    "complex_pow",
+    "complex_sin",
+    "complex_cos",
+    "complex_tan",
+    "complex_sinh",
+    "complex_cosh",
+    "complex_tanh",
+    "complex_asin",
+    "complex_acos",
+    "complex_atan",
+    "complex_asinh",
+    "complex_acosh",
+    "complex_atanh",
+    "complex_add",
+    "complex_sub",
+    "complex_mul",
+    "complex_div",
+    "complex_neg",
+    "complex_conj",
+    "complex_abs",
+    "complex_arg",
+    "complex_polar",
+    # 定点数类型
+    "FixedPointFormat",
+    "FixedPointType",
+    "FixedPointValue",
+    "短定点小数",
+    "标准定点小数",
+    "长定点小数",
+    "短定点累加",
+    "标准定点累加",
+    "长定点累加",
+    "无符号定点小数",
+    "无符号定点累加",
 ]

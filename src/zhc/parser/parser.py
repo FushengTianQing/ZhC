@@ -388,6 +388,8 @@ class Parser(GenericParserMixin):
             TokenType.UNSIGNED,
             TokenType.SIGNED,
             TokenType.AUTO,  # 自动类型推导
+            TokenType.COMPLEX,  # 复数类型
+            TokenType.FIXED_POINT,  # 定点数类型
         ):
             return self._dispatch_func_or_var()
 
@@ -1595,6 +1597,63 @@ class Parser(GenericParserMixin):
         # 这里只处理无名的函数指针类型: 返回类型 (*)()
         # 完整的函数指针声明在 parse_function_pointer_decl() 中处理
 
+        # 复数类型 - 必须在基本类型之前检查
+        if self.match(TokenType.COMPLEX):
+            complex_token = self.advance()
+            # 根据 token.value 确定元素类型
+            token_value = complex_token.value
+            if token_value.startswith("浮点"):
+                element_type = ComplexTypeNode.ElementType.FLOAT
+            elif token_value.startswith("长双精度"):
+                element_type = ComplexTypeNode.ElementType.LONG_DOUBLE
+            else:
+                # 默认双精度复数
+                element_type = ComplexTypeNode.ElementType.DOUBLE
+            return ComplexTypeNode(element_type)
+
+        # 定点数类型 - 必须在基本类型之前检查
+        if self.match(TokenType.FIXED_POINT):
+            fp_token = self.advance()
+            # 根据 token.value 确定格式
+            token_value = fp_token.value
+            if token_value.startswith("短定点小数"):
+                from .ast_nodes import FixedPointTypeNode
+
+                return FixedPointTypeNode(FixedPointTypeNode.Format.FRACT_HALF)
+            elif token_value.startswith("长定点小数"):
+                from .ast_nodes import FixedPointTypeNode
+
+                return FixedPointTypeNode(FixedPointTypeNode.Format.LONG_FRACT)
+            elif token_value.startswith("定点小数"):
+                from .ast_nodes import FixedPointTypeNode
+
+                return FixedPointTypeNode(FixedPointTypeNode.Format.FRACT)
+            elif token_value.startswith("短定点累加"):
+                from .ast_nodes import FixedPointTypeNode
+
+                return FixedPointTypeNode(FixedPointTypeNode.Format.ACCUM_SHORT)
+            elif token_value.startswith("长定点累加"):
+                from .ast_nodes import FixedPointTypeNode
+
+                return FixedPointTypeNode(FixedPointTypeNode.Format.LONG_ACCUM)
+            elif token_value.startswith("无符号定点小数"):
+                from .ast_nodes import FixedPointTypeNode
+
+                return FixedPointTypeNode(FixedPointTypeNode.Format.FRACT_U)
+            elif token_value.startswith("无符号定点累加"):
+                from .ast_nodes import FixedPointTypeNode
+
+                return FixedPointTypeNode(FixedPointTypeNode.Format.ACCUM_U)
+            elif token_value.startswith("定点累加"):
+                from .ast_nodes import FixedPointTypeNode
+
+                return FixedPointTypeNode(FixedPointTypeNode.Format.ACCUM)
+            else:
+                # 默认定点小数
+                from .ast_nodes import FixedPointTypeNode
+
+                return FixedPointTypeNode(FixedPointTypeNode.Format.FRACT)
+
         # 基本类型
         if self.match(
             TokenType.INT,
@@ -1941,6 +2000,28 @@ class Parser(GenericParserMixin):
         # 浮点字面量
         if self.match(TokenType.FLOAT_LITERAL):
             self.advance()
+            # 检查是否是虚数字面量 (以 'i' 或 'I' 结尾)
+            if token.value.lower().endswith("i"):
+                # 虚数字面量：提取数值部分并创建复数字面量
+                numeric_str = token.value[:-1]
+                if not numeric_str:  # 只有 'i' 或 'I'
+                    numeric_value = 1.0
+                else:
+                    try:
+                        numeric_value = float(numeric_str)
+                    except ValueError:
+                        self.errors.append(
+                            ParserError(
+                                f"无效的虚数字面量: '{token.value}'",
+                                self._token_location(token),
+                            )
+                        )
+                        numeric_value = 0.0
+                # 虚数字面量 a+bi 将通过二元表达式处理
+                # 这里返回实部为 numeric_value、虚部为 1.0 的复数
+                from .ast_nodes import ComplexLiteralNode
+
+                return ComplexLiteralNode(numeric_value, 1.0, token.line, token.column)
             return FloatLiteralNode(float(token.value), token.line, token.column)
 
         # 字符串字面量

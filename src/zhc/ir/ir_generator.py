@@ -1817,3 +1817,15 @@ class IRGenerator(ASTVisitor):
     def visit_wide_string_type(self, node):
         """宽字符串类型"""
         pass
+
+    def visit_complex_type(self, node):
+        """复数类型"""
+        pass
+
+    def visit_complex_literal(self, node):
+        """复数字面量"""
+        pass
+
+    def visit_fixed_point_type(self, node):
+        """定点数类型"""
+        pass

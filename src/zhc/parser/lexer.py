@@ -184,6 +184,13 @@ class TokenType(Enum):
     EXCEPTION = auto()  # 异常
     EXCEPTION_CLASS = auto()  # 异常类
 
+    # 复数类型关键字
+    COMPLEX = auto()  # 复数
+    IMAGINARY = auto()  # 虚数单位 (i)
+
+    # 定点数类型关键字
+    FIXED_POINT = auto()  # 定点数
+
     # 特殊
     EOF = auto()  # 文件结束
     UNKNOWN = auto()  # 未知字符
@@ -274,6 +281,24 @@ class Lexer:
         "双精度": TokenType.DOUBLE,
         "长整数": TokenType.LONG,
         "短整数": TokenType.SHORT,
+        # 复数类型关键字
+        "复数": TokenType.COMPLEX,
+        "复数型": TokenType.COMPLEX,
+        "浮点复数型": TokenType.COMPLEX,
+        "双精度复数型": TokenType.COMPLEX,
+        "长双精度复数型": TokenType.COMPLEX,
+        "虚数单位": TokenType.IMAGINARY,
+        "虚数": TokenType.IMAGINARY,
+        # 定点数类型关键字
+        "定点小数": TokenType.FIXED_POINT,
+        "定点累加": TokenType.FIXED_POINT,
+        "定点数": TokenType.FIXED_POINT,
+        "短定点小数": TokenType.FIXED_POINT,
+        "长定点小数": TokenType.FIXED_POINT,
+        "短定点累加": TokenType.FIXED_POINT,
+        "长定点累加": TokenType.FIXED_POINT,
+        "无符号定点小数": TokenType.FIXED_POINT,
+        "无符号定点累加": TokenType.FIXED_POINT,
         # 修饰符关键字
         "易变": TokenType.VOLATILE,
         "注册": TokenType.REGISTER,
@@ -433,11 +458,19 @@ class Lexer:
         return False
 
     def read_number(self) -> Token:
-        """读取数字"""
+        """读取数字（包括复数字面量）
+
+        支持：
+        - 整数：123
+        - 浮点数：3.14
+        - 科学计数法：1e10
+        - 虚数字面量：3.14i, 2.5I, 3i
+        """
         start_line = self.line
         start_column = self.column
         value = ""
         is_float = False
+        is_imaginary = False
 
         # 读取整数部分
         while self.current_char() and self.current_char().isdigit():
@@ -459,7 +492,16 @@ class Lexer:
             while self.current_char() and self.current_char().isdigit():
                 value += self.advance()
 
-        if is_float:
+        # 检查虚数后缀 'i' 或 'I'
+        if self.current_char() and self.current_char().lower() == "i":
+            value += self.advance()  # 消费 'i'
+            is_imaginary = True
+            # 虚数字面量被视为一种特殊的浮点字面量
+            is_float = True
+
+        if is_imaginary:
+            return Token(TokenType.FLOAT_LITERAL, value, start_line, start_column)
+        elif is_float:
             return Token(TokenType.FLOAT_LITERAL, value, start_line, start_column)
         else:
             return Token(TokenType.INT_LITERAL, value, start_line, start_column)

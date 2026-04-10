@@ -116,6 +116,41 @@ class LLVMTypeMapper:
         self._llvm_types["布尔型"] = self._llvm_types["i1"]
         self._llvm_types["空型"] = self._llvm_types["void"]
 
+        # 复数类型 - 用结构体表示 {real, imag}
+        # 浮点复数: {float, float}
+        float_complex_type = ll.StructType(
+            [ll.FloatType(), ll.FloatType()], name="complex_float"
+        )
+        self._llvm_types["浮点复数型"] = float_complex_type
+        self._llvm_types["float _Complex"] = float_complex_type
+
+        # 双精度复数: {double, double}
+        double_complex_type = ll.StructType(
+            [ll.DoubleType(), ll.DoubleType()], name="complex_double"
+        )
+        self._llvm_types["双精度复数型"] = double_complex_type
+        self._llvm_types["double _Complex"] = double_complex_type
+
+        # 长双精度复数: {long double, long double}
+        long_double_complex_type = ll.StructType(
+            [ll.DoubleType(), ll.DoubleType()], name="complex_long_double"
+        )
+        self._llvm_types["长双精度复数型"] = long_double_complex_type
+        self._llvm_types["long double _Complex"] = long_double_complex_type
+
+        # 定点数类型 - 映射到整数类型（根据位宽）
+        # _Fract (Q1.15) -> i16
+        self._llvm_types["短定点小数"] = ll.IntType(8)  # Q0.7
+        self._llvm_types["定点小数"] = ll.IntType(16)  # Q1.15
+        self._llvm_types["长定点小数"] = ll.IntType(32)  # Q1.31
+        # _Accum (Q8.8) -> i16
+        self._llvm_types["短定点累加"] = ll.IntType(16)  # Q8.8
+        self._llvm_types["定点累加"] = ll.IntType(32)  # Q16.16
+        self._llvm_types["长定点累加"] = ll.IntType(64)  # Q32.32
+        # 无符号版本
+        self._llvm_types["无符号定点小数"] = ll.IntType(8)  # Q0.8
+        self._llvm_types["无符号定点累加"] = ll.IntType(16)  # Q8.8
+
     def map_type(self, zhc_type: str) -> ll.Type:
         """映射 ZhC 类型到 LLVM 类型
 
