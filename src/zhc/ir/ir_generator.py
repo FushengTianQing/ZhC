@@ -88,7 +88,11 @@ from zhc.semantic.pattern_matching import (
     VariablePattern,
     LiteralPattern,
     ConstructorPattern,
+    DestructurePattern,
+    RangePattern,
+    TuplePattern,
     OrPattern,
+    GuardPattern,
 )
 
 from zhc.ir.program import IRProgram, IRFunction, IRStructDef, IRGlobalVar
@@ -2982,6 +2986,112 @@ class IRGenerator(ASTVisitor):
                         first_result = result
             return first_result
 
+        # M.09: RangePattern 范围模式 - 降级为组合比较
+        elif isinstance(pattern, RangePattern):
+            # 生成: scrutinee >= start && scrutinee <= end (inclusive)
+            # 或: scrutinee >= start && scrutinee < end (exclusive)
+            start_val = IRValue(
+                str(pattern.start),
+                ty="整数型",
+                kind=ValueKind.CONST,
+                const_value=pattern.start,
+            )
+            end_val = IRValue(
+                str(pattern.end),
+                ty="整数型",
+                kind=ValueKind.CONST,
+                const_value=pattern.end,
+            )
+
+            # scrutinee >= start
+            ge_result = self._new_temp()
+            self._emit(Opcode.GE, [scrutinee, start_val], [ge_result])
+
+            # scrutinee <= end (inclusive) 或 scrutinee < end (exclusive)
+            le_result = self._new_temp()
+            if pattern.inclusive:
+                self._emit(Opcode.LE, [scrutinee, end_val], [le_result])
+            else:
+                self._emit(Opcode.LT, [scrutinee, end_val], [le_result])
+
+            # ge_result && le_result
+            result = self._new_temp()
+            self._emit(Opcode.L_AND, [ge_result, le_result], [result])
+            return result
+
+        # M.09: TuplePattern 元组模式 - 递归测试每个元素
+        elif isinstance(pattern, TuplePattern):
+            # 元组模式测试：
+            # 1. 检查 scrutinee 是否为元组（假设运行时已保证）
+            # 2. 递归测试每个元素
+            # 注：这里假设元组长度已在语义分析阶段验证
+
+            # 生成所有子模式的测试，用 AND 连接
+            results = []
+            for i, sub_pattern in enumerate(pattern.patterns):
+                # 提取第 i 个元素
+                elem_val = self._new_temp()
+                index_val = IRValue(i, ty="整数型", kind=ValueKind.CONST, const_value=i)
+                self._emit(Opcode.GETPTR, [scrutinee, index_val], [elem_val])
+
+                # 递归测试子模式
+                sub_result = self._emit_pattern_test(sub_pattern, elem_val)
+                if sub_result:
+                    results.append(sub_result)
+
+            # AND 连接所有结果
+            if not results:
+                # 空元组或无子模式需要测试，总是匹配
+                result = self._new_temp()
+                true_val = IRValue(1, ty="布尔型", kind=ValueKind.CONST, const_value=1)
+                self._emit(Opcode.EQ, [true_val, true_val], [result])
+                return result
+
+            # 合并所有测试结果
+            final_result = results[0]
+            for r in results[1:]:
+                combined = self._new_temp()
+                self._emit(Opcode.L_AND, [final_result, r], [combined])
+                final_result = combined
+            return final_result
+
+        # M.09: DestructurePattern 解构模式 - 递归测试每个字段
+        elif isinstance(pattern, DestructurePattern):
+            # 解构模式测试：
+            # 1. 检查 scrutinee 是否为对应结构体（假设运行时已保证）
+            # 2. 递归测试每个字段
+
+            results = []
+            for field_name, field_pattern in pattern.fields.items():
+                # 提取字段值（使用字段名作为索引）
+                field_val = self._new_temp()
+                # 注：这里简化处理，假设字段按顺序存储
+                # 实际实现可能需要字段名到索引的映射
+                field_idx = list(pattern.fields.keys()).index(field_name)
+                index_val = IRValue(
+                    field_idx, ty="整数型", kind=ValueKind.CONST, const_value=field_idx
+                )
+                self._emit(Opcode.GETPTR, [scrutinee, index_val], [field_val])
+
+                # 递归测试字段模式
+                sub_result = self._emit_pattern_test(field_pattern, field_val)
+                if sub_result:
+                    results.append(sub_result)
+
+            # AND 连接所有结果
+            if not results:
+                result = self._new_temp()
+                true_val = IRValue(1, ty="布尔型", kind=ValueKind.CONST, const_value=1)
+                self._emit(Opcode.EQ, [true_val, true_val], [result])
+                return result
+
+            final_result = results[0]
+            for r in results[1:]:
+                combined = self._new_temp()
+                self._emit(Opcode.L_AND, [final_result, r], [combined])
+                final_result = combined
+            return final_result
+
         # 无法静态测试
         return None
 
@@ -2999,7 +3109,7 @@ class IRGenerator(ASTVisitor):
 
         # 构造器模式：绑定字段
         if isinstance(pattern, ConstructorPattern):
-            for i, sub_pattern in enumerate(pattern.sub_patterns):
+            for i, sub_pattern in enumerate(pattern.patterns):
                 # 提取字段值
                 field_val = self._new_temp()
                 # 生成 GETPTR 或 GEP 指令
@@ -3024,17 +3134,43 @@ class IRGenerator(ASTVisitor):
             var_name = pattern.name
             self.var_ptr_map[var_name] = result
 
-        # 元组/解构模式：递归绑定元素
-        elif hasattr(pattern, "sub_patterns"):
-            for i, sub_pattern in enumerate(pattern.sub_patterns):
-                field_val = self._new_temp()
+        # M.09: TuplePattern 元组模式 - 提取并绑定每个元素
+        elif isinstance(pattern, TuplePattern):
+            for i, sub_pattern in enumerate(pattern.patterns):
+                elem_val = self._new_temp()
                 index_val = IRValue(i, ty="整数型", kind=ValueKind.CONST, const_value=i)
-                self._emit(
-                    Opcode.GETPTR,
-                    [scrutinee, index_val],
-                    [field_val],
+                self._emit(Opcode.GETPTR, [scrutinee, index_val], [elem_val])
+                self._emit_pattern_bind(sub_pattern, elem_val)
+
+        # M.09: DestructurePattern 解构模式 - 提取并绑定每个字段
+        elif isinstance(pattern, DestructurePattern):
+            for field_name, field_pattern in pattern.fields.items():
+                field_val = self._new_temp()
+                field_idx = list(pattern.fields.keys()).index(field_name)
+                index_val = IRValue(
+                    field_idx, ty="整数型", kind=ValueKind.CONST, const_value=field_idx
                 )
-                self._emit_pattern_bind(sub_pattern, field_val)
+                self._emit(Opcode.GETPTR, [scrutinee, index_val], [field_val])
+                self._emit_pattern_bind(field_pattern, field_val)
+
+        # M.09: OrPattern 或模式 - 绑定与第一个分支相同的变量
+        elif isinstance(pattern, OrPattern):
+            # OR 模式的所有分支应该绑定相同的变量
+            # 只需绑定第一个分支的变量（匹配已通过测试阶段保证）
+            if pattern.patterns:
+                self._emit_pattern_bind(pattern.patterns[0], scrutinee)
+
+        # M.09: RangePattern 范围模式 - 不绑定变量
+        elif isinstance(pattern, RangePattern):
+            pass  # 范围模式不绑定变量
+
+        # M.09: GuardPattern 守卫模式 - 递归绑定内部模式
+        elif isinstance(pattern, GuardPattern):
+            self._emit_pattern_bind(pattern.pattern, scrutinee)
+
+        # M.09: WildcardPattern 通配符 - 不绑定变量
+        elif isinstance(pattern, WildcardPattern):
+            pass  # 通配符不绑定变量
 
     def _emit_guard(self, guard_expr: ASTNode) -> Optional[IRValue]:
         """发射守卫表达式求值
