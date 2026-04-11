@@ -55,6 +55,7 @@ from ..parser.ast_nodes import (
     ChannelExprNode,
     SpawnExprNode,
     YieldExprNode,
+    MatchExprNode,
 )
 from ..exception import (
     ExceptionRegistry,
@@ -612,6 +613,10 @@ class SemanticAnalyzer:
             self._analyze_yield_expr(node)
         elif nt == ASTNodeType.LAMBDA_EXPR:
             self._analyze_lambda_expr(node)
+
+        # 模式匹配节点
+        elif nt == ASTNodeType.MATCH_EXPR:
+            self._analyze_match_expr(node)
 
         # 内存管理节点
         elif nt == ASTNodeType.UNIQUE_PTR_DECL:
@@ -1723,6 +1728,98 @@ class SemanticAnalyzer:
             self._analyze_node(node.body)
 
         self.symbol_table.exit_scope()
+
+    # =========================================================================
+    # 模式匹配分析方法
+    # =========================================================================
+
+    def _analyze_match_expr(self, node: "MatchExprNode") -> None:
+        """分析匹配表达式
+
+        M.01 - 模式匹配语义分析集成
+
+        检查：
+        1. scrutinee 表达式类型
+        2. 各分支 pattern 类型
+        3. 穷尽性检查
+        4. 冗余分支检测
+        5. 守卫表达式分析
+        """
+        from .pattern_analyzer import PatternAnalyzer, PatternTypeInfo, PatternTypeKind
+
+        # 分析 scrutinee 表达式
+        if node.expr:
+            self._analyze_node(node.expr)
+
+        # 收集 scrutinee 类型信息
+        expr_type = self._infer_expr_type(node.expr) if node.expr else None
+        matched_type = PatternTypeInfo(
+            name=expr_type.name if expr_type else "未知", kind=PatternTypeKind.UNKNOWN
+        )
+
+        # 如果有类型注册表信息，尝试获取更详细的类型信息
+        if expr_type and hasattr(self, "_type_registry"):
+            try:
+                type_info = self._type_registry.get_type(expr_type.name)
+                if type_info:
+                    if hasattr(type_info, "kind"):
+                        if type_info.kind == "enum":
+                            matched_type.kind = PatternTypeKind.ENUM
+                            if hasattr(type_info, "variants"):
+                                matched_type.constructors = list(
+                                    type_info.variants.keys()
+                                )
+                        elif type_info.kind == "struct":
+                            matched_type.kind = PatternTypeKind.STRUCT
+                            if hasattr(type_info, "fields"):
+                                matched_type.fields = type_info.fields
+            except Exception:
+                pass  # 忽略类型信息获取失败
+
+        # 使用 PatternAnalyzer 进行完整分析
+        analyzer = PatternAnalyzer()
+
+        # 转换 MatchCaseNode 为 PatternAnalyzer 需要的 MatchCase 格式
+        # PatternAnalyzer.analyze_match_expression 期望 MatchCase 对象列表
+        # MatchCaseNode 包含 pattern (Pattern 对象) 和 body (ASTNode)
+        cases_for_analyzer = []
+        for case_node in node.cases:
+            from .pattern_matching import MatchCase
+
+            case = MatchCase(pattern=case_node.pattern, body=case_node.body)
+            cases_for_analyzer.append(case)
+
+        # 执行模式匹配分析
+        if cases_for_analyzer:
+            analysis_result = analyzer.analyze_match_expression(
+                cases_for_analyzer, matched_type
+            )
+
+            # 处理分析结果：报告错误
+            for error in analysis_result.errors:
+                self.error(node.line, node.column, error)
+
+            # 处理分析结果：报告警告
+            for warning in analysis_result.warnings:
+                self.warn(node.line, node.column, warning)
+
+            # 报告不可达分支
+            for unreachable_idx in analysis_result.unreachable_cases:
+                self.warn(
+                    node.line,
+                    node.column,
+                    f"分支 {unreachable_idx} 不可达，已被之前的分支覆盖",
+                )
+
+        # 递归分析各分支
+        for case_node in node.cases:
+            # 分析守卫表达式
+            if case_node.guard:
+                self._analyze_node(case_node.guard)
+
+            # 分析分支体
+            if case_node.body:
+                self._analyze_node(case_node.body)
 
     # =========================================================================
     # 内存管理分析方法

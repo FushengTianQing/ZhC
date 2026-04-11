@@ -91,6 +91,9 @@ class ASTNodeType(Enum):
     SPAWN_EXPR = auto()  # 启动协程表达式
     YIELD_EXPR = auto()  # 让出表达式
 
+    # 模式匹配表达式
+    MATCH_EXPR = auto()  # 匹配表达式
+
     # 类型
     PRIMITIVE_TYPE = auto()  # 基本类型
     POINTER_TYPE = auto()  # 指针类型
@@ -1835,8 +1838,107 @@ class YieldExprNode(ASTNode):
 
 
 # ============================================================================
-# 内存管理节点
+# 模式匹配节点
 # ============================================================================
+
+
+class MatchCaseNode(ASTNode):
+    """模式匹配分支节点
+
+    语法：
+        模式 => 表达式
+        模式 当 守卫 => 表达式
+
+    属性：
+        pattern: 模式（Pattern 对象来自 pattern_matching 模块）
+        guard: 守卫表达式（可选，ASTNode）
+        body: 分支体（ASTNode）
+    """
+
+    def __init__(
+        self,
+        pattern: Any = None,
+        guard: Optional[ASTNode] = None,
+        body: Optional[ASTNode] = None,
+        line: int = 0,
+        column: int = 0,
+        end_line: Optional[int] = None,
+        end_column: Optional[int] = None,
+    ):
+        super().__init__(
+            ASTNodeType.EXPR_STMT,  # 复用 EXPR_STMT 作为分支节点类型
+            line,
+            column,
+            end_line=end_line,
+            end_column=end_column,
+        )
+        self.pattern = pattern  # Pattern 对象（来自 pattern_matching 模块）
+        self.guard = guard
+        self.body = body
+        if guard:
+            self._set_parent(guard)
+        if body:
+            self._set_parent(body)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_match_case(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        children: List["ASTNode"] = []
+        if self.guard:
+            children.append(self.guard)
+        if self.body:
+            children.append(self.body)
+        return children
+
+    def __repr__(self):
+        return f"MatchCaseNode(line={self.line}:{self.column})"
+
+
+class MatchExprNode(ASTNode):
+    """匹配表达式节点
+
+    语法：
+        匹配 表达式 {
+            模式1 => 表达式1,
+            模式2 => 表达式2,
+            _ => 默认表达式
+        }
+
+    属性：
+        expr: 被匹配的表达式（scrutinee）
+        cases: 匹配分支列表（List[MatchCaseNode]）
+    """
+
+    def __init__(
+        self,
+        expr: ASTNode,
+        cases: List[ASTNode],
+        line: int = 0,
+        column: int = 0,
+        end_line: Optional[int] = None,
+        end_column: Optional[int] = None,
+    ):
+        super().__init__(
+            ASTNodeType.MATCH_EXPR,
+            line,
+            column,
+            end_line=end_line,
+            end_column=end_column,
+        )
+        self.expr = expr
+        self.cases = cases
+        self._set_parent(expr)
+        self._set_parent_list(cases)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_match_expr(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        return [self.expr] + self.cases
+
+    def __repr__(self):
+        return f"MatchExprNode(cases={len(self.cases)}, line={self.line}:{self.column})"
 
 
 class SmartPointerTypeNode(ASTNode):
@@ -2536,6 +2638,17 @@ class ASTVisitor(ABC):
         """让出表达式"""
         pass
 
+    # ===== 模式匹配访问方法 =====
+    @abstractmethod
+    def visit_match_expr(self, node: "MatchExprNode") -> Any:
+        """匹配表达式"""
+        pass
+
+    @abstractmethod
+    def visit_match_case(self, node: "MatchCaseNode") -> Any:
+        """匹配分支"""
+        pass
+
     # ===== 内存管理访问方法 =====
     @abstractmethod
     def visit_smart_ptr_type(self, node: "SmartPointerTypeNode") -> Any:
@@ -2793,6 +2906,24 @@ class ASTPrinter(ASTVisitor):
 
     def visit_yield_expr(self, node: "YieldExprNode") -> Any:
         self._print("YieldExpr")
+
+    # ===== 模式匹配打印方法 =====
+    def visit_match_expr(self, node: "MatchExprNode") -> Any:
+        self._print(f"MatchExpr(cases={len(node.cases)})")
+        self.indent += 1
+        node.expr.accept(self)
+        for case in node.cases:
+            case.accept(self)
+        self.indent -= 1
+
+    def visit_match_case(self, node: "MatchCaseNode") -> Any:
+        self._print("MatchCase")
+        self.indent += 1
+        if node.guard:
+            self._print(f"Guard: {node.guard}")
+        if node.body:
+            node.body.accept(self)
+        self.indent -= 1
 
     # ===== 内存管理 =====
     def visit_smart_ptr_type(self, node: "SmartPointerTypeNode") -> Any:

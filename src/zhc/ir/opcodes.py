@@ -241,6 +241,31 @@ class Opcode(Enum):
         True,
     )  # 为泛型函数/类型生成特化版本
 
+    # ========== 模式匹配 ==========
+    MATCH = ("match", "模式匹配", "匹配开始", False, False)  # match 作用域开始
+    CASE = ("case", "模式匹配", "模式分支", False, False)  # 一个 case 分支开始
+    PATTERN_BIND = (
+        "pattern_bind",
+        "模式匹配",
+        "模式绑定",
+        False,
+        True,
+    )  # 绑定模式变量
+    PATTERN_TEST = (
+        "pattern_test",
+        "模式匹配",
+        "模式测试",
+        False,
+        True,
+    )  # 测试值是否匹配模式
+    PATTERN_GUARD = (
+        "pattern_guard",
+        "模式匹配",
+        "守卫条件",
+        False,
+        True,
+    )  # 守卫表达式求值
+
     # ========== 其他 ==========
     CONST = ("const", "其他", "常量", False, True)  # 常量值
     NOP = ("nop", "其他", "空操作", False, False)  # 空操作

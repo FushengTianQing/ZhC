@@ -77,6 +77,18 @@ from zhc.parser.ast_nodes import (
     ChannelExprNode,
     SpawnExprNode,
     YieldExprNode,
+    MatchExprNode,
+    MatchCaseNode,
+)
+
+# 模式匹配相关
+from zhc.semantic.pattern_matching import (
+    Pattern,
+    WildcardPattern,
+    VariablePattern,
+    LiteralPattern,
+    ConstructorPattern,
+    OrPattern,
 )
 
 from zhc.ir.program import IRProgram, IRFunction, IRStructDef, IRGlobalVar
@@ -467,6 +479,8 @@ class IRGenerator(ASTVisitor):
         "MOVE_EXPR": "_eval_move",
         # 泛型（G.04）
         "GENERIC_TYPE": "_eval_generic_type_ref",
+        # 模式匹配（M.03）
+        "MATCH_EXPR": "_eval_match_expr",
     }
 
     def _eval_expr(self, node: ASTNode) -> Optional[IRValue]:
@@ -1981,6 +1995,19 @@ class IRGenerator(ASTVisitor):
         self._ensure_block()
         self._eval_expr(node)
 
+    def visit_match_expr(self, node: "MatchExprNode"):
+        """匹配表达式"""
+        self._ensure_block()
+        return self._eval_match_expr(node)
+
+    def visit_match_case(self, node: "MatchCaseNode"):
+        """匹配分支"""
+        self._ensure_block()
+        # 单独访问 case 时，仅处理模式和体
+        if hasattr(node, "body") and node.body:
+            self._analyze_stmt(node.body)
+        return None
+
     def visit_sizeof_expr(self, node: SizeofExprNode):
         """sizeof 表达式"""
         self._ensure_block()
@@ -2581,3 +2608,312 @@ class IRGenerator(ASTVisitor):
             [result],
         )
         return result
+
+    # =========================================================================
+    # M.03: 模式匹配 IR 生成
+    # =========================================================================
+
+    def _eval_match_expr(self, node: MatchExprNode) -> Optional[IRValue]:
+        """匹配表达式求值
+
+        M.03 - 模式匹配 IR 生成
+
+        生成结构：
+        1. 求值 scrutinee 表达式
+        2. 为每个 case 创建基本块
+        3. 发射模式测试和跳转指令
+        4. 处理守卫表达式
+        5. 处理分支体
+
+        IR 示例：
+        %scrutinee = ... ; scrutinee 求值
+        ; === Case 1: Some(x) ===
+        %tag1 = pattern_test CONSTRUCTOR(Some), %scrutinee
+        jz %tag1, :case2
+        %x = pattern_bind FIELD(0), %scrutinee
+        [guard eval if present]
+        [case1 body]
+        jmp :match_end
+        ; === Case 2: None ===
+        :case2
+        %tag2 = pattern_test CONSTRUCTOR(None), %scrutinee
+        jz %tag2, :match_fail
+        [case2 body]
+        jmp :match_end
+        ; === Fallthrough ===
+        :match_fail
+        call throw_match_error(%scrutinee)
+        :match_end
+        """
+        self._ensure_block()
+
+        # 1. 求值 scrutinee 表达式
+        scrutinee = self._eval_expr(node.expr) if node.expr else None
+
+        # 2. 创建 end_bb（合并块）和 fail_bb（匹配失败）
+        end_bb = IRBasicBlock(self._new_bb_label("match_end"))
+        fail_bb = IRBasicBlock(self._new_bb_label("match_fail"))
+        self.current_function.basic_blocks.append(end_bb)
+        self.current_function.basic_blocks.append(fail_bb)
+
+        # 保存当前匹配上下文
+        old_match_end = getattr(self, "_match_end_bb", None)
+        self._match_end_bb = end_bb
+
+        # 3. 为每个 case 创建基本块
+        case_blocks = []
+        for i, case_node in enumerate(node.cases):
+            case_label = self._new_bb_label(f"case_{i}")
+            case_bb = IRBasicBlock(case_label)
+            self.current_function.basic_blocks.append(case_bb)
+            case_blocks.append((case_node, case_bb))
+
+        # 4. 生成模式匹配逻辑
+        # 从第一个 case 开始
+        self._generate_pattern_matching(scrutinee, case_blocks, end_bb, fail_bb)
+
+        # 5. 生成 match_fail 块（调用错误处理）
+        self._switch_block(fail_bb)
+        self._ensure_block()
+        # 调用模式匹配失败处理（如果运行时支持）
+        # self._emit(Opcode.CALL, [error_func], [error_result])
+        # 临时方案：跳转到一个无操作的结束块
+        self._emit(Opcode.JMP, [end_bb.label])
+
+        # 6. 切换到 end_bb
+        self._switch_block(end_bb)
+        self._ensure_block()
+
+        # 恢复上下文
+        self._match_end_bb = old_match_end
+
+        # 返回 scrutinee 作为匹配表达式的结果（语义上 match 表达式返回各分支的值）
+        return scrutinee
+
+    def _generate_pattern_matching(
+        self,
+        scrutinee: Optional[IRValue],
+        case_blocks: List[tuple],
+        end_bb: IRBasicBlock,
+        fail_bb: IRBasicBlock,
+    ) -> None:
+        """生成模式匹配逻辑
+
+        Args:
+            scrutinee: 被匹配的值
+            case_blocks: [(MatchCaseNode, IRBasicBlock), ...]
+            end_bb: 结束基本块
+            fail_bb: 失败基本块
+        """
+        # 跟踪前一个 case 失败后的跳转目标
+        current_fail_target = fail_bb.label
+
+        for case_node, case_bb in case_blocks:
+            pattern = case_node.pattern
+
+            # 切换到 case_bb
+            self._switch_block(case_bb)
+            self._ensure_block()
+
+            # 生成模式测试
+            test_result = self._emit_pattern_test(pattern, scrutinee)
+
+            if test_result:
+                # 测试成功，跳转到 case_bb
+                # 测试失败，跳转到 current_fail_target
+                self._emit(Opcode.JZ, [test_result, current_fail_target])
+            else:
+                # 无法静态测试，跳转到当前 case
+                pass
+
+            # 生成模式绑定
+            self._emit_pattern_bind(pattern, scrutinee)
+
+            # 处理守卫表达式
+            if case_node.guard:
+                guard_result = self._emit_guard(case_node.guard)
+                if guard_result:
+                    self._emit(Opcode.JZ, [guard_result, current_fail_target])
+
+            # 处理分支体
+            if case_node.body:
+                self._analyze_stmt(case_node.body)
+
+            # 确保分支有终结指令
+            if self.current_block and not self.current_block.is_terminated():
+                self._emit(Opcode.JMP, [end_bb.label])
+
+            # 更新失败跳转目标为当前 case
+            current_fail_target = case_bb.label
+
+    def _emit_pattern_test(
+        self, pattern: Pattern, scrutinee: Optional[IRValue]
+    ) -> Optional[IRValue]:
+        """发射模式测试指令
+
+        Args:
+            pattern: 模式对象
+            scrutinee: 被测试的值
+
+        Returns:
+            测试结果（1位布尔值），None 表示无法静态测试
+        """
+        if scrutinee is None:
+            return None
+
+        # 构造器模式：测试 tag/discriminant
+        if isinstance(pattern, ConstructorPattern):
+            result = self._new_temp()
+            # 生成 PATTERN_TEST 指令
+            # 操作数：[constructor_name, scrutinee]
+            constructor_val = IRValue(
+                pattern.constructor,
+                ty="构造函数",
+                kind=ValueKind.CONST,
+                const_value=pattern.constructor,
+            )
+            self._emit(
+                Opcode.PATTERN_TEST,
+                [constructor_val, scrutinee],
+                [result],
+            )
+            return result
+
+        # 字面量模式：比较相等
+        elif isinstance(pattern, LiteralPattern):
+            result = self._new_temp()
+            literal_val = IRValue(
+                pattern.value,
+                ty=pattern.literal_type,
+                kind=ValueKind.CONST,
+                const_value=pattern.value,
+            )
+            # 使用 EQ 比较
+            self._emit(
+                Opcode.EQ,
+                [scrutinee, literal_val],
+                [result],
+            )
+            return result
+
+        # 通配符/变量模式：总是匹配成功
+        elif isinstance(pattern, (WildcardPattern, VariablePattern)):
+            # 返回常量 1（真）
+            result = self._new_temp()
+            true_val = IRValue(1, ty="布尔型", kind=ValueKind.CONST, const_value=1)
+            self._emit(Opcode.EQ, [true_val, true_val], [result])
+            return result
+
+        # Or 模式：测试任一子模式
+        elif isinstance(pattern, OrPattern):
+            # 递归测试第一个子模式
+            first_result = self._emit_pattern_test(pattern.patterns[0], scrutinee)
+            if len(pattern.patterns) > 1:
+                # 创建 or 链
+                for sub_pattern in pattern.patterns[1:]:
+                    sub_result = self._emit_pattern_test(sub_pattern, scrutinee)
+                    if first_result and sub_result:
+                        result = self._new_temp()
+                        self._emit(
+                            Opcode.L_OR,
+                            [first_result, sub_result],
+                            [result],
+                        )
+                        first_result = result
+            return first_result
+
+        # 无法静态测试
+        return None
+
+    def _emit_pattern_bind(
+        self, pattern: Pattern, scrutinee: Optional[IRValue]
+    ) -> None:
+        """发射模式绑定指令
+
+        Args:
+            pattern: 模式对象
+            scrutinee: 被匹配的值
+        """
+        if scrutinee is None:
+            return
+
+        # 构造器模式：绑定字段
+        if isinstance(pattern, ConstructorPattern):
+            for i, sub_pattern in enumerate(pattern.sub_patterns):
+                # 提取字段值
+                field_val = self._new_temp()
+                # 生成 GETPTR 或 GEP 指令
+                index_val = IRValue(i, ty="整数型", kind=ValueKind.CONST, const_value=i)
+                self._emit(
+                    Opcode.GETPTR,
+                    [scrutinee, index_val],
+                    [field_val],
+                )
+                # 递归绑定子模式
+                self._emit_pattern_bind(sub_pattern, field_val)
+
+        # 变量模式：绑定到新变量
+        elif isinstance(pattern, VariablePattern):
+            result = self._new_temp()
+            self._emit(
+                Opcode.PATTERN_BIND,
+                [scrutinee],
+                [result],
+            )
+            # 注册绑定变量到当前作用域
+            var_name = pattern.name
+            self.var_ptr_map[var_name] = result
+
+        # 元组/解构模式：递归绑定元素
+        elif hasattr(pattern, "sub_patterns"):
+            for i, sub_pattern in enumerate(pattern.sub_patterns):
+                field_val = self._new_temp()
+                index_val = IRValue(i, ty="整数型", kind=ValueKind.CONST, const_value=i)
+                self._emit(
+                    Opcode.GETPTR,
+                    [scrutinee, index_val],
+                    [field_val],
+                )
+                self._emit_pattern_bind(sub_pattern, field_val)
+
+    def _emit_guard(self, guard_expr: ASTNode) -> Optional[IRValue]:
+        """发射守卫表达式求值
+
+        Args:
+            guard_expr: 守卫表达式 AST 节点
+
+        Returns:
+            守卫结果（布尔值）
+        """
+        if guard_expr is None:
+            return None
+
+        result = self._eval_expr(guard_expr)
+        return result
+
+    def _analyze_stmt(self, stmt: ASTNode) -> None:
+        """分析语句节点并生成 IR
+
+        这是 generate() 方法的简化版，用于在模式匹配中分析分支体。
+        """
+        if stmt is None:
+            return
+
+        nt = stmt.node_type.name if hasattr(stmt, "node_type") else str(type(stmt))
+
+        # 语句类型分发
+        if nt == "BLOCK_STMT":
+            for child in stmt.get_children():
+                self._analyze_stmt(child)
+        elif nt == "RETURN_STMT":
+            self._eval_return(stmt)
+        elif nt == "EXPR_STMT":
+            self._eval_expr(stmt.expr)
+        elif nt == "IF_STMT":
+            self.visit_if_stmt(stmt)
+        elif nt == "WHILE_STMT":
+            self.visit_while_stmt(stmt)
+        elif nt == "BREAK_STMT":
+            if self._match_end_bb:
+                self._emit(Opcode.JMP, [self._match_end_bb])
+        # ... 其他语句类型可按需扩展

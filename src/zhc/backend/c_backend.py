@@ -331,6 +331,32 @@ class CBackend(BackendBase):
                 if i.operands
                 else "/* 特化生成 */"
             ),
+            # 模式匹配
+            "MATCH": lambda s, i: (
+                f"/* 匹配开始: scrutinee = {i.operands[0] if i.operands else '?'} */"
+                if i.operands
+                else "/* 匹配开始 */"
+            ),
+            "CASE": lambda s, i: (
+                f"/* 分支 {i.operands[0].const_value if i.operands and hasattr(i.operands[0], 'const_value') else '?'} */"
+                if i.operands
+                else "/* 分支 */"
+            ),
+            "PATTERN_TEST": lambda s, i: (
+                f"{i.result[0].name if i.result else '_'} = zhc_pattern_test({i.operands[0] if i.operands else '?'}, {i.operands[1] if len(i.operands or []) > 1 else '?'});"
+                if i.operands
+                else f"{i.result[0].name if i.result else '_'} = zhc_pattern_test(NULL, NULL);"
+            ),
+            "PATTERN_BIND": lambda s, i: (
+                f"{i.result[0].name if i.result else '_'} = zhc_pattern_bind({i.operands[0] if i.operands else '?'}, 0);"
+                if i.operands
+                else f"{i.result[0].name if i.result else '_'} = zhc_pattern_bind(NULL, 0);"
+            ),
+            "PATTERN_GUARD": lambda s, i: (
+                f"{i.result[0].name if i.result else '_'} = ({i.operands[0] if i.operands else '0'});"
+                if i.operands
+                else f"{i.result[0].name if i.result else '_'} = 0;"
+            ),
         }
 
     def _generate_main_function(self, ir: "IRProgram") -> str:

@@ -127,6 +127,7 @@ class LLVMBackend(BackendBase):
         self._register_closure_strategies()
         self._register_memory_strategies()
         self._register_generic_strategies()
+        self._register_pattern_strategies()
 
         # 初始化 LLVM (llvmlite 0.47+: 使用新 API)
         if LLVM_AVAILABLE:
@@ -206,6 +207,22 @@ class LLVMBackend(BackendBase):
         InstructionStrategyFactory.register(GenericCallStrategy())
         InstructionStrategyFactory.register(TypeParamBindStrategy())
         InstructionStrategyFactory.register(SpecializeStrategy())
+
+    def _register_pattern_strategies(self) -> None:
+        """注册模式匹配相关策略"""
+        from .pattern_strategies import (
+            MatchStrategy,
+            CaseStrategy,
+            PatternTestStrategy,
+            PatternBindStrategy,
+            PatternGuardStrategy,
+        )
+
+        InstructionStrategyFactory.register(MatchStrategy())
+        InstructionStrategyFactory.register(CaseStrategy())
+        InstructionStrategyFactory.register(PatternTestStrategy())
+        InstructionStrategyFactory.register(PatternBindStrategy())
+        InstructionStrategyFactory.register(PatternGuardStrategy())
 
     def _create_debug_listener(self, source_file: str, output_file: str = "debug.json"):
         """
