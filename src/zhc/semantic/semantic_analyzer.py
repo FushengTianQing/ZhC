@@ -313,6 +313,10 @@ class SemanticAnalyzer:
         # Phase 9: 泛型实例化器 — 将泛型函数/类型实例化为具体版本
         self._instantiator = None  # 延迟初始化
 
+        # Phase 9/G.01-G.02: 泛型解析器和单态化引擎
+        self._generic_resolver = None  # 延迟初始化（GenericResolver）
+        self._monomorphizer = None  # 延迟初始化（Monomorphizer）
+
         # Phase 10: 错误恢复系统集成
         self._error_mode_manager = ErrorModeManager(mode=ErrorMode.LENIENT)
         self._error_recovery_strategy = ErrorRecoveryStrategy(self._error_mode_manager)
@@ -394,6 +398,27 @@ class SemanticAnalyzer:
             self._instantiator = GenericInstantiator(self.generic_manager)
         return self._instantiator
 
+    @property
+    def generic_resolver(self):
+        """延迟获取泛型解析器实例（G.01 GenericResolver）"""
+        if self._generic_resolver is None:
+            from .generics import GenericResolver
+
+            self._generic_resolver = GenericResolver(self.generic_manager)
+        return self._generic_resolver
+
+    @property
+    def monomorphizer(self):
+        """延迟获取单态化引擎实例（G.02 Monomorphizer）"""
+        if self._monomorphizer is None:
+            from .generics import Monomorphizer
+
+            self._monomorphizer = Monomorphizer(
+                manager=self.generic_manager,
+                resolver=self.generic_resolver,
+            )
+        return self._monomorphizer
+
     def _node_location(self, node: ASTNode) -> str:
         """获取节点的位置描述"""
         return f"{node.line}:{node.column}"
@@ -403,6 +428,8 @@ class SemanticAnalyzer:
         self._analyze_node(ast)
         self._check_unused_symbols()
         self._run_cfg_analysis(ast)
+        # G.03 Phase 9: 语义分析完成后执行全程序单态化
+        self._run_monomorphization(ast)
         return len(self.errors) == 0
 
     def analyze_file(self, ast: ASTNode, source_file: str = "") -> bool:
@@ -411,11 +438,66 @@ class SemanticAnalyzer:
         self._analyze_node(ast)
         self._check_unused_symbols()
         self._run_cfg_analysis(ast)
+        # G.03 Phase 9: 语义分析完成后执行全程序单态化
+        self._run_monomorphization(ast)
         return len(self.errors) == 0
+
+    def _run_monomorphization(self, ast: ASTNode) -> None:
+        """
+        G.03: 在语义分析完成后执行全程序单态化
+
+        将 AST 中所有泛型函数/类型声明替换为特化版本，
+        使得后续的 IR Generator 只需要处理普通函数和结构体。
+        """
+        from ..parser.ast_nodes import ASTNodeType
+
+        if ast.node_type != ASTNodeType.PROGRAM:
+            return
+
+        try:
+            self.monomorphizer.monomorphize(ast)
+
+            # 记录单态化统计信息
+            stats_after = self.monomorphizer.get_statistics()
+            if stats_after:
+                spec_funcs = stats_after.get("specialized_functions", 0)
+                spec_types = stats_after.get("specialized_types", 0)
+
+                if spec_funcs > 0 or spec_types > 0:
+                    self._add_info(
+                        "泛型单态化",
+                        f"已生成 {spec_funcs} 个特化函数、"
+                        f"{spec_types} 个特化类型的实例",
+                        "全局",
+                    )
+        except Exception as e:
+            # 单态化失败不应阻断编译流程
+            self._add_warning(
+                "泛型单态化",
+                f"单态化过程遇到问题: {e}",
+                "全局",
+            )
 
     def _analyze_node(self, node: ASTNode) -> None:
         """分析单个节点，按 node_type 分发"""
         self.stats["nodes_visited"] += 1
+
+        # G.03 泛型节点优先拦截（isinstance 检测，因为泛型节点复用标准 node_type）
+        from ..semantic.generic_parser import (
+            GenericFunctionDeclNode,
+            GenericTypeDeclNode,
+            GenericTypeNode,
+        )
+
+        if isinstance(node, GenericFunctionDeclNode):
+            self._analyze_generic_function_decl(node)
+            return
+        if isinstance(node, GenericTypeDeclNode):
+            self._analyze_generic_type_decl(node)
+            return
+        if isinstance(node, GenericTypeNode):
+            self._analyze_generic_type_ref(node)
+            return
 
         nt = node.node_type
 
@@ -1874,13 +1956,290 @@ class SemanticAnalyzer:
 
     # ===== Phase 5 T2.2-T2.4: 类型检查集成 =====
 
-    # ===== Phase 8: 泛型模块集成 =====
+    # ===== Phase 8/G.03: 泛型模块完整集成 =====
+
+    @staticmethod
+    def _is_generic_function_decl(node) -> bool:
+        """
+        检测节点是否为泛型函数声明（GenericFunctionDeclNode）
+
+        GenericFunctionDeclNode 使用 FUNCTION_DECL 作为 node_type，
+        需要通过 isinstance 或属性检测来区分。
+        """
+        from ..semantic.generic_parser import GenericFunctionDeclNode
+
+        return isinstance(node, GenericFunctionDeclNode)
+
+    @staticmethod
+    def _is_generic_type_decl(node) -> bool:
+        """
+        检测节点是否为泛型类型声明（GenericTypeDeclNode）
+
+        GenericTypeDeclNode 使用 STRUCT_DECL 作为 node_type，
+        需要通过 isinstance 或属性检测来区分。
+        """
+        from ..semantic.generic_parser import GenericTypeDeclNode
+
+        return isinstance(node, GenericTypeDeclNode)
+
+    def _analyze_generic_function_decl(self, node) -> None:
+        """
+        G.03: 分析泛型函数声明节点（GenericFunctionDeclNode）
+
+        完整流程：
+        1. 通过 GenericResolver 注册泛型函数到 GenericManager（含类型参数和约束）
+        2. 在符号表中创建占位符号（标记为泛型）
+        3. 递归分析函数体中的语句和表达式
+        4. 处理 Where 子句约束
+        """
+
+        loc = self._node_location(node)
+
+        # 步骤1：通过 GenericResolver 完整注册（替代旧的 _register_generic_function stub）
+        try:
+            self.generic_resolver.resolve(node)
+        except Exception as e:
+            self._add_warning(
+                "泛型函数注册",
+                f"泛型函数 '{node.name}' 注册时遇到问题: {e}",
+                loc,
+            )
+
+        # 步骤2：在符号表中创建占位符号（标记为泛型函数）
+        func_symbol = Symbol(
+            name=node.name,
+            symbol_type="泛型函数",
+            data_type=self._get_type_name(node.return_type)
+            if node.return_type
+            else "空型",
+            return_type=self._get_type_name(node.return_type)
+            if node.return_type
+            else "空型",
+            definition_location=loc,
+            is_defined=True,
+        )
+
+        # 收集参数信息
+        for param in node.params or []:
+            param_symbol = Symbol(
+                name=getattr(param, "name", "unknown"),
+                symbol_type="参数",
+                data_type=self._get_type_name(param.param_type)
+                if hasattr(param, "param_type") and param.param_type
+                else "未知",
+                definition_location=self._node_location(param),
+            )
+            func_symbol.parameters.append(param_symbol)
+
+        if not self.symbol_table.add_symbol(func_symbol):
+            self._add_error("重复定义", f"泛型函数 '{node.name}' 重复定义", loc)
+
+        # 步骤3：进入函数作用域并分析函数体
+        self.current_function = func_symbol
+        self.symbol_table.enter_scope(ScopeType.FUNCTION, node.name)
+
+        # 注册参数到当前作用域
+        for param in node.params or []:
+            param_name = getattr(param, "name", "")
+            if param_name:
+                param_sym = Symbol(
+                    name=param_name,
+                    symbol_type="参数",
+                    data_type=self._get_type_name(param.param_type)
+                    if hasattr(param, "param_type") and param.param_type
+                    else "未知",
+                    definition_location=self._node_location(param),
+                )
+                self.symbol_table.add_symbol(param_sym)
+
+        # 分析函数体
+        if node.body:
+            self._analyze_node(node.body)
+
+        # 验证 goto 目标标签（如果存在）
+        self._validate_goto_targets()
+
+        self.symbol_table.exit_scope()
+        self.current_function = None
+
+        # 步骤4：处理 Where 子句约束（如有）
+        if hasattr(node, "where_clause") and node.where_clause:
+            self._process_where_clause_constraints(
+                node.where_clause, node.type_params, loc
+            )
+
+    def _analyze_generic_type_decl(self, node) -> None:
+        """
+        G.03: 分析泛型类型声明节点（GenericTypeDeclNode）
+
+        完整流程：
+        1. 通过 GenericResolver 注册泛型类型到 GenericManager（含类型参数、约束、成员）
+        2. 在符号表中创建占位符号（标记为泛型结构体）
+        3. 进入结构体作用域，分析所有成员变量
+        4. 处理 Where 子句约束
+        """
+
+        loc = self._node_location(node)
+
+        # 步骤1：通过 GenericResolver 完整注册
+        try:
+            self.generic_resolver.resolve(node)
+        except Exception as e:
+            self._add_warning(
+                "泛型类型注册",
+                f"泛型类型 '{node.name}' 注册时遇到问题: {e}",
+                loc,
+            )
+
+        # 步骤2：在符号表中创建占位符号（标记为泛型结构体）
+        struct_symbol = Symbol(
+            name=node.name,
+            symbol_type="泛型结构体",
+            definition_location=loc,
+            is_defined=True,
+        )
+
+        if not self.symbol_table.add_symbol(struct_symbol):
+            self._add_error("重复定义", f"泛型类型 '{node.name}' 重复定义", loc)
+
+        # 步骤3：分析成员
+        self.current_struct = struct_symbol
+        self.symbol_table.enter_scope(ScopeType.STRUCT, node.name)
+
+        for member in node.members or []:
+            self._analyze_node(member)
+            # 记录成员信息
+            if hasattr(member, "name"):
+                member_type = (
+                    self._get_type_name(member.var_type)
+                    if hasattr(member, "var_type") and member.var_type
+                    else None
+                )
+                struct_symbol.members.append(
+                    Symbol(
+                        name=member.name,
+                        symbol_type="成员变量",
+                        data_type=member_type,
+                    )
+                )
+
+        self.symbol_table.exit_scope()
+        self.current_struct = None
+
+        # 步骤4：处理 Where 子句约束
+        if hasattr(node, "where_clause") and node.where_clause:
+            self._process_where_clause_constraints(
+                node.where_clause, node.type_params, loc
+            )
+
+    def _process_where_clause_constraints(
+        self, where_clause, type_params, location: str
+    ) -> None:
+        """
+        处理 Where 子句中的约束声明
+
+        将 WhereClauseNode 中的约束映射到 TypeParameter，
+        并验证预定义约束是否被正确解析。
+        """
+        if not where_clause or not hasattr(where_clause, "constraints"):
+            return
+
+        constraints_list = getattr(where_clause, "constraints", [])
+        if not constraints_list:
+            return
+
+        # 解析并验证约束
+        resolved_constraints = self.generic_resolver.resolve_constraints(where_clause)
+
+        for param_name, _constraint in resolved_constraints:
+            # 检查对应的类型参数是否存在
+            tp_exists = any(
+                getattr(tp, "name", "") == param_name for tp in (type_params or [])
+            )
+
+            if not tp_exists:
+                self._add_warning(
+                    "泛型约束",
+                    f"Where 子句引用了未声明的类型参数 '{param_name}'",
+                    location,
+                )
+
+    def _analyze_generic_type_ref(self, node) -> Optional[str]:
+        """
+        G.03: 分析泛型类型引用节点（GenericTypeNode）
+
+        处理形如 `列表<整数型>` 的泛型调用点：
+        1. 推导或提取类型实参列表
+        2. 触发 Monomorphizer 生成特化版本
+        3. 返回特化后的类型名称供后续使用
+
+        Args:
+            node: GenericTypeNode 实例
+
+        Returns:
+            特化后的类型名称字符串（如 "列表__整数型"），失败返回 None
+        """
+        from ..semantic.generic_parser import GenericTypeNode
+
+        if not isinstance(node, GenericTypeNode):
+            return None
+
+        base_type = getattr(node, "base_type", "")
+        type_args_raw = getattr(node, "type_args", [])
+
+        if not base_type or not type_args_raw:
+            return base_type or None
+
+        # 提取类型实参名称
+        type_args = []
+        for arg in type_args_raw:
+            if hasattr(arg, "type_name"):
+                type_args.append(arg.type_name)
+            elif hasattr(arg, "name"):
+                type_args.append(arg.name)
+            elif isinstance(arg, str):
+                type_args.append(arg)
+
+        # 尝试触发单态化（Monomorphizer 会检查缓存避免重复生成）
+        mangled_name = f"{base_type}__{'_'.join(type_args)}"
+
+        try:
+            # 确认泛型类型已在管理器中注册
+            generic_type = self.generic_manager.get_generic_type(base_type)
+            if generic_type is None:
+                self._add_info(
+                    "泛型类型引用",
+                    f"泛型类型 '{base_type}' 未在管理器中找到" f"（可能尚未声明）",
+                    self._node_location(node),
+                )
+                return mangled_name
+
+            # 触发实例化以验证约束
+            instance = self.generic_resolver.instantiate_generic_type(
+                base_type, type_args
+            )
+            if instance:
+                return instance.name
+
+            return mangled_name
+        except Exception as e:
+            self._add_debug_info(
+                "泛型类型引用",
+                f"'{mangled_name}' 实例化跳过: {e}",
+                self._node_location(node),
+            )
+            return mangled_name
+
+    def _add_debug_info(self, error_type, message, location):
+        """添加调试级别信息（不作为错误/警告）"""
+        pass  # 可在未来扩展为日志记录
 
     def _register_generic_function(self, node: FunctionDeclNode) -> None:
         """
-        检查并注册泛型函数（Phase 8）
+        检查并注册泛型函数（Phase 8 — 向后兼容的简化接口）
 
-        如果节点包含 type_params 属性（泛型函数），则注册到 GenericManager。
+        对于非 GenericFunctionDeclNode 但带有 type_params 属性的情况。
+        大部分逻辑已迁移到 _analyze_generic_function_decl() 中。
         """
         if not hasattr(node, "type_params") or not node.type_params:
             return
@@ -1906,9 +2265,10 @@ class SemanticAnalyzer:
 
     def _register_generic_type(self, node: StructDeclNode) -> None:
         """
-        检查并注册泛型类型（Phase 8）
+        检查并注册泛型类型（Phase 8 — 向后兼容的简化接口）
 
-        如果节点包含 type_params 属性（泛型类型），则注册到 GenericManager。
+        对于非 GenericTypeDeclNode 但带有 type_params 属性的情况。
+        大部分逻辑已迁移到 _analyze_generic_type_decl() 中。
         """
         if not hasattr(node, "type_params") or not node.type_params:
             return

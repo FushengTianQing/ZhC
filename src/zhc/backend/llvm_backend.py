@@ -126,6 +126,7 @@ class LLVMBackend(BackendBase):
         # 注册闭包策略
         self._register_closure_strategies()
         self._register_memory_strategies()
+        self._register_generic_strategies()
 
         # 初始化 LLVM (llvmlite 0.47+: 使用新 API)
         if LLVM_AVAILABLE:
@@ -191,6 +192,20 @@ class LLVMBackend(BackendBase):
         InstructionStrategyFactory.register(ChannelCreateStrategy())
         InstructionStrategyFactory.register(ChannelSendStrategy())
         InstructionStrategyFactory.register(ChannelRecvStrategy())
+
+    def _register_generic_strategies(self) -> None:
+        """注册泛型相关策略"""
+        from .generic_strategies import (
+            GenericInstantiateStrategy,
+            GenericCallStrategy,
+            TypeParamBindStrategy,
+            SpecializeStrategy,
+        )
+
+        InstructionStrategyFactory.register(GenericInstantiateStrategy())
+        InstructionStrategyFactory.register(GenericCallStrategy())
+        InstructionStrategyFactory.register(TypeParamBindStrategy())
+        InstructionStrategyFactory.register(SpecializeStrategy())
 
     def _create_debug_listener(self, source_file: str, output_file: str = "debug.json"):
         """

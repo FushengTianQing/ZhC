@@ -211,6 +211,36 @@ class Opcode(Enum):
         True,
     )  # 检查是否基本类型
 
+    # ========== 泛型/单态化 ==========
+    GENERIC_INSTANTIATE = (
+        "generic_instantiate",
+        "泛型",
+        "泛型实例化",
+        False,
+        True,
+    )  # 实例化泛型类型（如 列表<T> → 列表<整数型>）
+    GENERIC_CALL = (
+        "generic_call",
+        "泛型",
+        "泛型函数调用",
+        False,
+        True,
+    )  # 调用特化后的泛型函数
+    TYPE_PARAM_BIND = (
+        "type_param_bind",
+        "泛型",
+        "类型参数绑定",
+        False,
+        False,
+    )  # 绑定类型参数到具体类型
+    SPECIALIZE = (
+        "specialize",
+        "泛型",
+        "特化生成",
+        False,
+        True,
+    )  # 为泛型函数/类型生成特化版本
+
     # ========== 其他 ==========
     CONST = ("const", "其他", "常量", False, True)  # 常量值
     NOP = ("nop", "其他", "空操作", False, False)  # 空操作

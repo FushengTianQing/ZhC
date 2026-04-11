@@ -84,6 +84,14 @@ from zhc.ir.instructions import IRBasicBlock, IRInstruction
 from zhc.ir.values import IRValue, ValueKind
 from zhc.ir.opcodes import Opcode
 
+# 泛型节点（G.04: IR 层泛型支持）
+from zhc.semantic.generic_parser import (
+    GenericFunctionDeclNode,
+    GenericTypeDeclNode,
+    GenericTypeNode,
+    TypeNode,
+)
+
 
 class IRGenerator(ASTVisitor):
     """
@@ -457,6 +465,8 @@ class IRGenerator(ASTVisitor):
         "SHARED_PTR_DECL": "_eval_smart_ptr_decl",
         "WEAK_PTR_DECL": "_eval_smart_ptr_decl",
         "MOVE_EXPR": "_eval_move",
+        # 泛型（G.04）
+        "GENERIC_TYPE": "_eval_generic_type_ref",
     }
 
     def _eval_expr(self, node: ASTNode) -> Optional[IRValue]:
@@ -2364,3 +2374,210 @@ class IRGenerator(ASTVisitor):
         """移动语义表达式"""
         self._ensure_block()
         self._eval_move(node)
+
+    # ========== 泛型/单态化（G.04）==========
+
+    def _resolve_generic_function_name(
+        self, name: str, type_args: List[str] = None
+    ) -> str:
+        """
+        解析泛型函数名为特化后的 mangled 名称
+
+        对于已单态化的泛型函数，名称格式为: 函数名__类型1_类型2
+        例如: 最大值__整数型
+
+        Args:
+            name: 原始函数名
+            type_args: 类型实参列表（可选）
+
+        Returns:
+            特化后的 mangled 名称或原始名称
+        """
+        # 如果已经是 mangled 名称（含 __），直接返回
+        if "__" in name:
+            return name
+
+        # 尝试从 Monomorphizer 缓存查找特化版本
+        if type_args:
+            mangled = f"{name}__{'_'.join(type_args)}"
+            return mangled
+
+        # 回退到标准解析
+        return self._resolve_function_name(name)
+
+    def visit_generic_function_decl(self, node: "GenericFunctionDeclNode"):
+        """
+        泛型函数声明 → 生成特化版本的 IR
+
+        G.04: 处理 GenericFunctionDeclNode。
+        在语义分析阶段已完成单态化后，这里处理的是已被
+        Monomorphizer 替换为普通 FunctionDeclNode 的特化版本，
+        或原始的泛型模板声明（仅注册元信息）。
+
+        对于原始泛型声明：
+        - 发射 GENERIC_INSTANTIATE 指令标记泛型定义
+        - 不生成完整的函数体 IR（由特化版本负责）
+        """
+        self._ensure_block()
+
+        # 获取类型参数信息
+        type_param_names = [tp.name for tp in (node.type_params or [])]
+
+        # 构建泛型签名描述
+        generic_sig = f"{node.name}<{', '.join(type_param_names)}>"
+
+        # 发射泛型实例化指令（标记这是一个泛型定义点）
+        sig_value = IRValue(
+            generic_sig, "泛型签名", ValueKind.CONST, const_value=generic_sig
+        )
+
+        # 收集类型参数名作为操作数
+        type_param_values = [
+            IRValue(tp.name, "类型参数", ValueKind.CONST, const_value=tp.name)
+            for tp in (node.type_params or [])
+        ]
+
+        result = self._new_temp("泛型函数")
+        self._emit(
+            Opcode.GENERIC_INSTANTIATE, [sig_value] + type_param_values, [result]
+        )
+
+        # 如果有函数体且是具体特化版本，正常生成 IR
+        # （Monomorphizer 会将特化后的 FunctionDeclNode 正常路由到 visit_function_decl）
+        # 这里只处理原始泛型声明的元信息记录
+
+    def visit_generic_type_decl(self, node: "GenericTypeDeclNode"):
+        """
+        泛型类型声明 → 生成特化结构体的 IR
+
+        G.04: 处理 GenericTypeDeclNode。
+        类似于 visit_struct_decl，但额外标记为泛型派生。
+        """
+        self._ensure_block()
+
+        # 使用 mangled 名称: 类型名__参数1_参数2
+        type_param_names = [tp.name for tp in (node.type_params or [])]
+        if type_param_names:
+            mangled_name = f"{node.name}__{'_'.join(type_param_names)}"
+        else:
+            mangled_name = node.name
+
+        struct_def = IRStructDef(name=mangled_name)
+        for m in node.members:
+            if hasattr(m, "name"):
+                member_ty = self._get_type_name(getattr(m, "var_type", None))
+                struct_def.add_member(m.name, member_ty)
+        self.module.add_struct(struct_def)
+
+        # 发射特化标记指令
+        result = self._new_temp("泛型类型")
+        base_value = IRValue(
+            node.name, "泛型基础类型", ValueKind.CONST, const_value=node.name
+        )
+        self._emit(Opcode.SPECIALIZE, [base_value], [result])
+
+    def visit_type(self, node: "TypeNode"):
+        """类型节点（包括泛型 TypeNode）— 纯类型信息，不生成 IR 指令"""
+        pass
+
+    def visit_generic_type(self, node: "GenericTypeNode"):
+        """泛型类型引用节点 → 生成泛型实例化 IR"""
+        self._ensure_block()
+        self._eval_generic_type_ref(node)
+
+    def visit_type_parameter(self, node):
+        """类型参数节点 — 纯声明性，不生成 IR 指令"""
+        pass
+
+    def visit_where_clause(self, node):
+        """Where 子句 — 约束声明，不生成 IR 指令（约束检查在语义分析阶段完成）"""
+        pass
+
+    def _eval_generic_type_ref(self, node: ASTNode) -> Optional[IRValue]:
+        """
+        求值泛型类型引用表达式（GenericTypeNode）
+
+        处理形如 列表<整数型> 的泛型类型使用。
+
+        生成 GENERIC_INSTANTIATE 指令表示在 IR 层创建了一个具体的泛型实例。
+        后端的 generic_strategies.py 将此指令转换为 LLVM 的
+        具体结构体类型或 opaque pointer。
+
+        Returns:
+            表示泛型实例的 IRValue
+        """
+        base_type = getattr(node, "base_type", "")
+        type_args = getattr(node, "type_args", [])
+
+        if not base_type:
+            return None
+
+        # 提取类型实参名称列表
+        arg_type_names = []
+        for arg in type_args:
+            arg_name = getattr(arg, "type_name", getattr(arg, "name", str(arg)))
+            arg_type_names.append(arg_name)
+
+        # 构建 mangled 实例名称
+        if arg_type_names:
+            instance_name = f"{base_type}__{'_'.join(arg_type_names)}"
+        else:
+            instance_name = base_type
+
+        # 发射泛型实例化指令
+        base_value = IRValue(
+            base_type, "泛型基础", ValueKind.CONST, const_value=base_type
+        )
+        arg_values = [
+            IRValue(name, "类型实参", ValueKind.CONST, const_value=name)
+            for name in arg_type_names
+        ]
+
+        result = self._new_temp(f"泛型实例<{instance_name}>")
+        self._emit(
+            Opcode.GENERIC_INSTANTIATE,
+            [base_value] + arg_values,
+            [result],
+        )
+
+        return result
+
+    def _generate_generic_call_ir(
+        self,
+        func_name: str,
+        type_args: List[str],
+        args: List[IRValue],
+    ) -> Optional[IRValue]:
+        """
+        为泛型函数调用生成 IR
+
+        当调用点使用了泛型函数时（如 最大值<整数型>(a, b)），
+        生成 GENERIC_CALL 指令而非普通的 CALL 指令。
+        后端会将此映射到正确的特化函数符号。
+
+        Args:
+            func_name: 原始泛型函数名
+            type_args: 类型实参列表
+            args: 参数 IRValue 列表
+
+        Returns:
+            调用结果 IRValue
+        """
+        # 生成 mangled 名称
+        mangled_name = f"{func_name}__{'_'.join(type_args)}"
+
+        # 发射泛型调用指令
+        func_val = IRValue(mangled_name, kind=ValueKind.FUNCTION)
+
+        # 包装类型实参信息
+        type_arg_vals = [
+            IRValue(ta, "类型实参", ValueKind.CONST, const_value=ta) for ta in type_args
+        ]
+
+        result = self._new_temp()
+        self._emit(
+            Opcode.GENERIC_CALL,
+            [func_val] + type_arg_vals + args,
+            [result],
+        )
+        return result

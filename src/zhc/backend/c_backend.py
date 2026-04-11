@@ -308,6 +308,29 @@ class CBackend(BackendBase):
             "STORE": lambda s, i: f"{i.operands[1]} = {i.operands[0]};",
             "LOAD": lambda s,
             i: f"{i.result[0].name if i.result else '_'} = *{i.operands[0]};",
+            # 泛型 / 单态化
+            "GENERIC_INSTANTIATE": lambda s, i: (
+                f"/* 泛型实例化: {i.operands[0] if i.operands else '?'} "
+                f"{'< ' + ', '.join(str(a) for a in (i.operands[1:] or [])) + ' >' if len(i.operands or []) > 1 else ''} */"
+                if i.operands
+                else "/* 泛型实例化 */"
+            ),
+            "GENERIC_CALL": lambda s, i: (
+                f"{i.result[0].name if i.result else '_'} = "
+                f"{i.operands[0]}({', '.join(str(a) for a in (i.operands[1:] or []))});"
+                if i.result and i.operands
+                else f"/* 泛型调用: {i.operands[0] if i.operands else '?'} */"
+            ),
+            "TYPE_PARAM_BIND": lambda s, i: (
+                f"// 类型参数绑定: {i.operands[0]} := {i.operands[1]}"
+                if len(i.operands or []) >= 2
+                else "// 类型参数绑定"
+            ),
+            "SPECIALIZE": lambda s, i: (
+                f"/* 特化: {i.operands[0].const_value if hasattr(i.operands[0], 'const_value') and i.operands[0].const_value else (i.operands[0] if i.operands else '?')} */"
+                if i.operands
+                else "/* 特化生成 */"
+            ),
         }
 
     def _generate_main_function(self, ir: "IRProgram") -> str:

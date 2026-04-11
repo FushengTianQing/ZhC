@@ -146,6 +146,15 @@ from .type_check_strategies import (
     register_type_check_strategies,
 )
 
+# 泛型策略
+from .generic_strategies import (
+    GenericInstantiateStrategy,
+    GenericCallStrategy,
+    TypeParamBindStrategy,
+    SpecializeStrategy,
+    register_generic_strategies,
+)
+
 __all__ = [
     # 基类
     "BackendBase",
@@ -225,4 +234,10 @@ __all__ = [
     "CheckAssignableStrategy",
     "IsPrimitiveStrategy",
     "register_type_check_strategies",
+    # 泛型策略
+    "GenericInstantiateStrategy",
+    "GenericCallStrategy",
+    "TypeParamBindStrategy",
+    "SpecializeStrategy",
+    "register_generic_strategies",
 ]
