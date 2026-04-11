@@ -1,154 +1,64 @@
-# 中文C编译器 (ZHC Compiler)
+# ZhC 中文 C 编译器
 
-**开始用中文写C程序吧！🚀**
+**用中文写 C 程序！🚀** - 编译到 LLVM IR
 
-[![版本](https://img.shields.io/badge/版本-v10.0-blue)](https://github.com/yuan/zhc)
-[![Python版本](https://img.shields.io/badge/Python-3.8+-green)](https://www.python.org/)
+[![版本](https://img.shields.io/badge/版本-v10.0-blue)](https://github.com/FushengTianQing/ZhC)
+[![Python](https://img.shields.io/badge/Python-3.14.3-green)](https://www.python.org/)
+[![测试](https://img.shields.io/badge/测试-3330%20passed-brightgreen)](tests/)
+[![覆盖率](https://img.shields.io/badge/覆盖率-57%25-yellow)]()
 [![许可证](https://img.shields.io/badge/许可证-MIT-yellow)](LICENSE)
-[![构建状态](https://img.shields.io/badge/构建-通过-brightgreen)](tests/)
 
 ---
 
-### 1.1 项目规模
+## 核心特性
 
-| 核心模块 | parser、semantic、analyzer、ir、codegen、backend |
-| 估计代码量 | 50,000+ 行 Python |
+### 🧬 完整反射系统 (P5)
+- **运行时类型检查**: `是类型()`, `是子类型()`, `实现接口()`
+- **动态类型转换**: `as`/`is` 表达式, `转为()`, `安全转换()`, `动态转换()`
+- **类型元数据**: `获取类型信息()`, `获取字段()`, `获取方法()`
+- **CastResult 模式**: 类似 C++23 `std::expected`，类型安全的错误处理
 
+### 🔧 智能内存管理
+- **独享指针 (UniquePtr)**: 独占所有权，自动释放
+- **共享指针 (SharedPtr)**: 引用计数，共享所有权
+- **弱指针 (WeakPtr)**: 打破循环引用
+- **RAII**: 析构函数、作用域守卫、清理栈
 
-### 阶段详细说明
-
-| 阶段 | 组件 | 输入 | 输出 | 主要功能 |
-|:-----|:-----|:-----|:-----|:---------|
-| 词法分析 | Lexer | 源代码 | Token 序列 | 识别关键字、标识符、运算符 |
-| 语法分析 | Parser | Token 序列 | AST | 构建抽象语法树 |
-| 语义分析 | SemanticAnalyzer | AST | 带类型的 AST | 类型检查、作用域分析、符号解析 |
-| IR 生成 | IRGenerator | AST | ZHC IR | 生成中间表示 |
-| IR 优化 | IROptimizer | ZHC IR | 优化后的 IR | 常量折叠、死代码消除、函数内联、循环优化 |
-| 代码生成 | CBackend/LLVM | IR | C/LLVM IR | 生成目标代码 |
-
-### 编译后端
-
-| 后端 | 输出 | 优化 | JIT | 适用场景 |
-|:---|:---|:---|:---|:---|
-| **CBackend** | .c 文件 | 中等 | 否 | 跨平台、调试、gcc/clang 工具链 |
-| **LLVMBackend** | .ll/.bc | 高 | 是 | 高性能、原生执行、即时编译 |
-| **WASMBackend** | .wasm | 中等 | 否 | Web 部署、浏览器运行（实验性） |
-
-### 后端选择 CLI 参数
-
-```bash
-# 选择编译后端
-zhc hello.zhc --backend <backend>
-
-# 可选值：
-#   ast  - 直接 AST → C（默认，最快）
-#   ir   - IR → C 后端（支持优化）
-#   llvm - IR → LLVM 后端（高性能）
-#   wasm - IR → WASM 后端（Web部署）
-
-# IR 相关参数（仅 ir/llvm/wasm 后端有效）
-zhc hello.zhc --backend ir --dump-ir      # 打印 IR 中间表示
-zhc hello.zhc --backend llvm --no-optimize # 禁用 IR 优化
-```
-
-| 参数 | 默认值 | 说明 |
-|:---|:---|:---|
-| `--backend` | `ast` | 选择编译后端：`ast`、`ir`、`llvm`、`wasm` |
-| `--dump-ir` | 关闭 | 打印 IR 中间表示（仅 ir/llvm 后端） |
-| `--no-optimize` | 关闭 | 禁用 IR 优化 Pass |
-
-**回退机制**：当 LLVM/WASM 后端不可用时，自动回退到 C 后端。
-
-### LLVM JIT 示例
-
-```python
-from zhc.backend.llvm_jit import LLVMJIT
-
-# JIT 编译并执行
-jit = LLVMJIT(opt_level=2)
-jit.compile(ir_program)
-result = jit.call("main", 42)  # 调用 main 函数
-
-# 获取 LLVM IR 文本
-llvm_ir = jit.get_llvm_ir()
-```
-
----
-
-### 1.2 当前编译流水线/ ZhC+LLVM
-
-1. **LLVM 后端已完成集成**（`src/backend/llvm_backend.py` 等），使用 `llvmlite>=0.39.0`，已输出原生机器码
-2. **保留了C后端，输出c文本给gcc编译**：现有 `c_backend.py` / `c_codegen.py` 只是代码生成器（输出 C 文本 → 扔给 gcc/clang 编译）
-3. **标准库 C 头文件已存在**：`lib/zhc_math.h`、`lib/zhc_stdio.h` 等
-4. **Python 基础设施完善**：AST 验证器、内存安全检查、数据流分析、循环优化、内联优化均已实现
-
-### 
-
-
-
-## 🌟 特性亮点
+### ⚡ 高级语言特性
+- **异常处理**: `尝试`/`捕获`/`抛出`/`最终`
+- **闭包**: Lambda 表达式、Upvalue 捕获
+- **协程**: 异步函数、Suspend/Resume
+- **函数指针**: 完整的函数指针类型系统
+- **模式匹配**: 结构化模式匹配 (开发中)
+- **泛型**: 泛型类型 (开发中)
 
 ### 🚀 高性能编译
-- **智能编译缓存**: 重复编译速度提升60-80%
-- **增量编译**: 只重新编译变更的文件
-- **并发编译**: 多线程加速，性能提升2-4倍
-- **内存优化**: 大项目内存使用减少20-30%
-
-### 🧩 完整模块系统
-- **中文模块语法**: 支持`模块`、`导入`、`公开:`、`私有:`关键字
-- **智能依赖解析**: 自动分析模块间依赖关系
-- **循环依赖检测**: 防止无限循环依赖
-- **编译顺序优化**: 自动计算最优编译顺序
-
-### 🔧 专业工具链
-- **完整的CLI接口**: 命令行工具支持所有功能
-- **详细的错误报告**: 精确的错误定位和修复建议
-- **性能监控**: 实时编译性能分析和报告
-- **缓存管理**: 灵活的缓存控制和管理
+- **LLVM 后端**: 原生机器码生成，支持 JIT
+- **IR 优化**: 常量折叠、死代码消除、函数内联、循环优化
+- **智能缓存**: 增量编译，重复编译提速 60-80%
 
 ### 📚 完全中文友好
-- **258个中文关键词**: 覆盖C语言全部核心功能
-- **中文标准库函数**: `打印`、`申请`、`释放`等中文函数名
-- **中文错误信息**: 所有错误信息均为中文，易于理解
-- **中文文档**: 完整的用户指南和API文档
+- **258 个中文关键字**: 覆盖 C 语言全部功能
+- **中文标准库**: `打印()`, `申请()`, `释放()`, `连接网络()` 等
+- **中文错误信息**: 精确的错误定位和修复建议
 
-## 🚀 快速开始
+---
+
+## 快速开始
 
 ### 安装
 
 ```bash
-# 方法1: 直接使用（推荐）
-python3 -m pip install zhc
-
-# 方法2: 从源码安装
-git clone https://github.com/yuan/zhc.git
-cd zhc
+# 从源码安装
+git clone https://github.com/FushengTianQing/ZhC.git
+cd ZhC
 pip install -e .
-
-# 方法3: Docker方式
-docker run -it yuan/zhc:latest
 ```
 
-### 基础使用
+### 第一个程序
 
-```bash
-# 编译单个文件
-zhc 你好世界.zhc
-
-# 编译模块项目
-zhc -m 主模块.zhc
-
-# 启用缓存编译（大幅提升速度）
-zhc -m 项目.zhc --cache
-
-# 详细输出模式
-zhc -m 项目.zhc --verbose
-```
-
-### 第一个中文程序
-
-创建文件 `你好世界.zhc`:
-```c
+创建 `你好世界.zhc`:
+```zhc
 包含 <stdio.h>
 
 整数型 主函数() {
@@ -159,214 +69,202 @@ zhc -m 项目.zhc --verbose
 
 编译并运行:
 ```bash
-zhc 你好世界.zhc
-gcc 你好世界.c -o 你好世界
-./你好世界
-# 输出: 你好，世界！
+zhc compile 你好世界.zhc -o 输出目录
+./输出目录/你好世界
 ```
 
-## 📖 详细文档
+### 反射示例
 
-| 文档 | 内容 | 适合 |
-|------|------|------|
-| 📚 [用户指南](docs/USER_GUIDE.md) | 完整的使用教程和示例 | 所有用户 |
-| 🛠️ [API参考](docs/API_REFERENCE.md) | 所有API的详细说明 | 开发者 |
-| 🚀 [快速入门](docs/QUICK_START.md) | 5分钟快速上手 | 新手 |
-| 🏗️ [安装指南](docs/INSTALLATION.md) | 各种安装方式 | 系统管理员 |
-| 📊 [性能优化](docs/PERFORMANCE.md) | 编译性能调优指南 | 高级用户 |
-| 🐛 [问题排查](docs/TROUBLESHOOTING.md) | 常见问题解决 | 遇到问题的用户 |
+```zhc
+# 类型检查
+如果 (动物 是类型 "狗") {
+    狗犬 = 动物 转为 狗;
+}
 
-## 🧩 模块系统示例
-
-### 模块定义
-
-**数学模块.zhc:**
-```c
-模块 数学模块 版本 1.0
-
-公开:
-    整数型 加(整数型 a, 整数型 b) {
-        返回 a + b;
-    }
-    
-    整数型 乘(整数型 a, 整数型 b) {
-        返回 a * b;
-    }
-
-私有:
-    // 私有函数，外部不可访问
-    整数型 内部计算() {
-        // ...
-    }
-```
-
-### 模块使用
-
-**主程序.zhc:**
-```c
-导入 数学模块
-
-包含 <stdio.h>
-
-整数型 主函数() {
-    整数型 结果 = 数学模块.加(10, 20);
-    打印("10 + 20 = %d\n", 结果);
-    返回 0;
+# 安全转换
+结果 = 对象 安全转换 "具体类";
+如果 (结果 成功) {
+    使用 结果.值;
 }
 ```
 
-### 编译模块项目
-```bash
-zhc -m 主程序.zhc --output-dir 构建 --cache --verbose
-```
+---
 
-## ⚙️ 命令行接口
-
-### 基本命令
-
-```bash
-# 显示帮助
-zhc --help
-
-# 显示版本
-zhc --version
-
-# 编译单个文件
-zhc 文件.zhc
-
-# 编译模块项目
-zhc -m 入口.zhc
-
-# 指定输出目录
-zhc -m 项目.zhc --output-dir 构建
-```
-
-### 高级功能
-
-```bash
-# 启用编译缓存
-zhc -m 项目.zhc --cache
-
-# 详细输出模式
-zhc -m 项目.zhc --verbose
-
-# 生成性能报告
-zhc -m 项目.zhc --performance
-
-# 清理编译缓存
-zhc --clean-cache
-
-# 仅解析不编译（语法检查）
-zhc 文件.zhc --parse-only
-```
-
-## 📊 性能对比
-
-| 场景 | 传统编译 | ZHC编译 | 提升 |
-|------|----------|---------|------|
-| 首次编译 | 100% | 100% | 基准 |
-| 二次编译 | 100% | 160-180% | 60-80% |
-| 大项目内存 | 100% | 70-80% | 20-30% |
-| 依赖解析 | 100% | 50-70% | 30-50% |
-| 并发编译 | 单线程 | 2-4倍 | 100-300% |
-
-## 🏗️ 项目结构
+## 编译流水线
 
 ```
-zhc/
-├── src/                       # 编译器源码 (~182 Python files)
-│   ├── parser/                 # 解析器模块 (14 files)
-│   ├── semantic/               # 语义分析 (13 files, ~84KB 主文件)
-│   ├── ir/                     # IR 中间表示 (22 files)
-│   ├── codegen/                # 代码生成器 (8 files)
-│   ├── converter/              # 转换器模块 (12 files)
-│   ├── analysis/               # 分析器模块 (9 files)
-│   ├── analyzer/               # 旧分析器模块 (17 files)
-│   ├── compiler/               # 编译器核心 (13 files)
-│   ├── type_system/            # 类型系统
-│   ├── typeinfer/              # 类型推导
-│   ├── generics/               # 泛型系统
-│   ├── backend/                # 后端模块
-│   ├── lsp/                    # Language Server Protocol
-│   ├── debugger/               # 调试器
-│   ├── cli/                    # 命令行工具
-│   ├── api/                    # API 模块
-│   ├── utils/                  # 工具模块
-│   └── lib/                    # 标准库 (.zhc + .h)
-├── docs/                       # 文档
-├── examples/                   # 示例代码
-├── tests/                      # 测试套件 (~114 test files)
-└── scripts/                    # 辅助脚本
+源代码 (.zhc) → Lexer → Parser → SemanticAnalyzer → IRGenerator → IROptimizer → LLVMBackend → 可执行文件
 ```
 
-## 🔧 开发环境
-
-### 依赖要求
-- Python 3.8+
-- clang 或 gcc (用于编译生成的C代码)
-- Git (用于版本控制)
-
-### 开发设置
-```bash
-# 克隆仓库
-git clone https://github.com/yuan/zhc.git
-cd zhc
-
-# 创建虚拟环境
-python3 -m venv venv
-source venv/bin/activate  # Linux/Mac
-# 或 venv\Scripts\activate  # Windows
-
-# 安装开发依赖
-pip install -e ".[dev]"
-
-# 运行测试
-pytest tests/
-```
-
-### 运行所有测试
-```bash
-# 运行基础测试
-python3 run_all_tests.py
-
-# 运行高级功能测试
-python3 run_all_tests_v5.py
-```
-
-## 🤝 贡献指南
-
-欢迎贡献代码！请查看[贡献指南](CONTRIBUTING.md)了解详细信息。
-
-1. **提交Issue**: 报告bug或提出新功能建议
-2. **提交PR**: 修复bug或实现新功能
-3. **改进文档**: 帮助完善文档和示例
-4. **分享反馈**: 告诉我们你的使用体验
-
-## 📄 许可证
-
-本项目基于 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
-## 🙏 致谢
-
-感谢以下项目和技术的支持：
-- [Python](https://www.python.org/) - 强大的编程语言
-- [Clang/LLVM](https://clang.llvm.org/) - 优秀的C编译器
-- [所有贡献者](CONTRIBUTORS.md) - 感谢你们的贡献
-
-## 📞 联系方式
-
-- **问题反馈**: [GitHub Issues](https://github.com/yuan/zhc/issues)
-- **讨论交流**: [GitHub Discussions](https://github.com/yuan/zhc/discussions)
-- **邮件**: zhc@example.com
+| 阶段 | 组件 | 功能 |
+|------|------|------|
+| 词法分析 | Lexer | 识别关键字、标识符、运算符 |
+| 语法分析 | Parser | 构建 AST |
+| 语义分析 | SemanticAnalyzer | 类型检查、作用域分析 |
+| IR 生成 | IRGenerator | 生成中间表示 |
+| IR 优化 | IROptimizer | 常量折叠、死代码消除 |
+| 代码生成 | LLVMBackend | LLVM IR → 原生机器码 |
 
 ---
 
-**开始用中文写C程序吧！🚀**
+## 项目结构
 
-```bash
-# 立即尝试
-curl -sSL https://raw.githubusercontent.com/yuan/zhc/main/install.sh | bash
-zhc --version
+```
+ZhC/
+├── src/zhc/                    # 编译器源码 (323 Python 文件)
+│   ├── parser/                  # 词法/语法分析
+│   ├── semantic/               # 语义分析
+│   ├── ir/                      # 中间表示
+│   ├── backend/                # LLVM 后端
+│   ├── reflection/             # 反射系统 (P5)
+│   ├── type_system/            # 类型系统
+│   ├── memory/                 # 内存管理
+│   ├── exception/              # 异常处理
+│   ├── functional/             # 闭包/协程
+│   ├── lib/                    # C 运行时库 (39 文件)
+│   ├── cli/                    # 命令行工具
+│   └── utils/                  # 工具函数
+├── tests/                      # 测试套件 (143 文件, 3330 测试)
+├── docs/                       # 开发路线图文档
+├── examples/                   # 示例代码
+└── scripts/                    # 辅助脚本
 ```
 
-*最后更新: 2026-04-08*
+---
+
+## 高级特性示例
+
+### 异常处理
+
+```zhc
+尝试 {
+    可能抛出异常();
+} 捕获 (异常 e) {
+    打印("捕获异常: %s\n", e.消息);
+} 最终 {
+    清理资源();
+}
+```
+
+### 智能指针
+
+```zhc
+指针 = 新建 独享指针[整数型](42);
+共享指针 = 新建 共享指针[整数型](100);
+
+函数(共享指针);  # 引用计数 +1
+# 函数返回后引用计数 -1
+
+弱指针 = 创建 弱指针(共享指针);
+如果 (弱指针.已过期) {
+    打印("资源已释放\n");
+}
+```
+
+### 协程
+
+```zhc
+协程 异步任务(整数型 参数) {
+    打印("开始任务 %d\n", 参数);
+    暂停;
+    打印("恢复任务 %d\n", 参数);
+    返回 结果;
+}
+```
+
+### 函数指针
+
+```zhc
+整数型 (*回调)(整数型, 整数型) = 加法;
+
+整数型 加法(整数型 a, 整数型 b) {
+    返回 a + b;
+}
+
+整数型 计算(整数型 x, 整数型 y, 整数型 (*op)(整数型, 整数型)) {
+    返回 op(x, y);
+}
+```
+
+---
+
+## 命令行工具
+
+```bash
+# 编译单个文件
+zhc compile 文件.zhc -o 输出目录
+
+# 指定后端
+zhc compile 文件.zhc --backend llvm
+
+# 打印 IR
+zhc compile 文件.zhc --dump-ir
+
+# 查看帮助
+zhc --help
+
+# 运行测试
+python3 -m pytest tests/ -v
+```
+
+---
+
+## 开发文档
+
+| 文档 | 内容 |
+|------|------|
+| [architecture.md](architecture.md) | 系统架构详解 |
+| [docs/功能开发清单/](docs/功能开发清单/) | 开发路线图 (P0-P7) |
+| [docs/二次核查过/](docs/二次核查过/) | 已完成功能文档 |
+
+---
+
+## 测试结果
+
+```
+======================== 3330 tests collected =========================
+✅ 3323 passed
+⏭️  5 skipped
+⏱️  2 failed (pre-existing performance tests)
+📊 覆盖率: 57%
+```
+
+---
+
+## 依赖要求
+
+- Python 3.14.3
+- llvmlite 0.47.0
+- clang 或 gcc (用于编译生成的 C 代码)
+
+---
+
+## 贡献指南
+
+欢迎贡献代码！
+
+1. Fork 本仓库
+2. 创建功能分支 (`git checkout -b feat/新功能`)
+3. 提交更改 (`git commit -m 'feat: 添加新功能'`)
+4. 推送分支 (`git push origin feat/新功能`)
+5. 创建 Pull Request
+
+---
+
+## 许可证
+
+MIT License - 查看 [LICENSE](LICENSE) 文件了解详情。
+
+---
+
+## 致谢
+
+- [Python](https://www.python.org/) - 强大的编程语言
+- [LLVM](https://llvm.org/) - 优秀的编译器基础设施
+- [llvmlite](https://github.com/numba/llvmlite) - Python LLVM 绑定
+
+---
+
+**开始用中文写 C 程序吧！🚀**
+
+*最后更新: 2026-04-11*
