@@ -80,6 +80,8 @@ class ASTNodeType(Enum):
     TERNARY_EXPR = auto()  # 三元表达式 (a ? b : c)
     SIZEOF_EXPR = auto()  # sizeof 表达式
     CAST_EXPR = auto()  # 类型转换表达式
+    AS_EXPR = auto()  # as 表达式 (安全转换)
+    IS_EXPR = auto()  # is 表达式 (类型检查)
     LAMBDA_EXPR = auto()  # Lambda 表达式
 
     # 协程/异步表达式
@@ -1464,6 +1466,68 @@ class CastExprNode(ASTNode):
         return [self.cast_type, self.expr]
 
 
+class AsExprNode(ASTNode):
+    """as 安全转换表达式节点
+
+    语法：
+        expr as TypeName
+
+    例如：
+        obj as 狗          // 安全转换，失败返回空
+        a as 动物          // 向下转型
+
+    属性：
+        expr: 被转换的表达式
+        target_type: 目标类型节点
+    """
+
+    def __init__(
+        self, expr: ASTNode, target_type: ASTNode, line: int = 0, column: int = 0
+    ):
+        super().__init__(ASTNodeType.AS_EXPR, line, column)
+        self.expr = expr
+        self.target_type = target_type
+        self._set_parent(expr)
+        self._set_parent(target_type)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_as_expr(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        return [self.expr, self.target_type]
+
+
+class IsExprNode(ASTNode):
+    """is 类型检查表达式节点
+
+    语法：
+        expr is TypeName
+
+    例如：
+        obj is 狗          // 检查 obj 是否是狗类型
+        a is 动物          // 检查 a 是否是动物类型
+
+    属性：
+        expr: 被检查的表达式
+        target_type: 目标类型节点
+    """
+
+    def __init__(
+        self, expr: ASTNode, target_type: ASTNode, line: int = 0, column: int = 0
+    ):
+        super().__init__(ASTNodeType.IS_EXPR, line, column)
+        self.expr = expr
+        self.target_type = target_type
+        self._set_parent(expr)
+        self._set_parent(target_type)
+
+    def accept(self, visitor: "ASTVisitor") -> Any:
+        return visitor.visit_is_expr(self)
+
+    def get_children(self) -> List["ASTNode"]:
+        return [self.expr, self.target_type]
+
+
 class LambdaExprNode(ASTNode):
     """Lambda 表达式节点
 
@@ -2407,6 +2471,14 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visit_as_expr(self, node: "AsExprNode") -> Any:
+        pass
+
+    @abstractmethod
+    def visit_is_expr(self, node: "IsExprNode") -> Any:
+        pass
+
+    @abstractmethod
     def visit_lambda_expr(self, node: "LambdaExprNode") -> Any:
         pass
 
@@ -2690,6 +2762,12 @@ class ASTPrinter(ASTVisitor):
 
     def visit_cast_expr(self, node: "CastExprNode") -> Any:
         self._print("CastExpr")
+
+    def visit_as_expr(self, node: "AsExprNode") -> Any:
+        self._print("AsExpr")
+
+    def visit_is_expr(self, node: "IsExprNode") -> Any:
+        self._print("IsExpr")
 
     def visit_lambda_expr(self, node: "LambdaExprNode") -> Any:
         self._print(f"LambdaExpr(params={len(node.params)})")

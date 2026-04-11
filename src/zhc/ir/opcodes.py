@@ -130,6 +130,87 @@ class Opcode(Enum):
     SCOPE_POP = ("scope_pop", "内存管理", "退出作用域", False, False)
     DESTRUCTOR_CALL = ("destructor_call", "内存管理", "调用析构函数", False, False)
 
+    # ========== 反射 ==========
+    TYPE_INFO_GET = (
+        "type_info_get",
+        "反射",
+        "获取类型信息",
+        False,
+        True,
+    )  # 获取类型信息
+    TYPE_INFO_NAME = (
+        "type_info_name",
+        "反射",
+        "获取类型名称",
+        False,
+        True,
+    )  # 获取类型名称
+    TYPE_INFO_SIZE = (
+        "type_info_size",
+        "反射",
+        "获取类型大小",
+        False,
+        True,
+    )  # 获取类型大小
+    TYPE_INFO_FIELDS = (
+        "type_info_fields",
+        "反射",
+        "获取字段列表",
+        False,
+        True,
+    )  # 获取字段列表
+    TYPE_INFO_METHODS = (
+        "type_info_methods",
+        "反射",
+        "获取方法列表",
+        False,
+        True,
+    )  # 获取方法列表
+    TYPE_INFO_BASE = ("type_info_base", "反射", "获取父类", False, True)  # 获取父类
+    FIELD_GET = ("field_get", "反射", "获取字段信息", False, True)  # 获取字段信息
+    FIELD_GET_VALUE = (
+        "field_get_value",
+        "反射",
+        "获取字段值",
+        False,
+        True,
+    )  # 动态获取字段值
+    FIELD_SET_VALUE = (
+        "field_set_value",
+        "反射",
+        "设置字段值",
+        False,
+        False,
+    )  # 动态设置字段值
+
+    # ========== 运行时类型检查 ==========
+    IS_TYPE = ("is_type", "类型检查", "类型检查", False, True)  # 检查对象是否为指定类型
+    IS_SUBTYPE = ("is_subtype", "类型检查", "子类型检查", False, True)  # 检查子类型关系
+    IMPL_IFACE = ("impl_iface", "类型检查", "接口实现检查", False, True)  # 检查接口实现
+    TYPE_EQUALS = (
+        "type_equals",
+        "类型检查",
+        "类型相等检查",
+        False,
+        True,
+    )  # 检查类型是否相同
+    SAFE_CAST = ("safe_cast", "类型检查", "安全转换", False, True)  # 安全类型转换
+    DYNAMIC_CAST = ("dynamic_cast", "类型检查", "动态转换", False, True)  # 动态类型转换
+    CHECK_ASSIGNABLE = (
+        "check_assignable",
+        "类型检查",
+        "赋值兼容检查",
+        False,
+        True,
+    )  # 检查赋值兼容性
+    IS_PRIMITIVE = (
+        "is_primitive",
+        "类型检查",
+        "基本类型检查",
+        False,
+        True,
+    )  # 检查是否基本类型
+
     # ========== 其他 ==========
     CONST = ("const", "其他", "常量", False, True)  # 常量值
     NOP = ("nop", "其他", "空操作", False, False)  # 空操作

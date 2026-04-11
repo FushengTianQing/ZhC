@@ -508,6 +508,8 @@ class SemanticAnalyzer:
             ASTNodeType.TERNARY_EXPR,
             ASTNodeType.SIZEOF_EXPR,
             ASTNodeType.CAST_EXPR,
+            ASTNodeType.AS_EXPR,
+            ASTNodeType.IS_EXPR,
             ASTNodeType.ARRAY_INIT,
             ASTNodeType.STRUCT_INIT,
         ):
@@ -2188,6 +2190,22 @@ class SemanticAnalyzer:
 
                 return ast_type_to_typeinfo(node.target_type)
             return None
+
+        # Phase: as 表达式类型推导
+        elif nt == ASTNodeType.AS_EXPR:
+            # as 表达式返回目标类型（可能为空）
+            if hasattr(node, "target_type"):
+                from .type_utils import ast_type_to_typeinfo
+
+                return ast_type_to_typeinfo(node.target_type)
+            return None
+
+        # Phase: is 表达式类型推导
+        elif nt == ASTNodeType.IS_EXPR:
+            # is 表达式返回布尔型
+            from .type_utils import TypeInfo
+
+            return TypeInfo(kind="primitive", name="布尔型")
 
         # Phase 11: 数组访问表达式
         elif nt == ASTNodeType.ARRAY_EXPR:

@@ -263,6 +263,23 @@ class IRGenerator(ASTVisitor):
             "数组最小值": "array_min",
             "数组排序": "array_sort",
             "打印数组": "print_array",
+            # 反射/类型信息函数
+            "获取类型信息": "zhc_reflection_get_type_info",
+            "获取类型名称": "zhc_reflection_get_type_name",
+            "获取类型大小": "zhc_reflection_get_type_size",
+            "获取字段": "zhc_reflection_get_field",
+            "获取字段值": "zhc_reflection_get_field_value",
+            "设置字段值": "zhc_reflection_set_field_value",
+            "是基本类型": "zhc_reflection_is_primitive",
+            # 运行时类型检查函数
+            "是类型": "zhc_typecheck_is_type",
+            "是子类型": "zhc_typecheck_is_subtype",
+            "实现接口": "zhc_typecheck_implements_interface",
+            "类型相同": "zhc_typecheck_type_equals",
+            "安全转换": "zhc_typecheck_safe_cast",
+            "动态转换": "zhc_typecheck_dynamic_cast",
+            "类型检查": "zhc_typecheck_check",
+            "可赋值": "zhc_typecheck_assignable",
         }
         return FUNCTION_MAP.get(name, name)
 
@@ -427,6 +444,8 @@ class IRGenerator(ASTVisitor):
         "ARRAY_EXPR": "_eval_array",
         "TERNARY_EXPR": "_eval_ternary",
         "CAST_EXPR": "_eval_cast",
+        "AS_EXPR": "_eval_as",
+        "IS_EXPR": "_eval_is",
         "LAMBDA_EXPR": "_eval_lambda",
         "COROUTINE_DEF": "_eval_coroutine_def",
         "AWAIT_EXPR": "_eval_await",
@@ -1124,6 +1143,55 @@ class IRGenerator(ASTVisitor):
         if operand:
             self._emit(Opcode.BITCAST, [operand], [result])
         return result
+
+    def _eval_as(self, node: ASTNode) -> Optional[IRValue]:
+        """求值 as 安全转换表达式
+
+        使用 IRSafeCastInst 生成类型化的 IR 节点：
+            %result = SAFE_CAST %source, "目标类型"
+
+        运行时行为：
+            - 如果类型兼容，返回对象本身
+            - 如果不兼容，返回空（None）
+        """
+        expr_val = self._eval_expr(getattr(node, "expr", None))
+        target_type_name = self._get_type_name(getattr(node, "target_type", None))
+
+        if expr_val is None:
+            return None
+
+        # 使用 LLVM 风格的 IRSafeCastInst 节点
+        from .cast import IRSafeCastInst
+
+        cast_inst = IRSafeCastInst(expr_val, target_type_name)
+        # 同时通过 _emit 注册到当前基本块
+        self._emit(Opcode.SAFE_CAST, cast_inst.operands, cast_inst.results)
+        return cast_inst.result
+
+    def _eval_is(self, node: ASTNode) -> Optional[IRValue]:
+        """求值 is 类型检查表达式
+
+        使用 IRIsTypeInst 生成类型化的 IR 节点：
+            %result = IS_TYPE %source, "目标类型"
+
+        运行时行为：
+            - 如果对象是指定类型（或子类型），返回 True
+            - 否则返回 False
+        """
+        expr_val = self._eval_expr(getattr(node, "expr", None))
+        target_type_name = self._get_type_name(getattr(node, "target_type", None))
+
+        if expr_val is None:
+            # 无法确定类型，默认为 False
+            return IRValue("false", "布尔型", ValueKind.CONST, const_value=False)
+
+        # 使用 LLVM 风格的 IRIsTypeInst 节点
+        from .cast import IRIsTypeInst
+
+        is_inst = IRIsTypeInst(expr_val, target_type_name)
+        # 同时通过 _emit 注册到当前基本块
+        self._emit(Opcode.IS_TYPE, is_inst.operands, is_inst.results)
+        return is_inst.result
 
     def _eval_lambda(self, node: LambdaExprNode) -> Optional[IRValue]:
         """求值 Lambda 表达式
@@ -1890,6 +1958,16 @@ class IRGenerator(ASTVisitor):
 
     def visit_cast_expr(self, node: CastExprNode):
         """类型转换表达式"""
+        self._ensure_block()
+        self._eval_expr(node)
+
+    def visit_as_expr(self, node):
+        """as 安全转换表达式"""
+        self._ensure_block()
+        self._eval_expr(node)
+
+    def visit_is_expr(self, node):
+        """is 类型检查表达式"""
         self._ensure_block()
         self._eval_expr(node)
 

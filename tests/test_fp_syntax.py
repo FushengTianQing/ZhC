@@ -414,10 +414,49 @@ def test_function_pointer_with_attributes():
 
 
 def test_function_pointer_reflection():
-    """测试函数指针反射"""
-    # 这个测试可能需要根据实际实现调整
-    # 目前先跳过
-    pytest.skip("函数指针反射语法暂未实现")
+    """测试函数指针反射 - 使用 FunctionPointerTypeInfo 获取类型信息"""
+    from zhc.type_system.function_pointer import (
+        FunctionPointerTypeMapper,
+        create_function_pointer_type,
+        is_function_pointer_compatible,
+    )
+
+    # 1. 创建函数指针类型信息
+    fp_type = create_function_pointer_type("整数型", ["整数型", "浮点型"])
+
+    # 验证基本信息
+    assert fp_type.return_type == "整数型"
+    assert fp_type.param_types == ["整数型", "浮点型"]
+    assert fp_type.is_vararg is False
+
+    # 验证签名生成
+    signature = fp_type.signature_str()
+    assert signature == "整数型(整数型, 浮点型)"
+
+    # 验证 LLVM 类型生成
+    assert fp_type.llvm_type is not None
+
+    # 2. 测试类型兼容性检查
+    fp_type2 = create_function_pointer_type("整数型", ["整数型", "浮点型"])
+    fp_type3 = create_function_pointer_type("浮点型", ["整数型"])
+
+    # 相同签名应该兼容
+    assert is_function_pointer_compatible(fp_type, fp_type2) is True
+    # 不同签名不应该兼容
+    assert is_function_pointer_compatible(fp_type, fp_type3) is False
+
+    # 3. 测试类型映射器
+    mapper = FunctionPointerTypeMapper()
+    info = mapper.get_function_pointer_info("双精度浮点型", ["整数型", "字符型指针"])
+
+    assert info.return_type == "双精度浮点型"
+    assert info.param_types == ["整数型", "字符型指针"]
+    assert info.llvm_type is not None
+
+    # 4. 测试字符串表示
+    str_repr = str(fp_type)
+    assert "函数指针" in str_repr
+    assert "整数型" in str_repr
 
 
 if __name__ == "__main__":

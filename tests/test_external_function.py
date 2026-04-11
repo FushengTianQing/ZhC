@@ -498,6 +498,12 @@ class TestExternalFunctionAST:
             def visit_move_expr(self, node):
                 return None
 
+            def visit_as_expr(self, node):
+                return None
+
+            def visit_is_expr(self, node):
+                return None
+
         func_decl = ExternalFunctionDeclNode(
             name="测试",
             return_type=PrimitiveTypeNode("整数型"),

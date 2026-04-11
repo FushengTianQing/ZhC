@@ -83,6 +83,14 @@ from .exception import (
     ExceptionTableEntry,
     ExceptionTable,
 )
+from .cast import (
+    IRCastInst,
+    IRSafeCastInst,
+    IRDynamicCastInst,
+    IRIsTypeInst,
+    is_cast_instruction,
+    get_cast_instruction,
+)
 
 __all__ = [
     # Symbol 系统
@@ -169,4 +177,11 @@ __all__ = [
     "IRInvoke",
     "ExceptionTableEntry",
     "ExceptionTable",
+    # 类型转换节点
+    "IRCastInst",
+    "IRSafeCastInst",
+    "IRDynamicCastInst",
+    "IRIsTypeInst",
+    "is_cast_instruction",
+    "get_cast_instruction",
 ]

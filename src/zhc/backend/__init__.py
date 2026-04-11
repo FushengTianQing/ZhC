@@ -123,6 +123,29 @@ from .allocator_interface import (
     Instruction,
 )
 
+# 反射策略
+from .reflection_strategies import (
+    TypeInfoGetStrategy,
+    TypeInfoNameStrategy,
+    TypeInfoSizeStrategy,
+    FieldGetValueStrategy,
+    FieldSetValueStrategy,
+    register_reflection_strategies,
+)
+
+# 类型检查策略
+from .type_check_strategies import (
+    IsTypeStrategy,
+    IsSubtypeStrategy,
+    ImplementsInterfaceStrategy,
+    TypeEqualsStrategy,
+    SafeCastStrategy,
+    DynamicCastStrategy,
+    CheckAssignableStrategy,
+    IsPrimitiveStrategy,
+    register_type_check_strategies,
+)
+
 __all__ = [
     # 基类
     "BackendBase",
@@ -185,4 +208,21 @@ __all__ = [
     "create_allocator",
     "register_for_all_backends",
     "Instruction",
+    # 反射策略
+    "TypeInfoGetStrategy",
+    "TypeInfoNameStrategy",
+    "TypeInfoSizeStrategy",
+    "FieldGetValueStrategy",
+    "FieldSetValueStrategy",
+    "register_reflection_strategies",
+    # 类型检查策略
+    "IsTypeStrategy",
+    "IsSubtypeStrategy",
+    "ImplementsInterfaceStrategy",
+    "TypeEqualsStrategy",
+    "SafeCastStrategy",
+    "DynamicCastStrategy",
+    "CheckAssignableStrategy",
+    "IsPrimitiveStrategy",
+    "register_type_check_strategies",
 ]

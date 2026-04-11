@@ -172,6 +172,26 @@ M = {
     "弱指针": "weak_ptr",
     "析构函数": "__destructor__",
     "移动": "std::move",
+    # 反射/类型信息关键字
+    "获取类型信息": "zhc_get_type_info",
+    "获取类型名称": "zhc_get_type_name",
+    "获取类型大小": "zhc_get_type_size",
+    "获取字段": "zhc_get_field",
+    "获取字段值": "zhc_get_field_value",
+    "设置字段值": "zhc_set_field_value",
+    "类型信息": "zhc_type_info",
+    "字段信息": "zhc_field_info",
+    "方法信息": "zhc_method_info",
+    "是基本类型": "zhc_is_primitive_type",
+    # 运行时类型检查关键字
+    "是类型": "zhc_is_type",
+    "是子类型": "zhc_is_subtype",
+    "实现接口": "zhc_implements_interface",
+    "类型相同": "zhc_type_equals",
+    "安全转换": "zhc_safe_cast",
+    "动态转换": "zhc_dynamic_cast",
+    "类型检查": "zhc_type_check",
+    "可赋值": "zhc_check_assignable",
 }
 
 # 添加前缀版本（兼容"中文"前缀）

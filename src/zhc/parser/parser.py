@@ -1937,14 +1937,70 @@ class Parser(GenericParserMixin):
 
     def parse_equality(self) -> ASTNode:
         """解析相等性表达式"""
-        left = self.parse_comparison()
+        left = self.parse_type_expr()
 
         while self.match(TokenType.EQ, TokenType.NE):
             operator = self.advance().value
-            right = self.parse_comparison()
+            right = self.parse_type_expr()
             left = BinaryExprNode(operator, left, right, left.line, left.column)
 
         return left
+
+    def parse_type_expr(self) -> ASTNode:
+        """解析类型转换表达式 (as/is)
+
+        优先级：低于相等性比较 (==, !=)，高于比较运算符 (<, >, <=, >=)
+
+        语法：
+            expr as TypeName  // 安全转换
+            expr is TypeName  // 类型检查
+        """
+        left = self.parse_comparison()
+
+        while self.match(TokenType.AS, TokenType.IS):
+            op_token = self.advance()
+            # 解析目标类型名
+            target_type = self._parse_type_name_for_as_is()
+            if op_token.type == TokenType.AS:
+                left = AsExprNode(left, target_type, left.line, left.column)
+            else:  # IS
+                left = IsExprNode(left, target_type, left.line, left.column)
+
+        return left
+
+    def _parse_type_name_for_as_is(self) -> ASTNode:
+        """解析 as/is 后面的类型名
+
+        支持中文类型名（整数型、字符串等）和自定义类型名（狗、猫等）。
+        """
+        from .ast_nodes import StructTypeNode
+
+        token = self.current_token()
+        if token.type == TokenType.IDENTIFIER:
+            self.advance()
+            return StructTypeNode(token.value)
+        elif token.type in (
+            TokenType.INT_TYPE,
+            TokenType.FLOAT_TYPE,
+            TokenType.DOUBLE_TYPE,
+            TokenType.STRING_TYPE,
+            TokenType.CHAR_TYPE,
+            TokenType.BOOL_TYPE,
+            TokenType.VOID_TYPE,
+            TokenType.AUTO,
+            TokenType.BYTE_TYPE,
+            TokenType.SHORT_TYPE,
+            TokenType.LONG_TYPE,
+            TokenType.WSTRING_TYPE,
+        ):
+            # 基本类型关键字作为类型名
+            self.advance()
+            return StructTypeNode(token.value)
+        else:
+            self.errors.append(
+                ParserError(f"期望类型名，但找到 '{token.value}'", token)
+            )
+            return StructTypeNode("<error>")
 
     def parse_comparison(self) -> ASTNode:
         """解析比较表达式"""

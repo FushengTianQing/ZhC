@@ -133,6 +133,10 @@ class TokenType(Enum):
     ARROW = auto()  # ->
     DOT = auto()  # .
 
+    # 类型转换关键字
+    AS = auto()  # as (类型转换)
+    IS = auto()  # is (类型检查)
+
     INCREMENT = auto()  # ++
     DECREMENT = auto()  # --
 
@@ -380,6 +384,9 @@ class Lexer:
         "弱指针": TokenType.WEAK_PTR,
         "析构函数": TokenType.DESTRUCTOR,
         "移动": TokenType.MOVE,
+        # 类型转换关键字
+        "转为": TokenType.AS,  # as 的中文形式
+        "是类型": TokenType.IS,  # is 的中文形式（类型检查）
     }
 
     def __init__(self, source: str):
