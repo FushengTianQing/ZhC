@@ -357,7 +357,70 @@ class CBackend(BackendBase):
                 if i.operands
                 else f"{i.result[0].name if i.result else '_'} = 0;"
             ),
+            # 控制流指令（M.07 枚举 switch 优化所需）
+            "SWITCH": lambda s, i: s._generate_switch_c(i),
+            "JZ": lambda s, i: (
+                f"if (!{i.operands[0]}) goto {i.operands[1]};"
+                if len(i.operands or []) >= 2
+                else "/* JZ: 缺少操作数 */"
+            ),
+            "JMP": lambda s, i: (
+                f"goto {i.operands[0]};" if i.operands else "/* JMP: 缺少目标 */"
+            ),
+            "LABEL": lambda s, i: (
+                f"{i.operands[0]}:" if i.operands else "/* LABEL: 缺少名称 */"
+            ),
+            "CMP": lambda s, i: (
+                f"{i.result[0].name if i.result else '_'} = ({i.operands[0]} {i.operands[1] if len(i.operands or []) > 1 else '=='} {i.operands[2] if len(i.operands or []) > 2 else '0'});"
+                if i.result
+                else "/* CMP: 无结果 */"
+            ),
         }
+
+    def _generate_switch_c(self, instr) -> str:
+        """生成 SWITCH 指令的 C 代码
+
+        M.07 - 枚举类型模式匹配优化
+
+        IR 格式：
+            SWITCH cond, default_label, [val1, label1], [val2, label2], ...
+
+        C 代码格式：
+            switch (cond) {
+                case val1: goto label1;
+                case val2: goto label2;
+                ...
+                default: goto default_label;
+            }
+        """
+        operands = instr.operands if instr.operands else []
+
+        if len(operands) < 2:
+            return "/* SWITCH: 操作数不足 */"
+
+        # 解析操作数
+        cond = operands[0]
+        default_label = operands[1]
+
+        # 收集 case 分支
+        cases = []
+        for i in range(2, len(operands), 2):
+            if i + 1 < len(operands):
+                case_val = operands[i]
+                case_label = operands[i + 1]
+                # 处理常量值
+                if hasattr(case_val, "const_value"):
+                    case_val = case_val.const_value
+                cases.append((case_val, case_label))
+
+        # 生成 C switch 语句
+        lines = [f"switch ({cond}) {{"]
+        for case_val, case_label in cases:
+            lines.append(f"    case {case_val}: goto {case_label};")
+        lines.append(f"    default: goto {default_label};")
+        lines.append("}")
+
+        return "\n    ".join(lines)
 
     def _generate_main_function(self, ir: "IRProgram") -> str:
         """生成主函数"""

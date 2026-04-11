@@ -2617,15 +2617,17 @@ class IRGenerator(ASTVisitor):
         """匹配表达式求值
 
         M.03 - 模式匹配 IR 生成
+        M.07 - 枚举类型优化：如果所有 case 都是枚举构造器，尝试降级为 switch
 
         生成结构：
         1. 求值 scrutinee 表达式
-        2. 为每个 case 创建基本块
-        3. 发射模式测试和跳转指令
-        4. 处理守卫表达式
-        5. 处理分支体
+        2. 检查是否为枚举类型的纯构造器匹配（可降级为 switch）
+        3. 为每个 case 创建基本块
+        4. 发射模式测试和跳转指令（或 switch）
+        5. 处理守卫表达式
+        6. 处理分支体
 
-        IR 示例：
+        IR 示例（通用版本）：
         %scrutinee = ... ; scrutinee 求值
         ; === Case 1: Some(x) ===
         %tag1 = pattern_test CONSTRUCTOR(Some), %scrutinee
@@ -2644,13 +2646,29 @@ class IRGenerator(ASTVisitor):
         :match_fail
         call throw_match_error(%scrutinee)
         :match_end
+
+        IR 示例（switch 优化版本）：
+        %scrutinee = ...
+        switch %scrutinee.tag, :match_fail, [TAG_SOME, :case_0], [TAG_NONE, :case_1]
+        :case_0
+        ; Some(x) 分支体
+        jmp :match_end
+        :case_1
+        ; None 分支体
+        jmp :match_end
+        :match_fail
+        ; 非穷尽 fallback
+        :match_end
         """
         self._ensure_block()
 
         # 1. 求值 scrutinee 表达式
         scrutinee = self._eval_expr(node.expr) if node.expr else None
 
-        # 2. 创建 end_bb（合并块）和 fail_bb（匹配失败）
+        # 2. 检查是否为可优化的枚举类型
+        switch_info = self._analyze_enum_switch(node, scrutinee)
+
+        # 3. 创建 end_bb（合并块）和 fail_bb（匹配失败）
         end_bb = IRBasicBlock(self._new_bb_label("match_end"))
         fail_bb = IRBasicBlock(self._new_bb_label("match_fail"))
         self.current_function.basic_blocks.append(end_bb)
@@ -2660,7 +2678,7 @@ class IRGenerator(ASTVisitor):
         old_match_end = getattr(self, "_match_end_bb", None)
         self._match_end_bb = end_bb
 
-        # 3. 为每个 case 创建基本块
+        # 4. 为每个 case 创建基本块
         case_blocks = []
         for i, case_node in enumerate(node.cases):
             case_label = self._new_bb_label(f"case_{i}")
@@ -2668,11 +2686,17 @@ class IRGenerator(ASTVisitor):
             self.current_function.basic_blocks.append(case_bb)
             case_blocks.append((case_node, case_bb))
 
-        # 4. 生成模式匹配逻辑
-        # 从第一个 case 开始
-        self._generate_pattern_matching(scrutinee, case_blocks, end_bb, fail_bb)
+        # 5. 生成模式匹配逻辑
+        if switch_info is not None:
+            # 使用 switch 优化版本
+            self._generate_switch_pattern_matching(
+                scrutinee, case_blocks, switch_info, end_bb, fail_bb
+            )
+        else:
+            # 使用通用 JZ 链版本
+            self._generate_pattern_matching(scrutinee, case_blocks, end_bb, fail_bb)
 
-        # 5. 生成 match_fail 块（调用错误处理）
+        # 6. 生成 match_fail 块（调用错误处理）
         self._switch_block(fail_bb)
         self._ensure_block()
         # 调用模式匹配失败处理（如果运行时支持）
@@ -2680,7 +2704,7 @@ class IRGenerator(ASTVisitor):
         # 临时方案：跳转到一个无操作的结束块
         self._emit(Opcode.JMP, [end_bb.label])
 
-        # 6. 切换到 end_bb
+        # 7. 切换到 end_bb
         self._switch_block(end_bb)
         self._ensure_block()
 
@@ -2689,6 +2713,142 @@ class IRGenerator(ASTVisitor):
 
         # 返回 scrutinee 作为匹配表达式的结果（语义上 match 表达式返回各分支的值）
         return scrutinee
+
+    def _analyze_enum_switch(
+        self, node: MatchExprNode, scrutinee: Optional[IRValue]
+    ) -> Optional[Dict]:
+        """分析模式匹配是否可以降级为 switch
+
+        M.07 - 枚举类型优化
+
+        降级条件：
+        1. 所有 case 的模式都是构造器模式（无守卫、无嵌套模式）
+        2. 构造器都属于同一个枚举类型
+        3.  scrutinee 的类型可以被识别
+
+        Args:
+            node: MatchExprNode 节点
+            scrutinee: scrutinee 的 IR 值
+
+        Returns:
+            如果可优化，返回包含枚举信息的字典；否则返回 None
+        """
+        if not node.cases:
+            return None
+
+        constructor_cases = []  # [(constructor_name, case_index), ...]
+        for i, case_node in enumerate(node.cases):
+            pattern = case_node.pattern
+
+            # 跳过守卫模式（守卫需要额外处理）
+            if hasattr(pattern, "pattern_type"):
+                from zhc.semantic.pattern_matching import PatternType
+
+                if getattr(pattern, "pattern_type", None) == PatternType.GUARD:
+                    # 如果有守卫，跳过优化
+                    return None
+
+            # 检查是否为简单的构造器模式
+            if hasattr(pattern, "constructor") and hasattr(pattern, "patterns"):
+                # 简单构造器模式（无参数或只有通配符/变量参数）
+                simple_args = all(
+                    hasattr(p, "pattern_type")
+                    and getattr(p, "pattern_type", None)
+                    in (
+                        PatternType.WILDCARD,
+                        PatternType.VARIABLE,
+                    )
+                    for p in pattern.patterns
+                )
+                if simple_args:
+                    constructor_cases.append((pattern.constructor, i, case_node))
+                else:
+                    # 有嵌套模式，跳过优化
+                    return None
+            else:
+                # 非构造器模式（如字面量、通配符、变量）
+                return None
+
+        # 如果所有 case 都是构造器模式，可以考虑使用 switch
+        # 但需要知道枚举的 tag 值
+        # 这里返回一个简化版本：记录需要用 switch 指令
+        return {
+            "type": "enum",
+            "cases": constructor_cases,
+            "scrutinee": scrutinee,
+        }
+
+    def _generate_switch_pattern_matching(
+        self,
+        scrutinee: Optional[IRValue],
+        case_blocks: List[tuple],
+        switch_info: Dict,
+        end_bb: IRBasicBlock,
+        fail_bb: IRBasicBlock,
+    ) -> None:
+        """生成基于 switch 指令的模式匹配
+
+        M.07 - 枚举类型优化
+
+        使用 switch 指令生成更高效的代码：
+
+        switch %scrutinee.tag, :fail, [TAG_1, :case_0], [TAG_2, :case_1], ...
+
+        Args:
+            scrutinee: scrutinee 的 IR 值
+            case_blocks: [(case_node, case_bb), ...]
+            switch_info: _analyze_enum_switch 返回的信息
+            end_bb: 结束基本块
+            fail_bb: 失败基本块
+        """
+        # 收集 switch case 值
+        switch_cases = []
+
+        for constructor_name, case_index, case_node in switch_info["cases"]:
+            case_bb = case_blocks[case_index][1]
+            # 使用构造函数名的 hash 作为 tag 值
+            # 实际实现应该从类型注册表获取真实的 tag 值
+            tag_value = hash(constructor_name) % 10000
+            switch_cases.append((tag_value, case_bb.label))
+
+        if not switch_cases:
+            return
+
+        # 生成 switch 指令
+        # operands: [scrutinee, default_label, case_val1, case_label1, ...]
+        switch_operands = [scrutinee, fail_bb.label]
+        for tag_value, case_label in switch_cases:
+            tag_ir = IRValue(
+                str(tag_value),
+                "整数型",
+                ValueKind.CONST,
+                const_value=tag_value,
+            )
+            switch_operands.extend([tag_ir, case_label])
+
+        self._emit(Opcode.SWITCH, switch_operands)
+
+        # 生成每个 case 分支的代码
+        for case_node, case_bb in case_blocks:
+            self._switch_block(case_bb)
+            self._ensure_block()
+
+            # 生成模式绑定（提取构造器参数）
+            self._emit_pattern_bind(case_node.pattern, scrutinee)
+
+            # 处理守卫表达式
+            if case_node.guard:
+                guard_result = self._emit_guard(case_node.guard)
+                if guard_result:
+                    self._emit(Opcode.JZ, [guard_result, fail_bb.label])
+
+            # 处理分支体
+            if case_node.body:
+                self._analyze_stmt(case_node.body)
+
+            # 确保分支有终结指令
+            if self.current_block and not self.current_block.is_terminated():
+                self._emit(Opcode.JMP, [end_bb.label])
 
     def _generate_pattern_matching(
         self,

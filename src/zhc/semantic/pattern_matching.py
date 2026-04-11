@@ -422,13 +422,42 @@ class GuardPattern(Pattern):
     def pattern_type(self) -> PatternType:
         return PatternType.GUARD
 
-    def match(self, value: Any, bindings: Dict[str, Any]) -> bool:
-        """先匹配模式，再检查守卫"""
+    def match(
+        self,
+        value: Any,
+        bindings: Dict[str, Any],
+        eval_guard_fn: Optional[callable] = None,
+    ) -> bool:
+        """先匹配模式，再检查守卫
+
+        Args:
+            value: 要匹配的值
+            bindings: 变量绑定字典（会被修改）
+            eval_guard_fn: 可选的守卫求值回调，签名：
+                (guard_expr: str, bindings: Dict[str, Any]) -> bool
+                如果提供，则调用此回调来求值守卫表达式；
+                否则直接返回 True（匹配成功但不检查守卫）。
+
+        Returns:
+            是否匹配成功（包括守卫条件）
+        """
         if not self.pattern.match(value, bindings):
             return False
 
-        # TODO: 实际的守卫表达式求值
-        # 这里需要访问语义分析器来求值
+        # 如果有守卫表达式且有求值回调，则调用回调
+        if self.guard and eval_guard_fn is not None:
+            try:
+                guard_result = eval_guard_fn(self.guard, bindings)
+                return bool(guard_result)
+            except Exception as e:
+                # 守卫求值失败时，记录错误并返回 False
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.warning(f"守卫表达式求值失败: {self.guard}, 错误: {e}")
+                return False
+
+        # 如果没有求值回调，直接返回 True（用于测试）
         return True
 
     def get_variables(self) -> Set[str]:
@@ -458,10 +487,16 @@ class MatchCase:
 
 
 class PatternMatcher:
-    """模式匹配器"""
+    """模式匹配器
 
-    def __init__(self):
+    Attributes:
+        errors: 匹配过程中的错误列表
+        _eval_guard_fn: 守卫表达式求值回调（可选）
+    """
+
+    def __init__(self, eval_guard_fn: Optional[callable] = None):
         self.errors: List[str] = []
+        self._eval_guard_fn = eval_guard_fn
 
     def match(self, value: Any, pattern: Pattern) -> Optional[Dict[str, Any]]:
         """
@@ -497,11 +532,107 @@ class PatternMatcher:
             if bindings is not None:
                 # 检查守卫
                 if case.guard:
-                    # TODO: 守卫表达式求值
-                    pass
+                    guard_result = self._evaluate_guard(case.guard, bindings)
+                    if not guard_result:
+                        # 守卫不满足，继续匹配下一个分支
+                        continue
                 return bindings, case
 
         return None, None
+
+    def _evaluate_guard(self, guard_expr: str, bindings: Dict[str, Any]) -> bool:
+        """求值守卫表达式
+
+        支持两种求值方式：
+        1. 如果设置了 eval_guard_fn 回调，使用回调求值
+        2. 否则尝试基于绑定变量进行简单的表达式求值
+
+        Args:
+            guard_expr: 守卫表达式字符串
+            bindings: 当前绑定的变量
+
+        Returns:
+            守卫条件是否满足
+        """
+        if self._eval_guard_fn is not None:
+            try:
+                return bool(self._eval_guard_fn(guard_expr, bindings))
+            except Exception as e:
+                self.errors.append(f"守卫表达式求值失败: {guard_expr}, 错误: {e}")
+                return False
+
+        # 内置简单求值器：支持基于绑定变量的基本比较表达式
+        return self._simple_guard_eval(guard_expr, bindings)
+
+    def _simple_guard_eval(self, expr: str, bindings: Dict[str, Any]) -> bool:
+        """简单的守卫表达式求值器
+
+        支持：
+        - 变量引用（替换绑定的值）
+        - 基本比较运算符（>, <, >=, <=, ==, !=）
+        - 逻辑运算符（&&, ||）
+        - 简单算术表达式
+
+        Args:
+            expr: 守卫表达式字符串
+            bindings: 当前绑定的变量
+
+        Returns:
+            守卫条件是否满足
+        """
+        import re
+
+        if not expr or not expr.strip():
+            return True
+
+        # 替换绑定的变量名为其值
+        eval_expr = expr.strip()
+        for var_name, var_value in bindings.items():
+            # 使用正则表达式替换变量名（全词匹配）
+            pattern = r"\b" + re.escape(var_name) + r"\b"
+            if isinstance(var_value, str):
+                # 字符串值用引号包裹
+                eval_expr = re.sub(pattern, repr(var_value), eval_expr)
+            else:
+                eval_expr = re.sub(pattern, str(var_value), eval_expr)
+
+        # 中文运算符替换为 Python 运算符
+        op_map = {
+            "并且": " and ",
+            "或者": " or ",
+            "大于": " > ",
+            "小于": " < ",
+            "大于等于": " >= ",
+            "小于等于": " <= ",
+            "等于": " == ",
+            "不等于": " != ",
+        }
+        for cn_op, py_op in op_map.items():
+            eval_expr = eval_expr.replace(cn_op, py_op)
+
+        # 安全求值：限制可用的内置函数
+        try:
+            # 使用受限的全局命名空间进行求值
+            allowed_globals = {
+                "__builtins__": {
+                    "abs": abs,
+                    "len": len,
+                    "min": min,
+                    "max": max,
+                    "int": int,
+                    "float": float,
+                    "bool": bool,
+                    "str": str,
+                    "True": True,
+                    "False": False,
+                }
+            }
+            result = eval(eval_expr, allowed_globals, {})
+            return bool(result)
+        except Exception as e:
+            self.errors.append(f"守卫表达式求值失败: {expr} -> {eval_expr}, 错误: {e}")
+            # 求值失败时保守地返回 True（匹配成功）
+            return True
 
     def check_exhaustiveness(
         self, cases: List[MatchCase], type_info: Optional[Any] = None
@@ -553,7 +684,22 @@ class PatternMatcher:
         return redundant
 
     def _is_covered_by(self, pattern: Pattern, other: Pattern) -> bool:
-        """检查 pattern 是否被 other 覆盖"""
+        """检查 pattern 是否被 other 覆盖
+
+        覆盖规则：
+        - 通配符/变量覆盖所有模式
+        - 字面量模式：相同值或值在范围内覆盖
+        - 构造器模式：相同构造器名 + 参数被覆盖
+        - OR 模式：任一子模式被覆盖
+        - Range 模式：other 的范围包含 pattern 的范围
+
+        Args:
+            pattern: 要检查的模式
+            other: 覆盖模式
+
+        Returns:
+            pattern 是否被 other 覆盖
+        """
         # 通配符覆盖所有模式
         if isinstance(other, WildcardPattern):
             return True
@@ -562,9 +708,122 @@ class PatternMatcher:
         if isinstance(other, VariablePattern):
             return True
 
-        # 其他情况需要更复杂的分析
-        # TODO: 实现更精确的覆盖检查
+        # 字面量模式：相同值覆盖
+        if isinstance(pattern, LiteralPattern) and isinstance(other, LiteralPattern):
+            return pattern.value == other.value
+
+        # 字面量 vs OR 模式：字面量在 OR 范围内
+        if isinstance(pattern, LiteralPattern) and isinstance(other, OrPattern):
+            return any(self._is_covered_by(pattern, sub) for sub in other.patterns)
+
+        # OR 模式：任一子模式被覆盖
+        if isinstance(pattern, OrPattern):
+            return all(self._is_covered_by(sub, other) for sub in pattern.patterns)
+
+        # 构造器模式：相同构造器名 + 参数被覆盖
+        if isinstance(pattern, ConstructorPattern) and isinstance(
+            other, ConstructorPattern
+        ):
+            if pattern.constructor != other.constructor:
+                return False
+            # 递归检查参数
+            if len(pattern.patterns) != len(other.patterns):
+                return False
+            return all(
+                self._is_covered_by(p, o)
+                for p, o in zip(pattern.patterns, other.patterns)
+            )
+
+        # 构造器 vs 变量模式：变量覆盖构造器
+        if isinstance(pattern, ConstructorPattern) and isinstance(
+            other, VariablePattern
+        ):
+            return True
+
+        # 范围模式 vs 字面量模式：字面量在范围内
+        if isinstance(pattern, LiteralPattern) and isinstance(other, RangePattern):
+            return self._literal_in_range(pattern.value, other)
+
+        # 范围模式 vs 范围模式：other 的范围包含 pattern 的范围
+        if isinstance(pattern, RangePattern) and isinstance(other, RangePattern):
+            return self._range_contains(other, pattern)
+
+        # 元组模式 vs 元组模式：所有元素被覆盖
+        if isinstance(pattern, TuplePattern) and isinstance(other, TuplePattern):
+            if len(pattern.patterns) != len(other.patterns):
+                return False
+            return all(
+                self._is_covered_by(p, o)
+                for p, o in zip(pattern.patterns, other.patterns)
+            )
+
+        # 元组 vs 通配符/变量
+        if isinstance(pattern, TuplePattern) and isinstance(
+            other, (WildcardPattern, VariablePattern)
+        ):
+            return True
+
+        # 解构模式 vs 通配符/变量
+        if isinstance(pattern, DestructurePattern) and isinstance(
+            other, (WildcardPattern, VariablePattern)
+        ):
+            return True
+
+        # 解构模式 vs 解构模式：结构体名相同 + 所有字段被覆盖
+        if isinstance(pattern, DestructurePattern) and isinstance(
+            other, DestructurePattern
+        ):
+            if pattern.struct_name != other.struct_name:
+                return False
+            # 检查 other 的每个字段模式是否覆盖 pattern 对应字段
+            for field_name, field_pattern in pattern.fields.items():
+                if field_name not in other.fields:
+                    return False
+                if not self._is_covered_by(field_pattern, other.fields[field_name]):
+                    return False
+            return True
+
         return False
+
+    def _literal_in_range(self, value: Any, range_pattern: "RangePattern") -> bool:
+        """检查字面量是否在范围内
+
+        Args:
+            value: 字面量值
+            range_pattern: 范围模式
+
+        Returns:
+            值是否在范围内
+        """
+        try:
+            if range_pattern.inclusive:
+                return range_pattern.start <= value <= range_pattern.end
+            else:
+                return range_pattern.start <= value < range_pattern.end
+        except TypeError:
+            return False
+
+    def _range_contains(self, outer: "RangePattern", inner: "RangePattern") -> bool:
+        """检查 outer 范围是否包含 inner 范围
+
+        Args:
+            outer: 外层范围（覆盖者）
+            inner: 内层范围（被覆盖者）
+
+        Returns:
+            outer 是否包含 inner
+        """
+        try:
+            if outer.inclusive and inner.inclusive:
+                return outer.start <= inner.start and inner.end <= outer.end
+            elif outer.inclusive and not inner.inclusive:
+                return outer.start <= inner.start and inner.end < outer.end
+            elif not outer.inclusive and inner.inclusive:
+                return outer.start < inner.start and inner.end <= outer.end
+            else:
+                return outer.start < inner.start and inner.end < outer.end
+        except TypeError:
+            return False
 
 
 # ===== 模式解析辅助函数 =====

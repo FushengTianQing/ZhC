@@ -18,7 +18,7 @@ Phase 4 - Stage 2 - Task 11.2 Day 2
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
@@ -300,7 +300,13 @@ class PatternSemanticAnalyzer:
             else:
                 result.bindings = base_result.bindings
 
-            # TODO: 守卫表达式类型检查（需要表达式类型系统）
+            # 守卫表达式类型检查
+            guard_result = self._check_guard_expression(pattern.guard, result.bindings)
+            if not guard_result.success:
+                result.success = False
+                result.errors.extend(guard_result.errors)
+            else:
+                result.warnings.extend(guard_result.warnings)
 
         return result
 
@@ -431,8 +437,135 @@ class PatternSemanticAnalyzer:
 
         return result
 
+    def _check_guard_expression(
+        self, guard_expr: str, bindings: Dict[str, PatternTypeInfo]
+    ) -> PatternAnalysisResult:
+        """检查守卫表达式的类型正确性
+
+        验证：
+        1. 守卫表达式中引用的变量来自模式绑定
+        2. 比较运算符的操作数类型兼容
+        3. 守卫表达式结果应该是布尔类型
+
+        Args:
+            guard_expr: 守卫表达式字符串
+            bindings: 模式绑定的变量及其类型
+
+        Returns:
+            检查结果
+        """
+        result = PatternAnalysisResult(success=True)
+
+        if not guard_expr or not guard_expr.strip():
+            return result
+
+        import re
+
+        # 1. 检查守卫表达式中引用的变量是否来自绑定
+        # 提取所有标识符（简单正则匹配）
+        identifier_pattern = r"[a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*"
+        identifiers = set(re.findall(identifier_pattern, guard_expr))
+
+        # 已知运算符/关键字（不应被视为变量引用）
+        known_ops = {
+            "并且",
+            "或者",
+            "大于",
+            "小于",
+            "大于等于",
+            "小于等于",
+            "等于",
+            "不等于",
+            "and",
+            "or",
+            "not",
+            "True",
+            "False",
+            "true",
+            "false",
+            "abs",
+            "len",
+            "min",
+            "max",
+            "int",
+            "float",
+            "bool",
+            "str",
+        }
+
+        referenced_vars = identifiers - known_ops
+        bound_vars = set(bindings.keys())
+
+        # 检查是否有未绑定的变量引用
+        unbound = referenced_vars - bound_vars
+        if unbound:
+            result.warnings.append(
+                f"守卫表达式引用了未绑定的变量: {', '.join(unbound)}"
+            )
+
+        # 2. 检查守卫表达式中的比较是否类型兼容
+        # 中文比较运算符模式
+        comparison_ops = [
+            "大于等于",
+            "小于等于",
+            "大于",
+            "小于",
+            "等于",
+            "不等于",
+        ]
+        for op in comparison_ops:
+            if op in guard_expr:
+                parts = guard_expr.split(op, 1)
+                if len(parts) == 2:
+                    left_side = parts[0].strip()
+                    right_side = parts[1].strip()
+                    # 提取两侧引用的变量
+                    left_vars = (
+                        set(re.findall(identifier_pattern, left_side)) - known_ops
+                    )
+                    right_vars = (
+                        set(re.findall(identifier_pattern, right_side)) - known_ops
+                    )
+                    left_bound = left_vars & bound_vars
+                    right_bound = right_vars & bound_vars
+                    # 如果两侧都有绑定的变量，检查类型是否兼容
+                    for lv in left_bound:
+                        for rv in right_bound:
+                            lt = bindings[lv]
+                            rt = bindings[rv]
+                            if (
+                                lt.kind != PatternTypeKind.UNKNOWN
+                                and rt.kind != PatternTypeKind.UNKNOWN
+                                and lt.kind != rt.kind
+                            ):
+                                result.warnings.append(
+                                    f"守卫表达式中比较了不兼容的类型: "
+                                    f"{lv}({lt.name}) {op} {rv}({rt.name})"
+                                )
+                break  # 只检查第一个比较运算符
+
+        return result
+
     def _is_pattern_covered(self, pattern: Pattern, covering: Pattern) -> bool:
-        """检查 pattern 是否被 covering 覆盖"""
+        """检查 pattern 是否被 covering 覆盖
+
+        覆盖规则（增强版）：
+        - 通配符/变量覆盖所有模式
+        - 字面量模式：相同值覆盖
+        - 字面量 vs OR 模式：值在 OR 任一分支中
+        - 构造器模式：相同构造器名 + 参数被覆盖
+        - OR 模式：任一子模式被覆盖
+        - Range 模式：covering 的范围包含 pattern 的范围
+        - 元组模式：所有元素被覆盖
+        - 解构模式：结构体名相同 + 所有字段被覆盖
+
+        Args:
+            pattern: 要检查的模式
+            covering: 覆盖模式
+
+        Returns:
+            pattern 是否被 covering 覆盖
+        """
         # 通配符覆盖所有模式
         if isinstance(covering, WildcardPattern):
             return True
@@ -445,7 +578,19 @@ class PatternSemanticAnalyzer:
         if isinstance(pattern, LiteralPattern) and isinstance(covering, LiteralPattern):
             return pattern.value == covering.value
 
-        # 构造器模式：相同构造器覆盖
+        # 字面量 vs OR 模式：值在 OR 任一分支中
+        if isinstance(pattern, LiteralPattern) and isinstance(covering, OrPattern):
+            return any(
+                self._is_pattern_covered(pattern, sub) for sub in covering.patterns
+            )
+
+        # OR 模式：所有子模式都被覆盖
+        if isinstance(pattern, OrPattern):
+            return all(
+                self._is_pattern_covered(sub, covering) for sub in pattern.patterns
+            )
+
+        # 构造器模式：相同构造器名 + 参数被覆盖
         if isinstance(pattern, ConstructorPattern) and isinstance(
             covering, ConstructorPattern
         ):
@@ -461,14 +606,105 @@ class PatternSemanticAnalyzer:
                 for p, c in zip(pattern.patterns, covering.patterns)
             )
 
+        # 构造器 vs OR 模式：构造器在 OR 任一分支中被覆盖
+        if isinstance(pattern, ConstructorPattern) and isinstance(covering, OrPattern):
+            return any(
+                self._is_pattern_covered(pattern, sub) for sub in covering.patterns
+            )
+
         # 或模式：任一分支覆盖即可
         if isinstance(covering, OrPattern):
             return any(
                 self._is_pattern_covered(pattern, sub) for sub in covering.patterns
             )
 
+        # 范围模式：covering 的范围包含 pattern 的范围
+        if isinstance(pattern, RangePattern) and isinstance(covering, RangePattern):
+            return self._range_covers_range(covering, pattern)
+
+        # 字面量 vs 范围模式：值在范围内
+        if isinstance(pattern, LiteralPattern) and isinstance(covering, RangePattern):
+            return self._value_in_range(pattern.value, covering)
+
+        # 元组模式：所有元素被覆盖
+        if isinstance(pattern, TuplePattern) and isinstance(covering, TuplePattern):
+            if len(pattern.patterns) != len(covering.patterns):
+                return False
+            return all(
+                self._is_pattern_covered(p, c)
+                for p, c in zip(pattern.patterns, covering.patterns)
+            )
+
+        # 元组 vs 通配符/变量
+        if isinstance(pattern, TuplePattern) and isinstance(
+            covering, (WildcardPattern, VariablePattern)
+        ):
+            return True
+
+        # 解构模式 vs 通配符/变量
+        if isinstance(pattern, DestructurePattern) and isinstance(
+            covering, (WildcardPattern, VariablePattern)
+        ):
+            return True
+
+        # 解构模式 vs 解构模式：结构体名相同 + 所有字段被覆盖
+        if isinstance(pattern, DestructurePattern) and isinstance(
+            covering, DestructurePattern
+        ):
+            if pattern.struct_name != covering.struct_name:
+                return False
+            # 检查 covering 的每个字段模式是否覆盖 pattern 对应字段
+            for field_name, field_pattern in pattern.fields.items():
+                if field_name not in covering.fields:
+                    return False
+                if not self._is_pattern_covered(
+                    field_pattern, covering.fields[field_name]
+                ):
+                    return False
+            return True
+
         # 其他情况：保守估计不覆盖
         return False
+
+    def _range_covers_range(self, outer: RangePattern, inner: RangePattern) -> bool:
+        """检查 outer 范围是否包含 inner 范围
+
+        Args:
+            outer: 外层范围（覆盖者）
+            inner: 内层范围（被覆盖者）
+
+        Returns:
+            outer 是否包含 inner
+        """
+        try:
+            if outer.inclusive and inner.inclusive:
+                return outer.start <= inner.start and inner.end <= outer.end
+            elif outer.inclusive and not inner.inclusive:
+                return outer.start <= inner.start and inner.end < outer.end
+            elif not outer.inclusive and inner.inclusive:
+                return outer.start < inner.start and inner.end <= outer.end
+            else:
+                return outer.start < inner.start and inner.end < outer.end
+        except TypeError:
+            return False
+
+    def _value_in_range(self, value: Any, range_pattern: RangePattern) -> bool:
+        """检查值是否在范围内
+
+        Args:
+            value: 要检查的值
+            range_pattern: 范围模式
+
+        Returns:
+            值是否在范围内
+        """
+        try:
+            if range_pattern.inclusive:
+                return range_pattern.start <= value <= range_pattern.end
+            else:
+                return range_pattern.start <= value < range_pattern.end
+        except TypeError:
+            return False
 
 
 # ===== 辅助函数 =====
