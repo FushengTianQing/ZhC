@@ -17,7 +17,6 @@ from .values import IRValue, ValueKind
 from .instructions import IRInstruction, IRBasicBlock
 from .program import IRProgram, IRFunction, IRGlobalVar, IRStructDef
 from .ir_generator import IRGenerator
-from zhc.backend.c_backend import CBackend
 from .printer import IRPrinter
 from .optimizer import (
     ConstantFolding,
@@ -115,7 +114,6 @@ __all__ = [
     "IRStructDef",
     # 生成器
     "IRGenerator",
-    "CBackend",
     # 打印器
     "IRPrinter",
     # 优化器
