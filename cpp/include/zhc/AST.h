@@ -910,16 +910,24 @@ public:
   bool IsConst;
   bool IsStatic;
   bool IsExtern;
+  bool IsDiscarded;  // Marked with ! suffix - suppress unused warning
 
   VarDecl(llvm::StringRef name, std::unique_ptr<TypeNode> type,
           std::unique_ptr<ExprNode> init = nullptr, bool isConst = false,
-          bool isStatic = false, bool isExtern = false)
+          bool isStatic = false, bool isExtern = false, bool isDiscarded = false)
       : Name(name), Type(std::move(type)), Init(std::move(init)),
-        IsConst(isConst), IsStatic(isStatic), IsExtern(isExtern) {}
+        IsConst(isConst), IsStatic(isStatic), IsExtern(isExtern), 
+        IsDiscarded(isDiscarded) {}
 
   ASTNodeKind getKind() const override { return ASTNodeKind::VARIABLE_DECL; }
   const char* getKindName() const override { return "VarDecl"; }
   void accept(ASTVisitor& v) override;
+  
+  /// Check if this variable should suppress unused warnings
+  /// Returns true if name is "_" or IsDiscarded is true
+  bool shouldSuppressUnusedWarning() const {
+    return Name == "_" || IsDiscarded;
+  }
 };
 
 class FuncDecl : public DeclNode {
