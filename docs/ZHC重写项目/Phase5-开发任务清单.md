@@ -1,9 +1,32 @@
-# Phase 5：AI 可信执行监控 — 开发任务清单
+# Phase 5：安全执行框架 — 开发任务清单
 
-**版本**: v1.0  
-**所属阶段**: Phase 5（2.5 个月 / 408h 含缓冲）  
-**前置阶段**: Phase 4（AI 编程接口）完成后进入  
+**版本**: v2.0  
+**所属阶段**: Phase 5（2.5 个月 / 432h 含缓冲）  
+**前置阶段**: Phase 2 完成（编译能力可用）即可启动，Phase 4（AI 编程接口）为可选增强
 **文档目的**: 直接指导程序员进行开发，包含操作步骤、代码示例、验收标准  
+
+---
+
+## 📋 v2.0 修订说明
+
+本版本修订基于[Phase1-5专家优化分析报告.md](./Phase1-5专家优化分析报告.md)的分析，新增/修改以下内容：
+
+| # | 专家问题 | 修订内容 |
+|:---:|:---|:---|
+| P5-01 | 与 Phase4 高度耦合存风险 | 重新定位为**"安全执行框架"**（不仅仅是 AI 监控），与 AI Orchestrator 解耦，`MonitoredAIRequest` 改名为 `CodeReviewRequest` |
+| P5-02 | seccomp-bpf 仅限 Linux | 添加 macOS 跨平台方案说明，初期开发仅支持 Linux，macOS 给用户增加备注 |
+| P5-03 | 幻觉检测器精度存疑 | 幻觉检测保持**保守态度**：只输出 Warning（不阻塞执行），明确标注置信度阈值，增加用户自定义函数表单减少误报 |
+
+### 架构变更说明（P5-01）
+
+原设计将 Phase5 定位为"AI 可信执行监控"，强依赖 Phase4（AI 编程接口）。但专家指出：
+- 用户不启用 AI 功能时（大多数情况下），这些安全组件仍然有价值
+- 沙箱、内存安全分析、系统调用过滤本质上是一个**静态分析 + 沙箱执行框架**，对所有用户代码都有价值
+
+**新定位**:
+- Phase5 独立于 Phase4，可单独启用
+- 核心组件（沙箱、安全策略、内存分析）对所有代码生效
+- AI 相关功能（幻觉检测）作为可选增强
 
 ---
 
@@ -11,25 +34,27 @@
 
 ### 目标
 
-在 Phase 4 完成的 AI 编程接口基础上，增加**可信执行监控层**，确保 AI 生成的代码在执行前经过安全检查、幻觉检测和沙箱隔离，防止危险操作影响用户系统。
+在 Phase 2 完成的编译能力基础上，增加**安全执行框架**，确保代码（无论是 AI 生成还是用户编写）在执行前经过安全检查和沙箱隔离，防止危险操作影响用户系统。
+
+> **注意**（专家建议 P5-01）：本阶段独立于 Phase 4（AI 编程接口），可单独启用。AI 相关功能（幻觉检测）作为可选增强。
 
 ### 核心模块
 
 | 模块 | 文件 | 工时 | 说明 |
 |:---|:---|:---:|:---|
-| 监控管理器 | `zhc_ai_monitor.cpp/h` | 60h | 核心监控引擎 |
+| 监控管理器 | `zhc_code_monitor.cpp/h` | 60h | 核心监控引擎（重命名以反映新定位） |
 | 安全策略引擎 | `zhc_security_policy.cpp` | 40h | 策略规则引擎 |
 | 策略库 | `policies/default_policy.json` | 16h | 预定义安全策略 |
-| 幻觉检测器 | `zhc_hallucination_detector.cpp` | 48h | AI 幻觉检测 |
+| 幻觉检测器 | `zhc_hallucination_detector.cpp` | 48h | AI 幻觉检测（可选增强） |
 | 内置知识库 | `builtin_knowledge.cpp/h` | 16h | 已知函数签名库 |
 | 沙箱执行器 | `zhc_sandbox_executor.cpp` | 56h | 隔离执行 |
 | 内存安全分析 | `zhc_memory_safety.cpp` | 32h | 静态内存检查 |
-| 系统调用过滤 | `zhc_syscall_filter.cpp` | 24h | Seccomp/eBPF |
+| 系统调用过滤 | `zhc_syscall_filter.cpp` | 32h | Seccomp/eBPF（Linux）/ Seatbelt（macOS） |
 | 告警日志 | `zhc_alert_logger.cpp/h` | 20h | 统一告警 |
-| CLI 集成 | `zhc_cli.cpp` | 12h | `-ai-monitor` 参数 |
-| 集成测试 | `test/ai_monitor_test.cpp` | 40h | 端到端测试 |
+| CLI 集成 | `zhc_cli.cpp` | 16h | `-safe-exec` 参数（重命名） |
+| 集成测试 | `test/safe_exec_test.cpp` | 48h | 端到端测试 |
 
-**总工时**: 364h（无缓冲）/ 408h（含 12% 缓冲）
+**总工时**: 384h（无缓冲）/ 432h（含 12% 缓冲）
 
 ---
 
@@ -85,20 +110,21 @@ struct MonitorResult {
     }
 };
 
-// AI 代码请求（带监控上下文）
-struct MonitoredAIRequest {
-    std::string OriginalPrompt;      // 原始用户提示
-    std::string GeneratedCode;        // AI 生成的代码
+// 代码审查请求（重命名以反映新定位，专家建议 P5-01）
+// 来源可以是：AI 生成、用户输入、第三方工具
+struct CodeReviewRequest {
+    std::string OriginalPrompt;      // 原始用户提示（AI 生成时）
+    std::string GeneratedCode;        // 待审查的代码
     std::string SourceLanguage;       // "zhc", "c", "python"
     std::string TargetFunction;      // 目标函数名
     std::vector<std::string> CalledFunctions;  // 调用函数列表
-    bool IsUserRequest;              // 是否用户直接输入
+    enum Source { UserInput, AIGenerated, ThirdPartyTool } CodeSource;  // 代码来源
 };
 
-// 监控管理器类
-class AIMonitorManager {
+// 监控管理器类（重命名为 CodeMonitorManager，专家建议 P5-01）
+class CodeMonitorManager {
 public:
-    explicit AIMonitorManager(
+    explicit CodeMonitorManager(
         std::shared_ptr<SecurityPolicy> Policy,
         std::shared_ptr<HallucinationDetector> Hallucination,
         std::shared_ptr<SandboxExecutor> Sandbox,
@@ -111,11 +137,11 @@ public:
     
     // === 核心监控接口 ===
     
-    // 分析 AI 生成的代码，返回是否可以执行
-    MonitorResult AnalyzeCode(const MonitoredAIRequest& Request);
+    // 分析代码，返回是否可以执行
+    MonitorResult AnalyzeCode(const CodeReviewRequest& Request);
     
     // 异步分析（用于长时间分析）
-    std::future<MonitorResult> AnalyzeCodeAsync(const MonitoredAIRequest& Request);
+    std::future<MonitorResult> AnalyzeCodeAsync(const CodeReviewRequest& Request);
     
     // 运行时行为监控（程序执行时）
     void MonitorRuntime(const std::string& FunctionName, const void* Args, size_t ArgCount);
@@ -766,11 +792,16 @@ python3 -c "import json; json.load(open('policies/default_policy.json'))"
 
 ---
 
-## T5.4：AI 幻觉检测器
+## T5.4：AI 幻觉检测器（可选增强，专家建议 P5-03 保守化）
 
 **工时**: 48h  
-**依赖**: T5.1、T5.3  
+**依赖**: T5.1、T5.3、Phase 4（AI 编程接口，可选）
 **交付物**: `zhc_hallucination_detector.cpp`
+
+> **设计原则**（专家建议 P5-03）：幻觉检测器保持**保守态度**：
+> - **只输出 Warning**（不阻塞执行）
+> - 明确标注**置信度阈值**（低于 0.5 的警告默认隐藏）
+> - 建立用户自定义函数表单，减少误报（未知函数 ≠ 幻觉，可能是用户自定义函数）
 
 ### 4.1 头文件设计
 
@@ -783,6 +814,7 @@ python3 -c "import json; json.load(open('policies/default_policy.json'))"
 #include <vector>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace zhc {
 namespace ai {
@@ -791,7 +823,7 @@ namespace ai {
 struct HallucinationResult {
     bool IsHighRisk;          // 是否高风险
     float Confidence;          // 置信度 0.0-1.0
-    std::vector<std::string> Warnings;     // 警告信息
+    std::vector<std::string> Warnings;     // 警告信息（仅 Warning，不阻塞，专家建议 P5-03）
     std::vector<std::string> SuspiciousPatterns;  // 可疑模式
     
     static HallucinationResult Safe() {
@@ -800,7 +832,7 @@ struct HallucinationResult {
     static HallucinationResult Risky(float confidence,
                                      const std::vector<std::string>& warnings,
                                      const std::vector<std::string>& patterns = {}) {
-        return {confidence < 0.7f, confidence, warnings, patterns};
+        return {confidence < 0.5f, confidence, warnings, patterns};  // 阈值从 0.7 降到 0.5（专家建议）
     }
 };
 
@@ -817,8 +849,8 @@ class HallucinationDetector {
 public:
     HallucinationDetector(std::shared_ptr<BuiltinKnowledge> Knowledge);
     
-    // 检测 AI 生成的代码
-    HallucinationResult Detect(const MonitoredAIRequest& Request);
+    // 检测代码（仅输出 Warning，不阻塞执行）
+    HallucinationResult Detect(const CodeReviewRequest& Request);
     
     // 检测未知函数调用
     std::vector<std::string> DetectUnknownFunctions(const std::string& Code);
@@ -835,6 +867,13 @@ public:
     // 添加自定义模式
     void AddPattern(const SuspiciousPattern& Pattern);
     
+    // 用户自定义函数注册（减少误报，专家建议 P5-03）
+    void RegisterUserFunction(const std::string& FuncName,
+                              const std::vector<std::string>& ParamTypes = {},
+                              const std::string& ReturnType = "");
+    void RegisterUserFunctions(const std::unordered_map<std::string, 
+                               std::pair<std::vector<std::string>, std::string>>& Funcs);
+    
     // 训练数据反馈（用于后续改进）
     void ReportFalsePositive(const std::string& Code);
     void ReportTruePositive(const std::string& Code, const std::string& Issue);
@@ -842,6 +881,7 @@ public:
 private:
     std::shared_ptr<BuiltinKnowledge> Knowledge_;
     std::vector<SuspiciousPattern> Patterns_;
+    std::unordered_set<std::string> UserFunctions_;  // 用户自定义函数名集合
     
     float CalculateRiskScore(const std::string& Code);
     bool IsKnownFunction(const std::string& FuncName);
@@ -1797,28 +1837,56 @@ echo 'int* p = NULL; *p = 42;' | ./build/bin/zhc_memory_test --check-null
 
 ---
 
-## T5.8：系统调用过滤（Seccomp/eBPF）
+## T5.8：系统调用过滤（跨平台方案）
 
-**工时**: 24h  
+**工时**: 32h（+8h 跨平台架构）  
 **依赖**: T5.6  
 **交付物**: `zhc_syscall_filter.cpp`
 
 ### 8.1 功能说明
 
-使用 Linux seccomp-bpf 或 eBPF 限制 AI 生成代码可执行的系统调用。
+限制代码可执行的系统调用，跨平台方案（专家建议 P5-02）：
+
+| 平台 | 沙箱技术 | 复杂度 | 状态 |
+|:---|:---|:---:|:---:|
+| **Linux** | seccomp-bpf + cgroup + namespace | 中 | ✅ 完整实现 |
+| **macOS** | sandbox_init (Seatbelt) + chroot | 低 | ⚠️ 初期仅备注，后续实现 |
+| **Windows** | Job Object + Windows Sandbox API | 高 | ❌ 后期考虑 |
+
+> **平台策略**（专家建议 P5-02）：初期开发仅支持 Linux，macOS 给用户增加备注说明，后期再开发增加 macOS/Windows 支持。
 
 ### 8.2 关键实现
 
-**文件**: `src/ai/zhc_syscall_filter.cpp`
+**文件**: `src/sandbox/zhc_syscall_filter.cpp`
 
 ```cpp
+// 跨平台抽象接口
+class SyscallFilter {
+public:
+    virtual ~SyscallFilter() = default;
+    
+    /// 安装系统调用过滤器
+    virtual bool Install(bool AllowNetwork = false) = 0;
+    
+    /// 检查平台是否支持
+    virtual bool IsPlatformSupported() const = 0;
+    
+    /// 获取平台名称
+    virtual std::string GetPlatformName() const = 0;
+    
+    /// 工厂方法
+    static std::unique_ptr<SyscallFilter> Create();
+};
+
+// ===== Linux 实现 =====
+#if defined(__linux__)
 #include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <linux/seccomp.h>
 #include <linux/filter.h>
 
 namespace zhc {
-namespace ai {
+namespace sandbox {
 
 // 允许的系统调用
 static const std::unordered_set<long> AllowedSyscalls = {
@@ -1843,8 +1911,14 @@ static const std::unordered_set<long> BlockedSyscalls = {
     SYS_capset, SYS_ptrace,
 };
 
-// seccomp 过滤器安装
-bool InstallSyscallFilter(bool AllowNetwork = false) {
+class LinuxSyscallFilter : public SyscallFilter {
+public:
+    bool Install(bool AllowNetwork = false) override;
+    bool IsPlatformSupported() const override { return true; }
+    std::string GetPlatformName() const override { return "Linux seccomp-bpf"; }
+};
+
+bool LinuxSyscallFilter::Install(bool AllowNetwork) {
     struct sock_filter Filter[] = {
         // 加载系统调用号
         BPF_STMT(BPF_LD + BPF_W + BPF_ABS, offsetof(struct seccomp_data, nr)),
@@ -2003,13 +2077,13 @@ private:
 
 ---
 
-## T5.10：CLI 监控参数集成
+## T5.10：CLI 安全执行参数集成
 
-**工时**: 12h  
+**工时**: 16h（+4h 参数重命名和文档更新）  
 **依赖**: T5.1-T5.9  
 **交付物**: `zhc_cli.cpp` 修改
 
-### 10.1 新增 CLI 参数
+### 10.1 新增 CLI 参数（重命名以反映新定位）
 
 **文件**: `src/driver/zhc_cli.cpp`
 
@@ -2017,49 +2091,62 @@ private:
 #include <iostream>
 #include <string>
 
-// === 新增监控参数 ===
+// === 新增安全执行参数（重命名以反映新定位，专家建议 P5-01）===
 
-// 启用 AI 监控
-cl::opt<bool> EnableAIMonitor(
-    "ai-monitor",
-    cl::desc("启用 AI 可信执行监控（检查代码安全性和幻觉）"),
+// 启用安全执行框架（独立于 AI 功能）
+cl::opt<bool> EnableSafeExec(
+    "safe-exec",
+    cl::desc("启用安全执行框架（检查代码安全性、沙箱隔离）"),
     cl::init(false));
 
-// 监控级别
-cl::opt<std::string> AIMonitorLevel(
-    "ai-monitor-level",
-    cl::desc("监控级别: off, warning, strict（默认: warning）"),
+// 安全执行级别
+cl::opt<std::string> SafeExecLevel(
+    "safe-exec-level",
+    cl::desc("安全执行级别: off, warning, strict（默认: warning）"),
     cl::value_desc("level"),
     cl::init("warning"));
 
 // 信任阈值
 cl::opt<float> TrustThreshold(
-    "ai-trust-threshold",
+    "safe-exec-trust-threshold",
     cl::desc("信任评分阈值 0.0-1.0（低于此值阻止执行）"),
     cl::value_desc("threshold"),
     cl::init(0.7));
 
 // 启用沙箱执行
 cl::opt<bool> EnableSandbox(
-    "ai-sandbox",
-    cl::desc("在沙箱中执行 AI 生成的代码"),
+    "safe-exec-sandbox",
+    cl::desc("在沙箱中执行代码"),
     cl::init(false));
 
 // 策略文件路径
 cl::opt<std::string> PolicyFile(
-    "ai-policy",
+    "safe-exec-policy",
     cl::desc("指定安全策略 JSON 文件路径"),
     cl::value_desc("path"),
     cl::init("policies/default_policy.json"));
 
 // 告警日志路径
 cl::opt<std::string> AlertLogPath(
-    "ai-alert-log",
+    "safe-exec-alert-log",
     cl::desc("告警日志输出路径"),
     cl::value_desc("path"),
-    cl::init("zhc_monitor.log"));
+    cl::init("zhc_safe_exec.log"));
 
-// === 监控初始化示例 ===
+// AI 幻觉检测（可选增强，需 Phase 4）
+cl::opt<bool> EnableHallucinationCheck(
+    "ai-hallucination-check",
+    cl::desc("启用 AI 幻觉检测（仅 Warning，不阻塞执行）"),
+    cl::init(false));
+
+// 用户自定义函数注册（减少幻觉检测误报，专家建议 P5-03）
+cl::opt<std::string> UserFunctionsFile(
+    "user-functions",
+    cl::desc("用户自定义函数列表文件（用于减少幻觉检测误报）"),
+    cl::value_desc("path"),
+    cl::init(""));
+
+// === 安全执行初始化示例 ===
 
 bool InitializeAIMonitor() {
     if (!EnableAIMonitor) {
@@ -2371,7 +2458,7 @@ genhtml coverage.info --output-directory coverage_html
 | **P5.4** | `./build/bin/zhc_sandbox_test --execute hello.zhc` | 安全代码在沙箱中执行成功 | 检查 seccomp 配置 |
 | **P5.5** | `./build/bin/zhc_memory_test --check-leaks` | 内存泄漏检测正常 | 检查分析器逻辑 |
 | **P5.6** | `./build/bin/zhc_alert_test --log test` | 告警正确写入日志 | 检查文件权限 |
-| **P5.7** | `zhc compile test.zhc -ai-monitor` | CLI 参数生效 | 检查 CLI 集成 |
+| **P5.7** | `zhc compile test.zhc -safe-exec` | CLI 参数生效 | 检查 CLI 集成 |
 
 ### 最终验收标准
 

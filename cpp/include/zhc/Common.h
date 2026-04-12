@@ -21,12 +21,19 @@ struct SourceLocation {
   uint32_t Line = 0;
   uint32_t Column = 0;
   uint32_t FileID = 0;  // Index into SourceManager's file table
-  
+
   SourceLocation() = default;
   SourceLocation(uint32_t line, uint32_t col, uint32_t fileID = 0)
       : Line(line), Column(col), FileID(fileID) {}
-  
+
   bool isValid() const { return Line > 0 && Column > 0; }
+
+  bool operator==(const SourceLocation& other) const {
+    return Line == other.Line && Column == other.Column && FileID == other.FileID;
+  }
+  bool operator!=(const SourceLocation& other) const {
+    return !(*this == other);
+  }
 };
 
 /// Source range spanning from Start to End

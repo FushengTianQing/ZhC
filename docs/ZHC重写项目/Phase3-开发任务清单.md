@@ -1,12 +1,25 @@
 # Phase 3：可视化执行追踪
 
-**版本**: v1.0
+**版本**: v2.0
 **日期**: 2026-04-13
 **基于文档**: `08-可视化执行追踪层.md`、`12-项目规模与工时估算.md`、`15-重构任务执行清单.md`
 **目标**: 完成可视化执行追踪，能生成 trace.json + trace.html
-**工时**: 192h（含 20% 风险缓冲）
-**日历时间**: 约 1.5 个月
+**工时**: 216h（含 20% 风险缓冲）+ 性能追踪选项 24h = **240h**
+**日历时间**: 约 1.8 个月
 **前置条件**: Phase 2 完成（能编译运行 ZHC 程序）
+**最低 LLVM 版本**: 18.0（使用 `llvm::json::OStream` 进行 JSON 序列化，需 LLVM 13+，项目要求 18.0）
+
+---
+
+## 📋 v2.0 修订说明
+
+本版本修订基于[Phase1-5专家优化分析报告.md](./Phase1-5专家优化分析报告.md)的分析，新增/修改以下内容：
+
+| # | 专家问题 | 修订内容 |
+|:---:|:---|:---|
+| P3-01 | 追踪运行时性能影响未评估 | 在 T3.1 新增性能预算约束（≤10x slowdown）+ 采样追踪选项 |
+| P3-01 | 缺少性能回归测试 | 在 T3.9 新增性能回归测试子任务 |
+| P3-02 | 需明确 LLVM 最低版本要求 | 在文档头部标注最低 LLVM 18.0 版本要求 |
 
 ---
 
@@ -31,6 +44,11 @@
 
 **交付物**: `include/zhc/trace/ProbeInjector.h` + `lib/trace/ProbeInjector.cpp`
 
+**性能预算约束**（专家建议 P3-01）:
+- 追踪开启后程序变慢不超过 **10x**（对于教育用途可接受）
+- 提供**采样追踪**选项：不是每个函数都追踪，而是每 N 个调用追踪一次
+- 默认采样率：100（每 100 个事件记录 1 个），可通过 `--trace-sample-rate=N` 调整
+
 **操作步骤**:
 1. 实现一个 LLVM Module Pass，在函数入口、函数出口、分支、赋值处注入探针：
 
@@ -38,12 +56,16 @@
 // include/zhc/trace/ProbeInjector.h
 class TraceInjectorPass : public llvm::PassInfoMixin<TraceInjectorPass> {
 public:
+    TraceInjectorPass(unsigned SampleRate = 1) : SampleRate(SampleRate) {}
+
     llvm::PreservedAnalyses run(llvm::Module &M,
                                 llvm::ModuleAnalysisManager &MAM);
 
     static bool isRequired() { return true; }
 
 private:
+    unsigned SampleRate;  // 采样率：1=全追踪，100=每100个事件追踪1个
+
     /// 在函数入口注入探针
     void injectFunctionEntry(llvm::Function &F);
 
@@ -61,6 +83,9 @@ private:
 
     /// 获取/创建追踪运行时函数
     llvm::Function *getTraceFunc(llvm::Module &M, const char *Name);
+
+    /// 注入采样计数器（用于采样追踪）
+    llvm::Value *injectSampleCounter(llvm::Function &F);
 };
 ```
 
@@ -524,14 +549,51 @@ TEST_F(TraceIntegration, FibonacciTrace) {
 }
 ```
 
+3. **性能回归测试**（专家建议 P3-01）：
+```cpp
+TEST_F(TraceIntegration, PerformanceRegression) {
+    // 编译不带追踪版本
+    system("zhc compile perf_test.zhc -o perf_no_trace");
+
+    // 编译带追踪版本（全追踪）
+    system("zhc compile perf_test.zhc --trace -o perf_full_trace");
+
+    // 编译带采样追踪版本（采样率 100）
+    system("zhc compile perf_test.zhc --trace --trace-sample-rate=100 -o perf_sample_trace");
+
+    // 运行并测量时间
+    auto time_no_trace = measure_runtime("./perf_no_trace");
+    auto time_full_trace = measure_runtime("./perf_full_trace");
+    auto time_sample_trace = measure_runtime("./perf_sample_trace");
+
+    // 验证性能预算：全追踪不超过 10x slowdown
+    double slowdown = time_full_trace / time_no_trace;
+    EXPECT_LT(slowdown, 10.0) << "追踪开启后程序变慢超过 10x";
+
+    // 验证采样追踪性能改善
+    double sample_improvement = time_full_trace / time_sample_trace;
+    EXPECT_GT(sample_improvement, 5.0) << "采样追踪应显著改善性能";
+
+    // 记录性能数据供后续对比
+    std::ofstream perf_log("trace_performance.log");
+    perf_log << "no_trace: " << time_no_trace << "ms\n";
+    perf_log << "full_trace: " << time_full_trace << "ms (slowdown: " << slowdown << "x)\n";
+    perf_log << "sample_trace: " << time_sample_trace << "ms\n";
+}
+```
+
 **验收标准**:
 ```bash
 zhc run --trace fibonacci.zhc
 # 输出 trace.json + trace.html
 # HTML 包含: 逐行轨迹 + 变量追踪 + 调用栈 + 分支高亮
+
+# 性能验收
+zhc run --trace perf_test.zhc
+# 追踪开启后运行时间不超过无追踪版本的 10 倍
 ```
 
-**工时**: 20h
+**工时**: 24h（含性能回归测试 +4h）
 
 ---
 

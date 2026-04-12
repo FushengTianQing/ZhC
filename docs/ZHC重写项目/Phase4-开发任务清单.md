@@ -1,22 +1,57 @@
 # Phase 4：AI 编程接口
 
-**版本**: v1.0
+**版本**: v2.0
 **日期**: 2026-04-13
 **基于文档**: `06-AI编程接入接口.md`、`12-项目规模与工时估算.md`、`15-重构任务执行清单.md`
-**目标**: 完成编译器内嵌 AI 助手，能解释错误、提供修复建议
-**工时**: 307h（含 20% 风险缓冲）
-**日历时间**: 约 2.5 个月
+**目标**: 完成 AI 助手集成（**进程外架构**），能解释错误、提供修复建议
+**工时**: 323h（含 20% 风险缓冲）+ 进程外架构改造 +40h = **363h**
+**日历时间**: 约 3 个月
 **前置条件**: Phase 2 完成（编译能力可用）
+
+---
+
+## 📋 v2.0 修订说明
+
+本版本修订基于[Phase1-5专家优化分析报告.md](./Phase1-5专家优化分析报告.md)的分析，新增/修改以下内容：
+
+| # | 专家问题 | 修订内容 |
+|:---:|:---|:---|
+| P4-01 | AI 依赖与编译器的耦合度过高 | AI 功能改为**进程外架构**（独立 `zhc-ai` 二进制 + JSON-RPC/stdio 通信） |
+| P4-02 | 缺少离线/本地优先策略 | 默认路由从 `"smartest"` 改为 `"local-first"`，先本地模型，不可用时回退云端 |
+
+### 架构变更说明（P4-01）
+
+原设计将 AI 编排器直接嵌入编译器二进制，存在以下问题：
+- **编译体积膨胀**: 链接 HTTP 客户端库 + JSON 库会增加几十 MB
+- **启动延迟**: 初始化 AI 连接池可能需要数秒
+- **隐私顾虑**: 发送用户源代码到外部 API 需要明确的用户同意
+- **编译器稳定性**: AI 服务不可用不应影响基础编译功能
+
+**新架构**:
+```
+┌─────────────────┐     JSON-RPC/stdio     ┌─────────────────┐
+│   zhc (主进程)   │ ◄──────────────────────► │  zhc-ai (子进程) │
+│  编译器核心      │                         │  AI 编排器       │
+│  -ai 参数触发    │                         │  模型适配器      │
+└─────────────────┘                         │  模型路由器      │
+                                            └─────────────────┘
+```
+
+**优势**:
+- AI 模块崩溃不影响编译器主进程
+- 用户可选择不安装 `zhc-ai` 组件
+- 编译器体积不膨胀
+- 隐私控制更明确
 
 ---
 
 ## 4.1 阶段目标
 
-在编译器中内嵌 AI 助手（不是插件），提供：
+在编译器中集成 AI 助手（**进程外架构**），提供：
 
-1. **AI 编排器**：统一管理 AI 请求
+1. **AI 编排器**：统一管理 AI 请求（独立进程）
 2. **多模型适配器**：支持 OpenAI/Claude/Gemini/本地模型
-3. **模型路由器**：智能选择模型（按任务类型、成本、延迟）
+3. **模型路由器**：智能选择模型（**默认 local-first**）
 4. **AI 诊断集成**：错误解释 + 自动修复建议
 5. **CLI AI 参数**：`-ai` 系列参数
 6. **中文提示词优化**：针对中文编程场景优化
@@ -25,11 +60,75 @@
 
 ## 4.2 Month 1：核心架构
 
-### 任务 4.2.1 AI 编排器
+### 任务 4.2.1 AI 编排器（进程外架构）
 
-#### T4.1 实现 AI Orchestrator
+#### T4.1a 实现 JSON-RPC 通信协议
 
-**交付物**: `include/zhc/ai/Orchestrator.h` + `lib/ai/Orchestrator.cpp`
+**交付物**: `include/zhc/ai/Protocol.h` + `lib/ai/Protocol.cpp`
+
+**操作步骤**（专家建议 P4-01 进程外架构）:
+1. 定义编译器主进程与 `zhc-ai` 子进程之间的 JSON-RPC 通信协议：
+
+```cpp
+// include/zhc/ai/Protocol.h
+namespace zhc::ai {
+
+/// JSON-RPC 请求/响应协议
+struct AIRequest {
+    std::string jsonrpc = "2.0";
+    int id;
+    std::string method;  // "explain_error", "suggest_fix", "complete_code"
+    std::map<std::string, std::string> params;
+};
+
+struct AIResponse {
+    std::string jsonrpc = "2.0";
+    int id;
+    std::string content;
+    std::string model_used;
+    bool success;
+    std::string error_msg;
+};
+
+/// 编译器侧的 AI 客户端（启动和管理子进程）
+class AIClient {
+public:
+    AIClient();
+    ~AIClient();
+
+    /// 启动 zhc-ai 子进程
+    bool start(const std::string &AiBinaryPath = "zhc-ai");
+
+    /// 发送请求并等待响应
+    AIResponse sendRequest(const AIRequest &Req);
+
+    /// 检查子进程是否存活
+    bool isAlive() const;
+
+    /// 终止子进程
+    void shutdown();
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> PImpl;  // pipe/socket handles
+};
+
+} // namespace zhc::ai
+```
+
+2. 通信机制：
+   - 使用 `stdin/stdout` 管道通信（最简单的跨平台方案）
+   - 每条消息以 `\n` 分隔的 JSON 行
+   - 编译器主进程在需要 AI 时才启动子进程（懒启动）
+   - 编译完成时自动关闭子进程
+
+**工时**: 16h
+
+---
+
+#### T4.1b 实现 AI Orchestrator（子进程侧）
+
+**交付物**: `tools/zhc-ai/main.cpp` + `include/zhc/ai/Orchestrator.h` + `lib/ai/Orchestrator.cpp`
 
 **操作步骤**:
 1. 实现统一的 AI 请求管理器：
@@ -314,7 +413,7 @@ private:
 
     /// 路由策略
     enum Strategy { Fastest, Smartest, Cheapest, LocalFirst };
-    Strategy CurrentStrategy = Strategy::Smartest;
+    Strategy CurrentStrategy = Strategy::LocalFirst;  // 默认 local-first（专家建议 P4-02）
 
     /// 模型能力表
     struct ModelInfo {
@@ -328,11 +427,12 @@ private:
 };
 ```
 
-2. 路由策略：
+2. 路由策略（**默认 local-first**，专家建议 P4-02）：
+   - `local-first`: **默认策略**，先尝试本地模型（零延迟、零成本、零隐私问题），本地模型不可用时才回退到云端
    - `fast`: 选择最快的模型（本地优先）
-   - `smart`: 选择最智能的模型（GPT-4o/Claude）
+   - `smart`: 选择最智能的模型（GPT-4o/Claude），用户显式指定 `-ai-model=gpt-4o` 时使用
    - `cheap`: 选择最便宜的模型（Gemini Flash）
-   - `local`: 强制使用本地模型
+   - `local`: 强制使用本地模型，不可用时失败而非回退云端
 
 **工时**: 24h
 
@@ -478,12 +578,12 @@ private:
 
 ### 任务 4.3.2 CLI AI 参数
 
-#### T4.11 实现 CLI AI 参数
+#### T4.11 实现 CLI AI 参数（进程外架构）
 
-**交付物**: `tools/zhc/zhc.cpp` 中的 AI 参数
+**交付物**: `tools/zhc/zhc.cpp` 中的 AI 参数 + `tools/zhc-ai/main.cpp`
 
-**操作步骤**:
-1. 添加 AI 相关命令行参数：
+**操作步骤**（专家建议 P4-01）:
+1. 编译器主进程（`zhc`）中的 AI 相关命令行参数：
 
 ```cpp
 // tools/zhc/zhc.cpp
@@ -507,16 +607,57 @@ cl::opt<std::string> AIEndpoint("ai-endpoint",
 cl::opt<std::string> AIKey("ai-key",
     cl::desc("指定 AI API key"),
     cl::init(""));
+
+cl::opt<std::string> AIAiBinary("ai-binary",
+    cl::desc("指定 zhc-ai 二进制路径"),
+    cl::init("zhc-ai"));
 ```
 
-2. 在编译流程中集成：
+2. 在编译流程中启动 AI 子进程并通信（**进程外架构**）：
 ```cpp
 if (EnableAI) {
-    // 初始化 AI 编排器
-    Orchestrator AI;
-    if (!AIKey.empty())
-        AI.setApiKey(AIKey);
-    if (!AIEndpoint.empty())
+    // 初始化 AI 客户端（启动 zhc-ai 子进程）
+    zhc::ai::AIClient AIClient;
+    if (!AIClient.start(AIAiBinary)) {
+        llvm::errs() << "警告: 无法启动 zhc-ai，AI 功能不可用\n";
+        // 不阻塞编译，继续执行
+    }
+
+    // 构建请求
+    zhc::ai::AIRequest Request;
+    Request.method = "explain_error";
+    Request.params["error"] = Diag.getMessage();
+    Request.params["file"] = Diag.getFile();
+    Request.params["line"] = std::to_string(Diag.getLine());
+    Request.params["code"] = Diag.getSourceSnippet();
+    if (!AIModel.empty())
+        Request.params["model"] = AIModel;
+
+    // 发送请求并获取响应
+    auto Resp = AIClient.sendRequest(Request);
+    if (Resp.success) {
+        llvm::outs() << "\n🤖 AI 解释:\n" << Resp.content << "\n";
+    }
+}
+```
+
+3. `zhc-ai` 子进程主循环：
+```cpp
+// tools/zhc-ai/main.cpp
+int main(int argc, char **argv) {
+    zhc::ai::AIClient Input(stdin);
+    zhc::ai::Orchestrator Orch;
+
+    // 从 stdin 读取 JSON-RPC 请求，处理后输出到 stdout
+    while (auto Req = Input.readRequest()) {
+        auto Resp = Orch.handle(*Req);
+        Output.writeResponse(Resp);
+    }
+    return 0;
+}
+```
+
+**工时**: 24h（含 zhc-ai 二进制 +8h）
         AI.setEndpoint(AIEndpoint);
 
     // 增强诊断
@@ -622,14 +763,19 @@ zhc compile error.zhc -ai-auto-fix
 | **模型路由** | `-ai-model=local` | 使用本地模型 |
 | **超时处理** | 模拟超时 | 降级到本地模型 |
 | **响应时间** | P95 < 5s | 95% 请求 < 5s |
+| **进程隔离**（新增）| `kill -9 $(pidof zhc-ai)` | 编译器主进程不受影响 |
+| **本地优先**（新增）| `zhc compile test.zhc -ai` | 默认尝试本地模型，无本地模型时回退云端 |
+| **隐私控制**（新增）| 首次使用 `-ai` | 显示隐私提示，用户确认后继续 |
 
 **量化标准**：
 - AI 错误解释成功率 > 80%
 - P95 响应时间 < 5s
+- **本地模型可用时优先使用本地模型**（默认 local-first）
 
 **如未通过**：
 - 增加超时处理
 - 增加本地模型作为降级选项
+- 检查 zhc-ai 子进程启动路径
 
 ---
 

@@ -1,12 +1,24 @@
 # Phase 1：C++ 基础前端
 
-**版本**: v1.0
+**版本**: v2.0（根据专家优化分析报告修订）
 **日期**: 2026-04-13
-**基于文档**: `04-模块重写建议.md`、`12-项目规模与工时估算.md`、`15-重构任务执行清单.md`、`16-技术债务清单.md`
+**基于文档**: `04-模块重写建议.md`、`12-项目规模与工时估算.md`、`15-重构任务执行清单.md`、`16-技术债务清单.md`、`Phase1-5专家优化分析报告.md`
 **目标**: 完成 C++ 基础前端所有模块，能够解析 .zhc 文件并输出 AST
 **工时**: 960h（含 20% 风险缓冲）
 **日历时间**: 约 5 个月
 **前置条件**: Phase 0 完成（MVP 可视化追踪可用）
+
+### v2.0 修订说明（对照专家报告）
+
+> 本版本根据 `Phase1-5专家优化分析报告.md` 的 P0/P1 优先级建议进行了以下修订：
+> - **P0-1**: 新增 T1.7b ASTContext 设计任务（24h）— 所有 AST 节点的内存管理基础
+> - **P0-2**: T1.4 TokenKind 补全到 100+ 条（+8h）— Lexer/Parser 正确性前提
+> - **P1-1**: 新增 T1.6b Unicode 规范化与验证（12h）— 中文编程语言的根基
+> - **P1-2**: 新增 T1.12b Parser 架构决策（8h）— Parser 可维护性
+> - **P1-3**: 新增 T1.2b 构建系统完善（16h）— Conan/PCH/SANitizer
+> - **P1-4**: 新增 T1.22b 渐进式迁移工具（8h）— Python→C++ 迁移辅助
+> - **结构调整**: T1.18 合并入 T1.17；T1.22 细化为 3 个子任务；任务按附录 A 推荐顺序重排
+> - **工时修正**: 各 Task 工时已核实，Task 工时加总 ≈ 500h + 20% 缓冲 + 评审/文档/集成 ≈ 960h
 
 ---
 
@@ -114,6 +126,99 @@ ninja  # 不报错即 LLVM 链接成功
 
 ---
 
+#### T1.2b 构建系统完善（P1-3）
+
+> **来源**: 专家报告 P1-3 建议
+> **优先级**: P1（Phase1 期间必须完成）
+> **理由**: 对于 100+ 源文件的项目，基础 CMake 配置远远不够
+
+**交付物**: 完善的 CMake 配置（Conan + PCH + SANitizer + Coverage）
+
+**操作步骤**:
+
+1. **Conan 依赖管理**:
+```cmake
+# conanfile.txt
+[requires]
+nlohmann_json/3.11.2
+gtest/1.14.0
+
+[generators]
+CMakeDeps
+CMakeToolchain
+
+[layout]
+cmake_layout
+```
+
+2. **Precompiled Headers**:
+```cmake
+# CMakeLists.txt
+target_precompile_headers(zhc_core PRIVATE
+    <vector>
+    <string>
+    <memory>
+    <unordered_map>
+    "zhc/Common.h"
+)
+```
+
+3. **SANitizer 集成**:
+```cmake
+option(ENABLE_ASAN "Enable AddressSanitizer" ON)
+option(ENABLE_USAN "Enable UndefinedBehaviorSanitizer" ON)
+
+if(ENABLE_ASAN)
+    target_compile_options(zhc_core PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+    target_link_options(zhc_core PRIVATE -fsanitize=address)
+endif()
+
+if(ENABLE_USAN)
+    target_compile_options(zhc_core PRIVATE -fsanitize=undefined)
+    target_link_options(zhc_core PRIVATE -fsanitize=undefined)
+endif()
+```
+
+4. **Coverage 配置**:
+```cmake
+option(ENABLE_COVERAGE "Enable code coverage" OFF)
+if(ENABLE_COVERAGE)
+    target_compile_options(zhc_core PRIVATE --coverage -O0 -g)
+    target_link_options(zhc_core PRIVATE --coverage)
+endif()
+```
+
+5. **LLVM 版本锁定**:
+```cmake
+# 锁定 LLVM 18 版本（避免 API 变更）
+find_package(LLVM 18 REQUIRED CONFIG)
+if(NOT LLVM_VERSION_MAJOR VERSION_EQUAL 18)
+    message(FATAL_ERROR "ZhC requires LLVM 18.x, found ${LLVM_PACKAGE_VERSION}")
+endif()
+```
+
+**验收标准**:
+```bash
+# Conan 依赖安装
+conan install . --output-folder=build --build=missing
+
+# ASAN 构建
+cmake -B build -DENABLE_ASAN=ON
+cmake --build build
+./build/bin/zhc_tests  # 运行带 ASAN 的测试
+
+# Coverage 报告
+cmake -B build -DENABLE_COVERAGE=ON
+cmake --build build
+./build/bin/zhc_tests
+lcov --capture --directory build --output-file coverage.info
+genhtml coverage.info --output-directory coverage_html
+```
+
+**工时**: 16h
+
+---
+
 #### T1.3 配置 GoogleTest 测试框架
 
 **交付物**: `test/CMakeLists.txt` + 基础测试桩
@@ -151,32 +256,241 @@ gtest_discover_tests(zhc_tests)
 
 ### 任务 1.2.2 Token 与关键词
 
-#### T1.4 实现 Token 定义
+#### T1.4 实现 Token 定义（完整 100+ 条）
 
-**交付物**: `include/zhc/Lexer.h` 中的 Token 相关类型
+> **修订说明**: 专家报告 P0-2 指出原版本仅约 15 个 Token，远少于 Python 版 100+ TokenType。
+> 本版本补全到完整列表，与 Python 版 `lexer.py` 逐条对照。
+
+**交付物**: `include/zhc/Lexer.h` + `lib/TokenKinds.def`（完整 100+ 条）
 
 **操作步骤**:
-1. 参考 Python 版本 `src/zhc/lexer.py` 中的 `TokenType` 枚举（~50 个 token 类型）
-2. 实现 C++ 版本：
+
+1. 创建 `lib/TokenKinds.def`（参考 Clang 的 `TokenKinds.def` 格式）：
+
+```cpp
+//===--- TokenKinds.def - Token Kind Definitions ------------------------===//
+//
+// ZhC Token 类型定义（与 Python 版 lexer.py TokenType 逐条对照）
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef TOKEN
+#define TOKEN(X)
+#endif
+#ifndef PUNCTUATOR
+#define PUNCTUATOR(X, Y) TOKEN(X)
+#endif
+#ifndef KEYWORD
+#define KEYWORD(X) TOKEN(KW_##X)
+#endif
+
+//===--- 字面量 Token ---------------------------------------------------===//
+TOKEN(INTEGER_LITERAL)      // 整数字面量: 42, 0xFF, 0b1010
+TOKEN(FLOAT_LITERAL)        // 浮点字面量: 3.14, 1.0e-10
+TOKEN(STRING_LITERAL)       // 字符串字面量: "hello", "中文"
+TOKEN(CHAR_LITERAL)         // 字符字面量: 'a', '中'
+TOKEN(BOOL_LITERAL)         // 布尔字面量: 真/假
+TOKEN(NONE_LITERAL)         // 空字面量: 空
+
+//===--- 标识符 ---------------------------------------------------------===//
+TOKEN(IDENTIFIER)           // 标识符: 变量名、函数名等
+
+//===--- 关键字（中文 + 英文）-------------------------------------------===//
+// 控制流
+KEYWORD(if)                 // 如果
+KEYWORD(else)               // 否则
+KEYWORD(while)              // 循环/当
+KEYWORD(for)                // 循环/对于
+KEYWORD(switch)             // 选择
+KEYWORD(case)               // 当（case 分支）
+KEYWORD(default)            // 默认
+KEYWORD(return)             // 返回
+KEYWORD(break)              // 跳出
+KEYWORD(continue)           // 继续
+KEYWORD(yield)              // 产出（协程）
+
+// 类型定义
+KEYWORD(func)               // 函数
+KEYWORD(var)                // 变量
+KEYWORD(const)              // 常量
+KEYWORD(let)                // 不可变变量
+KEYWORD(struct)             // 结构体
+KEYWORD(enum)               // 枚举
+KEYWORD(typedef)            // 类型定义
+KEYWORD(class)              // 类
+KEYWORD(interface)          // 接口
+KEYWORD(implements)         // 实现
+KEYWORD(extends)            // 继承
+
+// 类型关键字
+KEYWORD(int)                // 整数型
+KEYWORD(float)              // 浮点型
+KEYWORD(char)               // 字符型
+KEYWORD(bool)               // 布尔型
+KEYWORD(void)               // 空型
+KEYWORD(string)             // 字符串型
+
+// 访问控制
+KEYWORD(public)             // 公有
+KEYWORD(private)            // 私有
+KEYWORD(protected)          // 保护
+KEYWORD(static)             // 静态
+KEYWORD(extern)             // 外部
+
+// 内存管理
+KEYWORD(new)                // 新建
+KEYWORD(delete)             // 删除
+KEYWORD(sizeof)             // 大小
+KEYWORD(typeof)             // 类型
+KEYWORD(alignof)            // 对齐
+
+// 智能指针（Python 版已有）
+KEYWORD(unique_ptr)         // 独享指针
+KEYWORD(shared_ptr)         // 共享指针
+KEYWORD(weak_ptr)           // 弱指针
+KEYWORD(move)               // 移动
+
+// 异常处理（Python 版已有）
+KEYWORD(try)                // 尝试
+KEYWORD(catch)              // 捕获
+KEYWORD(finally)            // 最终
+KEYWORD(throw)              // 抛出
+
+// 协程/异步（Python 版已有）
+KEYWORD(async)              // 异步
+KEYWORD(await)              // 等待
+
+// 模块系统
+KEYWORD(import)             // 导入
+KEYWORD(module)             // 模块
+KEYWORD(from)               // 从
+KEYWORD(with)               // 伴随
+
+// 泛型（Python 版已有）
+KEYWORD(generic)            // 泛型
+KEYWORD(where)              // 约束
+KEYWORD(constraints)        // 约束条件
+
+// 安全特性（Python 版已有）
+KEYWORD(shared)             // 共享型
+KEYWORD(thread_local)       // 线程独享型
+KEYWORD(result)             // 结果型
+KEYWORD(nullable)           // 可空型
+KEYWORD(overflow_check)     // 溢出检查
+KEYWORD(bounds_check)       // 边界检查
+
+// 其他修饰符
+KEYWORD(operator)           // 运算符重载
+KEYWORD(override)           // 覆盖
+KEYWORD(virtual)            // 虚函数
+KEYWORD(abstract)           // 抽象
+KEYWORD(sealed)             // 封闭
+KEYWORD(mutable)            // 可变
+KEYWORD(volatile)           // 易变
+KEYWORD(inline)             // 内联
+
+//===--- 运算符 ---------------------------------------------------------===//
+// 算术运算符
+PUNCTUATOR(plus, "+")       // 加
+PUNCTUATOR(minus, "-")      // 减
+PUNCTUATOR(star, "*")       // 乘
+PUNCTUATOR(slash, "/")      // 除
+PUNCTUATOR(percent, "%")    // 取模
+
+// 位运算符
+PUNCTUATOR(amp, "&")        // 位与
+PUNCTUATOR(pipe, "|")       // 位或
+PUNCTUATOR(caret, "^")      // 位异或
+PUNCTUATOR(tilde, "~")      // 位取反
+PUNCTUATOR(shl, "<<")       // 左移
+PUNCTUATOR(shr, ">>")       // 右移
+
+// 逻辑运算符
+PUNCTUATOR(and, "&&")       // 逻辑与
+PUNCTUATOR(or, "||")        // 逻辑或
+PUNCTUATOR(not, "!")        // 逻辑非
+
+// 比较运算符
+PUNCTUATOR(eq, "==")        // 等于
+PUNCTUATOR(neq, "!=")       // 不等于
+PUNCTUATOR(lt, "<")         // 小于
+PUNCTUATOR(gt, ">")         // 大于
+PUNCTUATOR(le, "<=")        // 小于等于
+PUNCTUATOR(ge, ">=")        // 大于等于
+
+// 赋值运算符
+PUNCTUATOR(equal, "=")      // 赋值
+PUNCTUATOR(pluseq, "+=")    // 加赋值
+PUNCTUATOR(minuseq, "-=")   // 减赋值
+PUNCTUATOR(stareq, "*=")    // 乘赋值
+PUNCTUATOR(slashq, "/=")    // 除赋值
+PUNCTUATOR(percenteq, "%=") // 取模赋值
+PUNCTUATOR(ampeq, "&=")     // 位与赋值
+PUNCTUATOR(pipeeq, "|=")    // 位或赋值
+PUNCTUATOR(careteq, "^=")   // 位异或赋值
+PUNCTUATOR(shleq, "<<=")    // 左移赋值
+PUNCTUATOR(shreq, ">>=")    // 右移赋值
+
+// 其他运算符
+PUNCTUATOR(arrow, "->")     // 指针成员访问
+PUNCTUATOR(dot, ".")        // 成员访问
+PUNCTUATOR(arrow_star, "->*") // 指针成员指针访问
+PUNCTUATOR(question, "?")   // 三元条件
+PUNCTUATOR(colon, ":")      // 三元条件/标签
+PUNCTUATOR(double_colon, "::") // 作用域
+PUNCTUATOR(ellipsis, "...") // 可变参数
+
+// 范围运算符（Python 版已有）
+PUNCTUATOR(dot_dot, "..")   // 范围（开区间）
+PUNCTUATOR(dot_dot_eq, "..=") // 范围（闭区间）
+
+//===--- 标点符号 -------------------------------------------------------===//
+PUNCTUATOR(lparen, "(")     // 左圆括号
+PUNCTUATOR(rparen, ")")     // 右圆括号
+PUNCTUATOR(lbrace, "{")     // 左花括号
+PUNCTUATOR(rbrace, "}")     // 右花括号
+PUNCTUATOR(lbracket, "[")   // 左方括号
+PUNCTUATOR(rbracket, "]")   // 右方括号
+PUNCTUATOR(comma, ",")      // 逗号
+PUNCTUATOR(semi, ";")       // 分号
+PUNCTUATOR(hash, "#")       // 预处理指令
+PUNCTUATOR(at, "@")         // 属性标记
+PUNCTUATOR(dollar, "$")     // 特殊标记
+PUNCTUATOR(backquote, "`")  // 反引号
+
+//===--- 特殊 Token -----------------------------------------------------===//
+TOKEN(eof)                  // 文件结束
+TOKEN(indent)               // 缩进增加（Python 式）
+TOKEN(dedent)               // 缩进减少
+TOKEN(newline)              // 换行
+TOKEN(comment)              // 注释
+TOKEN(unknown)              // 未知/非法字符
+
+//===--- 中文关键字映射（Keywords.h 中使用）----------------------------===//
+// 注意：中文关键字在 Keywords.h 中映射到对应的 KW_* Token
+// 例如: "如果" → KW_if, "否则" → KW_else
+
+#undef TOKEN
+#undef PUNCTUATOR
+#undef KEYWORD
+```
+
+2. 实现 Token 结构体：
 
 ```cpp
 // include/zhc/Lexer.h
 namespace zhc {
 
-// Token 类型
+// Token 类型（从 TokenKinds.def 生成）
 enum class TokenKind {
-#define TOKEN(X) X,
-#include "TokenKinds.def"
-};
-
-// TokenKind 定义（生成宏）
 #define TOKEN(X) X,
 #define PUNCTUATOR(X, Y) X,
 #define KEYWORD(X) KW_##X,
 #include "TokenKinds.def"
+};
 
 struct Token {
-    TokenKind Kind = TokenKind::Unknown;
+    TokenKind Kind = TokenKind::unknown;
     llvm::SMLoc Location;          // 源码位置（含文件名/行/列）
     llvm::StringRef Spelling;      // Token 原文
     uint64_t IntegerValue = 0;    // 整数字面量值
@@ -187,15 +501,57 @@ struct Token {
 StringRef getTokenName(TokenKind K);
 bool isKeyword(TokenKind K);
 bool isPunctuator(TokenKind K);
+bool isLiteral(TokenKind K);
+bool isAssignmentOperator(TokenKind K);
+bool isBinaryOperator(TokenKind K);
+unsigned getBinOpPrecedence(TokenKind K);
 } // namespace zhc
 ```
 
-3. 创建 `lib/TokenKinds.def`（参考 Clang 的 `TokenKinds.def` 格式）
-4. 确保 Token 携带 `SourceLocation`（修复 B-02 债务的基础）
+3. **Python 版对照检查清单**（确保零遗漏）：
+
+| Python TokenType | C++ TokenKind | 状态 |
+|:---|:---|:---:|
+| INTEGER | INTEGER_LITERAL | ✅ |
+| FLOAT | FLOAT_LITERAL | ✅ |
+| STRING | STRING_LITERAL | ✅ |
+| CHAR | CHAR_LITERAL | ✅ |
+| BOOL | BOOL_LITERAL | ✅ |
+| NONE | NONE_LITERAL | ✅ |
+| IDENTIFIER | IDENTIFIER | ✅ |
+| IF | KW_if | ✅ |
+| ELSE | KW_else | ✅ |
+| WHILE | KW_while | ✅ |
+| FOR | KW_for | ✅ |
+| SWITCH | KW_switch | ✅ |
+| CASE | KW_case | ✅ |
+| DEFAULT | KW_default | ✅ |
+| RETURN | KW_return | ✅ |
+| BREAK | KW_break | ✅ |
+| CONTINUE | KW_continue | ✅ |
+| FUNC | KW_func | ✅ |
+| STRUCT | KW_struct | ✅ |
+| ENUM | KW_enum | ✅ |
+| IMPORT | KW_import | ✅ |
+| MODULE | KW_module | ✅ |
+| TRY | KW_try | ✅ |
+| CATCH | KW_catch | ✅ |
+| FINALLY | KW_finally | ✅ |
+| THROW | KW_throw | ✅ |
+| ASYNC | KW_async | ✅ |
+| AWAIT | KW_await | ✅ |
+| YIELD | KW_yield | ✅ |
+| UNIQUE_PTR | KW_unique_ptr | ✅ |
+| SHARED_PTR | KW_shared_ptr | ✅ |
+| WEAK_PTR | KW_weak_ptr | ✅ |
+| MOVE | KW_move | ✅ |
+| GENERIC | KW_generic | ✅ |
+| WHERE | KW_where | ✅ |
+| ... | ... | ✅ |
 
 **参考**: Python 版本 `src/zhc/parser/lexer.py` 第 30-120 行
 
-**工时**: 8h
+**工时**: 16h（原 8h + 专家建议 +8h）
 
 ---
 
@@ -340,7 +696,367 @@ ctest -R Lexer --output-on-failure
 
 ---
 
+#### T1.6b Unicode 规范化与验证（P1-1）
+
+> **来源**: 专家报告 P1-1
+> **优先级**: P1（中文编程语言的根基）
+> **理由**: ZhC 作为中文编程语言，必须处理各种 Unicode 边界情况。当前 T1.6 Lexer 虽提到 UTF-8 支持，但缺乏具体的 Unicode 边界情况处理规范。
+
+**交付物**: `include/zhc/Unicode.h` + `lib/Unicode.cpp` + Unicode 测试用例集
+
+**操作步骤**:
+
+1. 选定 Unicode 处理方案：
+   - **推荐**: 使用 LLVM 的 `llvm/Support/Unicode.h`（零额外依赖，LLVM 已提供 Unicode 分类函数）
+   - **备选**: ICU4C（功能更强，但增加外部依赖）
+   - 对于标识符分类（XID_Start/XID_Continue），使用 Unicode UAX #31 标准
+
+2. 创建 `include/zhc/Unicode.h`：
+
+```cpp
+//===--- Unicode.h - Unicode 支持工具 -----------------------------------===//
+//
+// 中文编程语言的 Unicode 处理工具集
+// 遵循 Unicode UAX #31（Identifier and Pattern Syntax）
+//
+//===----------------------------------------------------------------------===//
+
+#pragma once
+#include "llvm/ADT/StringRef.h"
+#include <cstdint>
+
+namespace zhc {
+namespace unicode {
+
+/// 是否为 Unicode 标识符起始字符（XID_Start）
+/// 包含: CJK 统一汉字、拉丁字母、下划线等
+bool isXIDStart(uint32_t CodePoint);
+
+/// 是否为 Unicode 标识符延续字符（XID_Continue）
+/// 包含: XID_Start + 数字 + 连接符等
+bool isXIDContinue(uint32_t CodePoint);
+
+/// 是否为 CJK 统一汉字（U+4E00 ~ U+9FFF + 扩展区）
+bool isCJKCharacter(uint32_t CodePoint);
+
+/// 是否为中文标点（需特殊处理的场景）
+bool isChinesePunctuation(uint32_t CodePoint);
+
+/// 是否为 Unicode 空格字符（不只是 ASCII 空格）
+bool isUnicodeWhitespace(uint32_t CodePoint);
+
+/// UTF-8 解码：从缓冲区读取一个 Unicode 码点
+/// @returns 码点数量（字节数），0 表示无效 UTF-8
+unsigned decodeUTF8(const char *Ptr, uint32_t &CodePoint);
+
+/// UTF-8 编码：将 Unicode 码点写入缓冲区
+/// @returns 写入的字节数
+unsigned encodeUTF8(uint32_t CodePoint, char *Out);
+
+/// 获取 UTF-8 序列的字节长度（由首字节判断）
+unsigned getUTF8SequenceLength(unsigned char FirstByte);
+
+/// 计算字符串中的 Unicode 字符数（而非字节数）
+size_t countCodePoints(llvm::StringRef Str);
+
+/// Unicode 规范化（NFC）— 将等价序列统一为规范形式
+llvm::StringRef normalizeNFC(llvm::StringRef Input);
+
+} // namespace unicode
+} // namespace zhc
+```
+
+3. **ZhC 特有的 Unicode 场景处理表**：
+
+| 场景 | 示例 | 处理要求 | 优先级 |
+|:---|:---|:---|:---:|
+| 中文标识符 | `变量_张三 = 5` | UTF-8 多字节作为标识符部分 | P0 |
+| 中文关键字 | `如果 (条件) { ... }` | Keyword 表中完整映射 | P0 |
+| 混合源码 | `整数型 数组大小 = 1024; // 注释` | ASCII + CJK 混合 | P0 |
+| Unicode 转义 | `\u4e00`, `\U0001f600` | 词法级转义序列 | P1 |
+| Unicode 空格 | U+00A0 (NBSP) | 缩进处理中识别 | P1 |
+| 全角标点 | `（` `）` `；` | 提示用户使用半角 | P2 |
+| Emoji 标识符 | `🎉 = 42` | UAX #31 下合法，需支持 | P3 |
+
+4. 编写 Unicode 测试用例集（至少 30 个）：
+
+```cpp
+// test/unittests/unicode_test.cpp
+TEST(Unicode, CJKIdentifiers) {
+    EXPECT_TRUE(unicode::isXIDStart(0x4E00));     // '一'
+    EXPECT_TRUE(unicode::isXIDStart(0x5F20));     // '张'
+    EXPECT_TRUE(unicode::isXIDContinue(0x4E09));  // '三'
+}
+
+TEST(Unicode, UTF8Decoding) {
+    const char *Zhong = "\xe4\xb8\xad";  // '中' U+4E2D
+    uint32_t CP;
+    unsigned Len = unicode::decodeUTF8(Zhong, CP);
+    EXPECT_EQ(Len, 3u);
+    EXPECT_EQ(CP, 0x4E2Du);
+}
+
+TEST(Unicode, MixedSourceLine) {
+    // "整数型 数组大小 = 1024;"
+    llvm::StringRef Line = "\xe6\x95\xb4\xe6\x95\xb0\xe5\x9e\x8b"
+                           " \xe6\x95\xb0\xe7\xbb\x84\xe5\xa4\xa7\xe5\xb0\x8f"
+                           " = 1024;";
+    EXPECT_EQ(unicode::countCodePoints(Line), 17u);
+}
+
+TEST(Unicode, ChinesePunctuation) {
+    EXPECT_TRUE(unicode::isChinesePunctuation(0xFF08));   // （
+    EXPECT_TRUE(unicode::isChinesePunctuation(0xFF09));   // ）
+    EXPECT_TRUE(unicode::isChinesePunctuation(0xFF1B));   // ；
+}
+```
+
+**参考**:
+- Unicode UAX #31（Identifier and Pattern Syntax）
+- Python 版 `src/zhc/parser/lexer.py` 中的 UTF-8 处理逻辑
+- LLVM `llvm/Support/Unicode.h` + `llvm/Support/ConvertUTF.h`
+
+**工时**: 12h
+
+---
+
 ## 1.3 Month 2：Parser + AST
+
+### 任务 1.3.0 AST 内存管理基础
+
+#### T1.7b 实现 ASTContext 内存管理（P0-1）
+
+> **来源**: 专家报告 P0-1（🔴 Critical）
+> **优先级**: P0（所有 AST 节点的内存管理基础，必须先于 T1.8 完成）
+> **理由**: T1.8 及后续 Parser 代码中大量使用 `new (Context)` 语法（如 `new (Context) BinaryOperator(...)`），但从未定义 `ASTContext` 类。这是整个 C++ 前端的**基石性缺陷**——没有 ASTContext，所有 new 出来的节点谁来释放？裸指针到处传递必然导致内存泄漏。
+
+**交付物**: `include/zhc/ASTContext.h` + `lib/ASTContext.cpp`
+
+**操作步骤**:
+
+1. 创建 `include/zhc/ASTContext.h`：
+
+```cpp
+//===--- ASTContext.h - AST 所有权上下文 ---------------------------------===//
+//
+// 管理 AST 节点的内存生命周期
+// 设计原则:
+// 1. 大多数 AST 节点使用 BumpPtrAllocator（arena 分配，批量释放）
+// 2. 需要析构的节点（如含 std::string 的节点）使用单独跟踪
+// 3. 内置类型单例（VoidTy, Int32Ty 等）只创建一次
+// 4. 线程不安全（单线程 per compilation）
+//
+//===----------------------------------------------------------------------===//
+
+#pragma once
+#include "zhc/Types.h"
+#include "zhc/AST.h"
+#include "llvm/Support/Allocator.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/ArrayRef.h"
+#include <vector>
+#include <functional>
+
+namespace zhc {
+
+class SourceManager;
+
+class ASTContext {
+public:
+    explicit ASTContext(SourceManager &SM);
+    ~ASTContext();
+
+    // === Arena 分配 ===
+
+    /// 在 arena 中创建对象（无析构调用，适用于 POD/平凡析构的 AST 节点）
+    template<typename T, typename... Args>
+    T *create(Args &&... args) {
+        return new (Allocator.Allocate(sizeof(T), alignof(T)))
+            T(std::forward<Args>(args)...);
+    }
+
+    /// 需要析构的对象（适用于含 std::string/std::vector 等成员的节点）
+    template<typename T, typename... Args>
+    T *createWithDtor(Args &&... args) {
+        auto *mem = Allocator.Allocate(sizeof(T), alignof(T));
+        T *obj = new (mem) T(std::forward<Args>(args)...);
+        TrackedAllocations.push_back([obj]() { obj->~T(); });
+        return obj;
+    }
+
+    // === 内置类型缓存 ===
+
+    /// 初始化内置类型（构造函数中调用）
+    void initBuiltinTypes();
+
+    QualType getVoidTy()    const { return VoidTy; }
+    QualType getBoolTy()    const { return BoolTy; }
+    QualType getInt8Ty()    const { return Int8Ty; }
+    QualType getInt16Ty()   const { return Int16Ty; }
+    QualType getInt32Ty()   const { return Int32Ty; }
+    QualType getInt64Ty()   const { return Int64Ty; }
+    QualType getFloat32Ty() const { return Float32Ty; }
+    QualType getFloat64Ty() const { return Float64Ty; }
+    QualType getStringTy()  const { return StringTy; }
+    QualType getCharTy()    const { return CharTy; }
+
+    /// 获取/创建指针类型（自动缓存，避免重复分配）
+    QualType getPointerType(QualType Pointee);
+
+    /// 获取/创建数组类型（自动缓存）
+    QualType getArrayType(QualType Element, uint64_t Size);
+
+    /// 获取/创建函数类型（自动缓存）
+    QualType getFunctionType(QualType Ret, llvm::ArrayRef<QualType> Params);
+
+    // === 类型 canonicalization ===
+
+    /// 获取类型的规范化形式（去掉 typedef/sugar）
+    QualType getCanonicalType(QualType T);
+
+    /// 两个类型是否相同（忽略 sugar/qualifiers）
+    bool typesAreSame(QualType T1, QualType T2);
+
+    // === 查询 ===
+    SourceManager &getSourceManager() const { return SM; }
+
+    /// 获取总分配大小（用于内存统计）
+    size_t getTotalMemory() const;
+
+private:
+    llvm::BumpPtrAllocator Allocator;
+    SourceManager &SM;
+
+    // 内置类型单例
+    QualType VoidTy, BoolTy;
+    QualType Int8Ty, Int16Ty, Int32Ty, Int64Ty;
+    QualType Float32Ty, Float64Ty;
+    QualType StringTy, CharTy;
+
+    // 类型缓存（避免重复创建相同类型）
+    llvm::DenseMap<std::pair<Type*, unsigned>, PointerType*> PointerTypes;
+    llvm::DenseMap<std::pair<Type*, uint64_t>, ArrayType*> ArrayTypes;
+    llvm::DenseMap<unsigned, FunctionType*> FunctionTypes;
+
+    // 需要析构的分配
+    std::vector<std::function<void()>> TrackedAllocations;
+
+    // ASTContext 不可拷贝
+    ASTContext(const ASTContext &) = delete;
+    void operator=(const ASTContext &) = delete;
+};
+
+} // namespace zhc
+```
+
+2. 实现 `lib/ASTContext.cpp`：
+
+```cpp
+//===--- ASTContext.cpp - AST 所有权上下文实现 ---------------------------===//
+
+#include "zhc/ASTContext.h"
+#include "zhc/SourceManager.h"
+
+namespace zhc {
+
+ASTContext::ASTContext(SourceManager &SM) : SM(SM) {
+    initBuiltinTypes();
+}
+
+ASTContext::~ASTContext() {
+    // 先调用需要析构的节点的析构函数
+    for (auto &Dtor : TrackedAllocations) {
+        Dtor();
+    }
+    TrackedAllocations.clear();
+    // BumpPtrAllocator 自动释放所有 arena 内存
+}
+
+void ASTContext::initBuiltinTypes() {
+    // 创建内置类型的单例
+    VoidTy    = QualType(create<BuiltinType>(BuiltinType::Void), 0);
+    BoolTy    = QualType(create<BuiltinType>(BuiltinType::Bool), 0);
+    Int8Ty    = QualType(create<BuiltinType>(BuiltinType::Int8), 0);
+    Int16Ty   = QualType(create<BuiltinType>(BuiltinType::Int16), 0);
+    Int32Ty   = QualType(create<BuiltinType>(BuiltinType::Int32), 0);
+    Int64Ty   = QualType(create<BuiltinType>(BuiltinType::Int64), 0);
+    Float32Ty = QualType(create<BuiltinType>(BuiltinType::Float32), 0);
+    Float64Ty = QualType(create<BuiltinType>(BuiltinType::Float64), 0);
+    CharTy    = QualType(create<BuiltinType>(BuiltinType::Char), 0);
+    StringTy  = QualType(create<BuiltinType>(BuiltinType::String), 0);
+}
+
+QualType ASTContext::getPointerType(QualType Pointee) {
+    auto Key = std::make_pair(Pointee.getTypePtr(), Pointee.getQualifiers());
+    auto It = PointerTypes.find(Key);
+    if (It != PointerTypes.end())
+        return QualType(It->second, 0);
+
+    auto *PtrTy = create<PointerType>(Pointee);
+    PointerTypes[Key] = PtrTy;
+    return QualType(PtrTy, 0);
+}
+
+QualType ASTContext::getArrayType(QualType Element, uint64_t Size) {
+    auto Key = std::make_pair(Element.getTypePtr(), Size);
+    auto It = ArrayTypes.find(Key);
+    if (It != ArrayTypes.end())
+        return QualType(It->second, 0);
+
+    auto *ArrTy = create<ArrayType>(Element, Size);
+    ArrayTypes[Key] = ArrTy;
+    return QualType(ArrTy, 0);
+}
+
+size_t ASTContext::getTotalMemory() const {
+    return Allocator.getTotalMemory();
+}
+
+} // namespace zhc
+```
+
+3. **ASTContext 使用约定**（所有 AST 节点创建必须通过 Context）：
+
+```cpp
+// ✅ 正确：通过 ASTContext 创建节点
+BinaryOperator *BinOp = Context.create<BinaryOperator>(Op, LHS, RHS);
+
+// ❌ 错误：裸 new（会导致内存泄漏）
+BinaryOperator *BinOp = new BinaryOperator(Op, LHS, RHS);
+
+// ✅ 需要析构的节点用 createWithDtor
+StringLiteral *Str = Context.createWithDtor<StringLiteral>("你好世界");
+```
+
+4. **参考**: Clang `clang/AST/ASTContext.h`（约 3000 行，Clang 最核心的数据结构之一）
+
+**验收标准**:
+```cpp
+// ASTContext 单元测试
+TEST(ASTContext, BuiltinTypes) {
+    ASTContext Ctx(SM);
+    EXPECT_TRUE(Ctx.typesAreSame(Ctx.getInt32Ty(), Ctx.getInt32Ty()));
+    EXPECT_FALSE(Ctx.typesAreSame(Ctx.getInt32Ty(), Ctx.getFloat64Ty()));
+}
+
+TEST(ASTContext, PointerTypeCaching) {
+    ASTContext Ctx(SM);
+    auto Ptr1 = Ctx.getPointerType(Ctx.getInt32Ty());
+    auto Ptr2 = Ctx.getPointerType(Ctx.getInt32Ty());
+    EXPECT_EQ(Ptr1.getTypePtr(), Ptr2.getTypePtr());  // 相同指针 = 缓存命中
+}
+
+TEST(ASTContext, ArenaAllocation) {
+    ASTContext Ctx(SM);
+    auto *Lit = Ctx.create<IntegerLiteral>(42);
+    EXPECT_NE(Lit, nullptr);
+    // 无需 delete — Ctx 析构时自动释放
+}
+```
+
+**工时**: 24h
+
+---
 
 ### 任务 1.3.1 AST 节点体系设计
 
@@ -773,6 +1489,149 @@ Type *Parser::parseGenericType() {
 
 ---
 
+#### T1.12b Parser 架构决策与骨架搭建（P1-2）
+
+> **来源**: 专家报告 P1-2
+> **优先级**: P1（Parser 可维护性）
+> **理由**: Python 版已有 DeclarationParserMixin/StatementParserMixin/ExpressionParserMixin 但未被使用（R1 重构遗留债务）。C++ 版必须尽早决定 Parser 组织方案，避免重复此债务。
+
+**交付物**: Parser 架构决策文档 + `include/zhc/Parser.h` 骨架
+
+**操作步骤**:
+
+1. **架构方案评估**（以下三种方案择一）：
+
+| 方案 | 描述 | 优点 | 缺点 |
+|:---|:---|:---|:---|
+| **A: 自由函数 + 按文件拆分** | `parseExpression()` 等作为 Parser 类的方法，按文件拆分 `.cpp` 实现 | 简单直接，编译速度快 | Parser.h 头文件较大 |
+| **B: CRTP Mixin** | `DeclarationParserMixin<Parser>` 等 CRTP 模式 | 编译期多态，零运行时开销 | 复杂度高，调试困难，编译时间长 |
+| **C: 组合委托** | Parser 持有 `ExprParser*`、`StmtParser*` 等子解析器指针 | 解耦彻底 | 动态分配开销，指针间接调用 |
+
+2. **选定方案 A**（自由函数 + 按文件拆分），理由：
+   - ZhC 的 Parser 不需要像 Clang 那样同时支持多种 Frontend（C/C++/ObjC）
+   - CRTP Mixin 对编译速度不利（每个模板实例化都重新编译）
+   - 当前阶段优先保证正确性，后期可重构为 Mixin
+   - 与当前 T1.9-T1.12 的 4 文件拆分方式自然对齐
+
+3. 创建 `include/zhc/Parser.h` 骨架：
+
+```cpp
+//===--- Parser.h - 递归下降语法分析器 ---------------------------------===//
+//
+// 架构方案 A: 单一 Parser 类 + 按文件拆分实现
+// - ParserExpr.cpp: 表达式解析（parseExpression, parseUnary, parsePostfix...）
+// - ParserStmt.cpp: 语句解析（parseStatement, parseIf, parseWhile...）
+// - ParserDecl.cpp: 声明解析（parseFunctionDecl, parseVarDecl...）
+// - ParserType.cpp: 类型解析（parseType, parsePointerType...）
+//
+//===----------------------------------------------------------------------===//
+
+#pragma once
+#include "zhc/Lexer.h"
+#include "zhc/AST.h"
+#include "zhc/ASTContext.h"
+#include "zhc/Diagnostics.h"
+#include "zhc/SourceManager.h"
+#include <vector>
+
+namespace zhc {
+
+class Parser {
+public:
+    Parser(Lexer &L, ASTContext &Ctx, DiagnosticsEngine &Diags);
+
+    /// 主入口：解析整个翻译单元
+    TranslationUnit *parseTranslationUnit();
+
+    // === 表达式解析（ParserExpr.cpp）===
+    Expr *parseExpression(unsigned MinPrec = 0);
+    Expr *parseUnaryExpr();
+    Expr *parsePostfixExpr();
+    Expr *parsePrimaryExpr();
+    Expr *parseIntegerLiteral();
+    Expr *parseFloatLiteral();
+    Expr *parseStringLiteral();
+    Expr *parseIdentifierExpr();
+    Expr *parseParenExpr();
+    Expr *parseCallExpr(Expr *Callee);
+    Expr *parseMemberExpr(Expr *Object);
+
+    // === 语句解析（ParserStmt.cpp）===
+    Stmt *parseStatement();
+    Stmt *parseCompoundStatement();
+    Stmt *parseIfStatement();
+    Stmt *parseWhileStatement();
+    Stmt *parseForStatement();
+    Stmt *parseSwitchStatement();
+    Stmt *parseReturnStatement();
+    Stmt *parseExpressionStatement();
+
+    // === 声明解析（ParserDecl.cpp）===
+    Decl *parseDeclaration();
+    FunctionDecl *parseFunctionDeclaration();
+    VarDecl *parseVariableDeclaration();
+    StructDecl *parseStructDeclaration();
+    EnumDecl *parseEnumerationDeclaration();
+    ImportDecl *parseImportDeclaration();
+    ParamDecl *parseParameterDeclaration();
+
+    // === 类型解析（ParserType.cpp）===
+    Type *parseType();
+    Type *parsePointerType(Type *Base);
+    Type *parseArrayType(Type *Base);
+    Type *parseFunctionType();
+    Type *parseGenericType();  // Phase 2 占位
+
+    // === 错误恢复 ===
+    void skipUntil(TokenKind K1, TokenKind K2 = TokenKind::eof);
+    void skipUntil(std::initializer_list<TokenKind> Kinds);
+    bool isStatementStart();
+    bool isDeclarationStart();
+
+private:
+    Lexer &TheLexer;
+    ASTContext &Context;
+    DiagnosticsEngine &Diags;
+
+    Token Tok;          // 当前 Token
+    SourceManager &SM;
+
+    // Token 操作
+    void consumeToken();
+    bool consumeIf(TokenKind K);
+    bool expect(TokenKind K);
+    Token lookAhead(unsigned N = 1);
+
+    // 运算符优先级
+    unsigned getBinOpPrecedence(TokenKind K);
+};
+
+} // namespace zhc
+```
+
+4. **Python 版 Parser 对应关系**：
+
+| Python 文件 | C++ 文件 | 说明 |
+|:---|:---|:---|
+| `parser.py` `parse_expression()` | `ParserExpr.cpp` | 表达式解析 |
+| `parser.py` `parse_statement()` | `ParserStmt.cpp` | 语句解析 |
+| `parser.py` `parse_declaration()` | `ParserDecl.cpp` | 声明解析 |
+| `parser.py` `parse_type()` | `ParserType.cpp` | 类型解析 |
+| `parser.py` `DeclarationParserMixin` | 合并入 `Parser` 类 | 不单独使用 Mixin |
+| `parser.py` `StatementParserMixin` | 合并入 `Parser` 类 | 不单独使用 Mixin |
+| `parser.py` `ExpressionParserMixin` | 合并入 `Parser` 类 | 不单独使用 Mixin |
+
+**验收标准**:
+```bash
+# Parser.h 可被其他头文件 include 且编译通过
+cd cpp/build && ninja
+# 无编译错误
+```
+
+**工时**: 8h
+
+---
+
 #### T1.13 错误恢复机制
 
 **交付物**: Parser 中的错误同步逻辑
@@ -973,9 +1832,11 @@ DIAG(err_invalid_binary_op, Error, "运算符 '{0}' 不能用于类型 '{1}' 和
 
 ---
 
-#### T1.17 实现诊断引擎
+#### T1.17 实现诊断引擎（含中文错误消息）
 
-**交付物**: `lib/Diagnostics.cpp`
+> **修订说明**: 专家报告建议 T1.18 中文错误消息合并入 T1.17，避免单独任务带来的上下文切换开销。
+
+**交付物**: `lib/Diagnostics.cpp` + `lib/DiagnosticMessages.cpp`
 
 **操作步骤**:
 1. 实现诊断格式化（支持 `{0}` `{1}` 占位符）：
@@ -995,18 +1856,7 @@ DiagnosticBuilder DiagnosticsEngine::report(DiagID ID) {
    - 警告：`\033[33m` 黄色
    - 信息：`\033[36m` 青色
 
-**参考**: Python 版本 `src/zhc/errors/` 下的消息文件
-
-**工时**: 60h（含中文错误消息迁移）
-
----
-
-#### T1.18 中文错误消息表
-
-**交付物**: `lib/DiagnosticMessages.cpp`
-
-**操作步骤**:
-1. 将 Python 版本的所有错误消息迁移到 C++：
+4. 将 Python 版本的所有错误消息迁移到 C++：
 
 ```cpp
 // lib/DiagnosticMessages.cpp
@@ -1035,13 +1885,28 @@ const char *DiagnosticMessages[] = {
 
     // 中文特有的友好提示
     [int(DiagID::err_chinese_hint)]            = "提示：中文关键字需使用中文标点",
-    // ... 更多消息
+    // ... 全部从 Python src/zhc/errors/ 迁移
 };
 
 } // namespace diag
 ```
 
-**工时**: 20h（中文消息迁移）
+5. **中文错误消息对照表**（从 Python 逐条迁移）：
+
+| Python 错误 ID | 中文错误消息 | 优先级 |
+|:---|:---|:---:|
+| `INVALID_CHARACTER` | 非法字符 '{0}' | P0 |
+| `UNTERMINATED_STRING` | 未终止的字符串字面量 | P0 |
+| `UNTERMINATED_COMMENT` | 未终止的注释 | P0 |
+| `EXPECTED_TOKEN` | 期望 '{0}'，但得到 '{1}' | P0 |
+| `UNDECLARED_IDENTIFIER` | 未声明的标识符 '{0}' | P0 |
+| `REDEFINITION` | 标识符 '{0}' 重复定义 | P0 |
+| `TYPE_MISMATCH` | 类型不匹配：期望 '{0}'，实际 '{1}' | P0 |
+| ... | ... | P1+ |
+
+**参考**: Python 版本 `src/zhc/errors/` 下的所有错误定义（约 100+ 条）
+
+**工时**: 80h（原 T1.17 60h + T1.18 20h，合并后统一管理）
 
 ---
 
@@ -1182,46 +2047,132 @@ bool isInitialized(StringRef Name) const;
 
 #### T1.22 前端集成测试
 
-**交付物**: `test/integration/frontend_integration_test.cpp`
+> **修订说明**: 专家报告建议将单一 40h 任务细化为 3 个子任务，每个子任务对应不同测试维度。
+
+**交付物**: `test/integration/` 目录下的 3 组测试套件
 
 **操作步骤**:
-1. 创建端到端测试 fixture：
-   - `hello.zhc`：经典 Hello World
-   - `fibonacci.zhc`：递归斐波那契
-   - `complex_expressions.zhc`：复杂表达式求值
-   - `control_flow.zhc`：if/while/for/switch 完整测试
-   - `chinese_programs.zhc`：全中文关键字程序
 
-2. 测试流程：
+##### T1.22a 语法正确性测试（16h）
+
+**交付物**: `test/integration/frontend_syntax_test.cpp`
+
+测试 10 个 fixture 文件，验证 C++ Parser 输出与 Python Parser 输出完全一致：
+
+| Fixture | 内容 | 验证点 |
+|:---|:---|:---|
+| `hello.zhc` | Hello World | 最小可运行程序 |
+| `fibonacci.zhc` | 递归斐波那契 | 函数调用/递归 |
+| `factorial.zhc` | 阶乘函数 | if/while |
+| `control_flow.zhc` | if/while/for/switch | 控制流完整性 |
+| `structs.zhc` | 结构体定义/使用 | 复合类型 |
+| `enums.zhc` | 枚举定义/使用 | 枚举类型 |
+| `arrays.zhc` | 数组定义/索引 | 数组下标 |
+| `pointers.zhc` | 指针算术 | 指针操作 |
+| `functions.zhc` | 函数重载/前向声明 | 函数声明 |
+| `imports.zhc` | 多文件导入 | 模块系统 |
+
 ```cpp
-TEST_F(FrontendIntegration, HelloWorld) {
-    // 1. 词法分析
-    Lexer L(SourceMgr, Diags);
-    std::vector<Token> Tokens;
-    while (L.peekToken().isNot(KK_EOF)) {
-        Tokens.push_back(L.nextToken());
-    }
-    EXPECT_GT(Tokens.size(), 0);
-
-    // 2. 语法分析
-    Parser P(Tokens, Diags);
-    TranslationUnit *TU = P.parseTranslationUnit();
-    EXPECT_NE(TU, nullptr);
-    EXPECT_EQ(Diags.getNumErrors(), 0u);
-
-    // 3. AST 打印（验证结构正确）
-    ASTPrinter Printer;
-    TU->accept(Printer);
+TEST_F(FrontendSyntaxTest, Fibonacci) {
+    auto Result = compile("fibonacci.zhc");
+    EXPECT_EQ(Result.ErrorCount, 0u);
+    // 对比 Python AST 节点数量和结构
+    EXPECT_EQ(Result.ASTNodeCount, PythonParser.fibonacci_zhc.NodeCount);
 }
+```
+
+##### T1.22b 错误恢复测试（8h）
+
+**交付物**: `test/integration/frontend_error_recovery_test.cpp`
+
+测试 5 个故意写错的 fixture，验证错误恢复机制：
+
+| Fixture | 故意引入的错误 | 验证点 |
+|:---|:---|:---|
+| `error_missing_semicolon.zhc` | 缺少分号 | 继续解析后续代码 |
+| `error_unmatched_paren.zhc` | 括号不匹配 | 报告错误位置后恢复 |
+| `error_unknown_token.zhc` | 非法字符 | 跳过非法字符 |
+| `error_incomplete_expr.zhc` | 不完整表达式 | 报告错误后继续 |
+| `error_in_nested_block.zhc` | 嵌套块内错误 | 外层块不受影响 |
+
+```cpp
+TEST_F(FrontendErrorRecovery, MissingSemicolon) {
+    auto Result = compile("error_missing_semicolon.zhc");
+    // 应产生 1 个错误
+    EXPECT_EQ(Result.ErrorCount, 1u);
+    // 但后续代码应继续解析
+    EXPECT_NE(Result.ASTAfterError, nullptr);
+}
+```
+
+##### T1.22c 全中文关键字测试（8h）
+
+**交付物**: `test/integration/frontend_chinese_test.cpp`
+
+测试 5 个全中文 fixture，验证中文支持：
+
+| Fixture | 内容 |
+|:---|:---|
+| `chinese_hello.zhc` | `函数 空型 主函数() { 打印("你好世界"); }` |
+| `chinese_control.zhc` | `如果`/`循环`/`选择` 等中文关键字 |
+| `chinese_types.zhc` | `整数型`/`浮点型`/`布尔型` 等中文类型 |
+| `chinese_complex.zhc` | 混合中英文的程序 |
+| `chinese_unicode.zhc` | 中文标识符 `变量 张三 = 42;` |
+
+##### T1.22d 渐进式迁移工具（P1-4，8h）
+
+> **来源**: 专家报告 P1-4
+> **优先级**: P1
+> **理由**: Python→C++ 迁移过程中需要工具辅助验证语义一致性
+
+**交付物**: `tools/migrate_ast_test/` 目录下的辅助工具
+
+**工具 1: AST 对比工具**
+```bash
+# 对比 Python 和 C++ 生成的 AST
+./zhc_ast_diff python_output.json cpp_output.json
+# 输出差异报告
+```
+
+**工具 2: Python 测试用例迁移器**
+```bash
+# 将 Python pytest fixture 转换为 C++ GTest fixture
+./zhc_migrate_test tests/fixtures/*.zhc --output=test/integration/
+```
+
+**工具 3: 语义一致性检查器**
+```bash
+# 对同一 .zhc 文件运行 Python 和 C++ 编译器
+./zhc_semantic_check hello.zhc
+# 报告类型推导、作用域分析差异
+```
+
+```cpp
+// tools/ast_diff/CMakeLists.txt
+add_executable(zhc_ast_diff ast_diff.cpp)
+target_link_libraries(zhc_ast_diff PRIVATE zhc_core)
+
+add_executable(zhc_migrate_test migrate_test.cpp)
+target_link_libraries(zhc_migrate_test PRIVATE zhc_core)
 ```
 
 **验收标准**:
 ```bash
-ctest -R Frontend --output-on-failure
-# 全部通过
+# 3 组集成测试
+ctest -R FrontendSyntax --output-on-failure    # T1.22a
+ctest -R FrontendErrorRecovery --output-on-failure  # T1.22b
+ctest -R FrontendChinese --output-on-failure   # T1.22c
+
+# 迁移工具可用
+./build/tools/zhc_ast_diff --help
+./build/tools/zhc_migrate_test --help
+./build/tools/zhc_semantic_check --help
+
+# 测试用例数 ≥ 200 个（满足 Go/No-Go 标准）
+ctest -V | grep -c "TEST"
 ```
 
-**工时**: 40h
+**工时**: 40h（原 T1.22 细化为 3 子任务）+ 8h（T1.22b 迁移工具）= **48h**
 
 ---
 
