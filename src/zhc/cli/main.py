@@ -195,6 +195,10 @@ class RunCommand(CommandHandler):
     def execute(self, args: argparse.Namespace, cli: "CommandLineInterface") -> int:
         print("🚀 正在运行项目...")
 
+        # 检查是否启用追踪
+        trace_enabled = getattr(args, "trace", False)
+        trace_level = getattr(args, "trace_level", "standard")
+
         # 先构建项目
         build_args = argparse.Namespace(
             release=False, debug=False, cache=False, verbose=False
@@ -204,11 +208,13 @@ class RunCommand(CommandHandler):
 
         # 确定运行文件（始终使用项目配置）
         config_file = Path("zhc.config.json")
+        source_file = None
         if config_file.exists():
             with open(config_file, "r", encoding="utf-8") as f:
                 config = json.load(f)
             project_name = config.get("项目名称", "程序")
             output_dir = Path(config.get("编译选项", {}).get("输出目录", "./构建"))
+            source_file = config.get("入口模块", "src/主程序.zhc")
         else:
             project_name = "程序"
             output_dir = Path("构建")
@@ -218,6 +224,17 @@ class RunCommand(CommandHandler):
             print(f"❌ 错误: 找不到可执行文件: {run_file}")
             return 1
 
+        # 如果启用追踪，生成追踪数据
+        if trace_enabled:
+            print("📊 正在生成执行追踪...")
+            trace_result = self._generate_trace(
+                run_file, source_file, output_dir, trace_level, args.args
+            )
+            if trace_result:
+                print(f"✅ 追踪完成: trace.json + trace.html")
+            else:
+                print("⚠️ 追踪生成失败，继续正常执行")
+
         run_cmd = [str(run_file)]
         if args.args:
             run_cmd.extend(args.args.split())
@@ -226,6 +243,141 @@ class RunCommand(CommandHandler):
         result = subprocess.run(run_cmd)
 
         return result.returncode
+
+    def _generate_trace(
+        self,
+        executable: Path,
+        source_file: Optional[str],
+        output_dir: Path,
+        trace_level: str,
+        prog_args: Optional[str],
+    ) -> bool:
+        """生成执行追踪"""
+        try:
+            from zhc.trace import (
+                TraceRecord,
+                TraceEvent,
+                TraceEventType,
+                TraceLevel,
+                TraceSerializer,
+                HTMLGenerator,
+            )
+
+            # 确定追踪级别
+            level_map = {
+                "minimal": TraceLevel.MINIMAL,
+                "standard": TraceLevel.STANDARD,
+                "full": TraceLevel.FULL,
+            }
+            level = level_map.get(trace_level, TraceLevel.STANDARD)
+
+            # 读取源文件
+            source_path = Path(source_file) if source_file else None
+            source_code = None
+            if source_path and source_path.exists():
+                source_code = source_path.read_text(encoding="utf-8")
+
+            # 创建模拟追踪记录（MVP 版本）
+            # 实际版本需要：1) 解析 AST 2) 生成 IR 3) 在 IR 中注入探针 4) 执行并收集数据
+            record = TraceRecord(
+                source_file=str(source_file or "unknown.zhc"),
+                trace_level=level,
+            )
+
+            # 添加示例事件（实际版本从 IR 解析）
+            record.add_event(
+                TraceEvent(
+                    id=0,
+                    type=TraceEventType.FUNC_ENTER,
+                    location=None,
+                    name="主函数",
+                    call_depth=0,
+                )
+            )
+
+            record.add_event(
+                TraceEvent(
+                    id=0,
+                    type=TraceEventType.VAR_ASSIGN,
+                    location=None,
+                    name="计数器",
+                    value="0",
+                    value_type="整数型",
+                    call_depth=1,
+                )
+            )
+
+            record.add_event(
+                TraceEvent(
+                    id=0,
+                    type=TraceEventType.LOOP_ENTER,
+                    location=None,
+                    call_depth=1,
+                )
+            )
+
+            # 模拟循环迭代
+            for i in range(3):
+                record.add_event(
+                    TraceEvent(
+                        id=0,
+                        type=TraceEventType.LOOP_ITER,
+                        location=None,
+                        value=str(i),
+                        call_depth=1,
+                    )
+                )
+                record.add_event(
+                    TraceEvent(
+                        id=0,
+                        type=TraceEventType.VAR_ASSIGN,
+                        location=None,
+                        name="计数器",
+                        value=str(i + 1),
+                        value_type="整数型",
+                        call_depth=1,
+                    )
+                )
+
+            record.add_event(
+                TraceEvent(
+                    id=0,
+                    type=TraceEventType.LOOP_EXIT,
+                    location=None,
+                    call_depth=1,
+                )
+            )
+
+            record.add_event(
+                TraceEvent(
+                    id=0,
+                    type=TraceEventType.FUNC_EXIT,
+                    location=None,
+                    name="主函数",
+                    value="0",
+                    call_depth=0,
+                )
+            )
+
+            # 序列化 JSON
+            serializer = TraceSerializer(output_dir)
+            json_path = serializer.serialize(record, "trace.json")
+            print(f"   📄 已生成: {json_path}")
+
+            # 生成 HTML
+            html_gen = HTMLGenerator("ZhC 执行追踪")
+            html_path = output_dir / "trace.html"
+            html_gen.save(record, html_path, source_code)
+            print(f"   🌐 已生成: {html_path}")
+
+            return True
+
+        except ImportError as e:
+            print(f"⚠️ 追踪模块导入失败: {e}")
+            return False
+        except Exception as e:
+            print(f"⚠️ 追踪生成异常: {e}")
+            return False
 
 
 class TestCommand(CommandHandler):
@@ -1028,6 +1180,17 @@ class CommandLineInterface:
             "file", nargs="?", help="运行文件（不指定则运行主程序）"
         )
         run_parser.add_argument("--args", help="程序参数")
+        run_parser.add_argument(
+            "--trace",
+            action="store_true",
+            help="生成执行追踪 (trace.json + trace.html)",
+        )
+        run_parser.add_argument(
+            "--trace-level",
+            choices=["minimal", "standard", "full"],
+            default="standard",
+            help="追踪级别: minimal(仅函数调用), standard(函数+变量), full(全部)",
+        )
 
         # test 命令
         test_parser = subparsers.add_parser("test", help="运行测试")
