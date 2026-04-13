@@ -2,7 +2,7 @@
 //
 // This file defines the diagnostic engine for the ZhC compiler.
 // It supports Chinese error messages, source location highlighting,
-// colorized output, and fix-it hints.
+// colorized output, fix-it hints, and diagnostic IDs for maintainability.
 //
 //===----------------------------------------------------------------------===//
 
@@ -30,6 +30,22 @@ enum class DiagnosticLevel {
   Fatal
 };
 
+/// Diagnostic ID - unique identifier for each diagnostic message
+/// Defined in DiagnosticKinds.def
+enum class DiagID {
+#define DIAG(ID, LEVEL, MESSAGE) ID,
+#include "zhc/DiagnosticKinds.def"
+};
+
+/// Get the severity level for a diagnostic ID
+DiagnosticLevel getDiagLevel(DiagID ID);
+
+/// Get the message template for a diagnostic ID
+llvm::StringRef getDiagMessage(DiagID ID);
+
+/// Format a diagnostic message with placeholders
+std::string formatDiagMessage(DiagID ID, llvm::ArrayRef<std::string> args);
+
 /// A fix-it hint: replace the text at [Start, End) with Replacement
 struct FixItHint {
   SourceLocation Start;
@@ -53,12 +69,17 @@ struct FixItHint {
 /// A single diagnostic message
 struct Diagnostic {
   DiagnosticLevel Level;
+  DiagID ID;  // Diagnostic ID for tracking
   SourceLocation Loc;
   std::string Message;
   std::vector<FixItHint> Hints;
   
+  Diagnostic(DiagnosticLevel level, DiagID id, SourceLocation loc, std::string message)
+      : Level(level), ID(id), Loc(loc), Message(std::move(message)) {}
+  
+  /// Legacy constructor for backward compatibility
   Diagnostic(DiagnosticLevel level, SourceLocation loc, std::string message)
-      : Level(level), Loc(loc), Message(std::move(message)) {}
+      : Level(level), ID(DiagID::err_expected), Loc(loc), Message(std::move(message)) {}
   
   /// Add a fix-it hint
   Diagnostic& addFixIt(FixItHint hint) {
@@ -72,16 +93,19 @@ class DiagnosticsEngine {
 public:
   DiagnosticsEngine();
   
-  /// Report an error at the given location
+  /// Report a diagnostic by ID (preferred method)
+  Diagnostic& report(SourceLocation loc, DiagID ID, llvm::ArrayRef<std::string> args = {});
+  
+  /// Report an error at the given location (legacy method)
   Diagnostic& error(SourceLocation loc, const std::string& msg);
   
-  /// Report a warning at the given location
+  /// Report a warning at the given location (legacy method)
   Diagnostic& warning(SourceLocation loc, const std::string& msg);
   
-  /// Report a note at the given location
+  /// Report a note at the given location (legacy method)
   Diagnostic& note(SourceLocation loc, const std::string& msg);
   
-  /// Report a fatal error (compilation stops)
+  /// Report a fatal error (compilation stops) (legacy method)
   Diagnostic& fatal(SourceLocation loc, const std::string& msg);
   
   /// Get all collected diagnostics
@@ -122,7 +146,7 @@ private:
   bool UseColor = true;
   unsigned MaxErrors = 0;  // 0 = unlimited
   
-  Diagnostic& addDiagnostic(DiagnosticLevel level, SourceLocation loc, 
+  Diagnostic& addDiagnostic(DiagnosticLevel level, DiagID id, SourceLocation loc,
                             const std::string& msg);
   
   /// Get the severity prefix string (Chinese)

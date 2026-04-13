@@ -9,30 +9,98 @@
 
 #include "llvm/Support/raw_ostream.h"
 
+#include <sstream>
+
 namespace zhc {
+
+//===----------------------------------------------------------------------===//
+// Diagnostic ID helpers
+//===----------------------------------------------------------------------===//
+
+DiagnosticLevel getDiagLevel(DiagID ID) {
+  switch (ID) {
+#define DIAG(ID, LEVEL, MSG) case DiagID::ID: return DiagnosticLevel::LEVEL;
+#include "zhc/DiagnosticKinds.def"
+  }
+  return DiagnosticLevel::Error; // Should never reach here
+}
+
+llvm::StringRef getDiagMessage(DiagID ID) {
+  switch (ID) {
+#define DIAG(ID, LEVEL, MSG) case DiagID::ID: return llvm::StringRef(MSG);
+#include "zhc/DiagnosticKinds.def"
+  }
+  return llvm::StringRef("未知诊断");
+}
+
+std::string formatDiagMessage(DiagID ID, llvm::ArrayRef<std::string> args) {
+  llvm::StringRef fmt = getDiagMessage(ID);
+  
+  std::string result;
+  result.reserve(fmt.size() + args.size() * 16);
+  
+  size_t argIdx = 0;
+  size_t pos = 0;
+  
+  while (pos < fmt.size()) {
+    if (fmt[pos] == '{') {
+      size_t end = fmt.find('}', pos);
+      if (end != llvm::StringRef::npos) {
+        llvm::StringRef placeholder = fmt.slice(pos, end + 1);
+        // Parse the argument index
+        llvm::StringRef idxStr = fmt.slice(pos + 1, end);
+        unsigned idx = 0;
+        if (idxStr.getAsInteger(10, idx) && idx < args.size()) {
+          result += args[idx];
+        } else if (idx < args.size()) {
+          result += args[idx];
+        } else {
+          result += placeholder.str();
+        }
+        pos = end + 1;
+        continue;
+      }
+    }
+    result += fmt[pos];
+    ++pos;
+  }
+  
+  return result;
+}
+
+//===----------------------------------------------------------------------===//
+// DiagnosticsEngine
+//===----------------------------------------------------------------------===//
 
 DiagnosticsEngine::DiagnosticsEngine() = default;
 
+Diagnostic& DiagnosticsEngine::report(SourceLocation loc, DiagID ID,
+                                      llvm::ArrayRef<std::string> args) {
+  std::string msg = formatDiagMessage(ID, args);
+  DiagnosticLevel level = getDiagLevel(ID);
+  return addDiagnostic(level, ID, loc, msg);
+}
+
 Diagnostic& DiagnosticsEngine::error(SourceLocation loc, const std::string& msg) {
-  return addDiagnostic(DiagnosticLevel::Error, loc, msg);
+  return addDiagnostic(DiagnosticLevel::Error, DiagID::err_expected, loc, msg);
 }
 
 Diagnostic& DiagnosticsEngine::warning(SourceLocation loc, const std::string& msg) {
-  return addDiagnostic(DiagnosticLevel::Warning, loc, msg);
+  return addDiagnostic(DiagnosticLevel::Warning, DiagID::warn_unused_variable, loc, msg);
 }
 
 Diagnostic& DiagnosticsEngine::note(SourceLocation loc, const std::string& msg) {
-  return addDiagnostic(DiagnosticLevel::Note, loc, msg);
+  return addDiagnostic(DiagnosticLevel::Note, DiagID::err_expected, loc, msg);
 }
 
 Diagnostic& DiagnosticsEngine::fatal(SourceLocation loc, const std::string& msg) {
-  return addDiagnostic(DiagnosticLevel::Fatal, loc, msg);
+  return addDiagnostic(DiagnosticLevel::Fatal, DiagID::fatal_cannot_open_file, loc, msg);
 }
 
-Diagnostic& DiagnosticsEngine::addDiagnostic(DiagnosticLevel level,
-                                              SourceLocation loc,
-                                              const std::string& msg) {
-  Diags.emplace_back(level, loc, msg);
+Diagnostic& DiagnosticsEngine::addDiagnostic(DiagnosticLevel level, DiagID ID,
+                                             SourceLocation loc,
+                                             const std::string& msg) {
+  Diags.emplace_back(level, ID, loc, msg);
 
   switch (level) {
     case DiagnosticLevel::Error:

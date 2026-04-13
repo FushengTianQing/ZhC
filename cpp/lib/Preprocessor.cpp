@@ -149,8 +149,8 @@ std::unique_ptr<Macro> Preprocessor::parseDefine(llvm::StringRef content) {
     // Find closing paren
     size_t endParen = content.find(')', parenPos);
     if (endParen == llvm::StringRef::npos) {
-      Diags.error(SourceLocation(CurrentLine, 1, CurrentFileID), 
-                  "宏定义缺少右括号: " + name);
+      Diags.report(SourceLocation(CurrentLine, 1, CurrentFileID),
+                   DiagID::err_pp_unterminated_macro, {name});
       return nullptr;
     }
     
@@ -208,8 +208,8 @@ std::string Preprocessor::expandMacro(const std::string& name,
                                        const std::vector<std::string>& args,
                                        unsigned depth) {
   if (depth > Config.MaxMacroDepth) {
-    Diags.error(SourceLocation(CurrentLine, 1, CurrentFileID),
-                "宏展开深度超过限制: " + name);
+    Diags.report(SourceLocation(CurrentLine, 1, CurrentFileID),
+                 DiagID::err_pp_macro_depth, {name});
     return name;
   }
   
@@ -624,8 +624,8 @@ std::pair<std::string, bool> Preprocessor::parseIncludePath(llvm::StringRef cont
     return {content.drop_front(1).drop_back().str(), false};
   }
   
-  Diags.error(SourceLocation(CurrentLine, 1, CurrentFileID),
-              "无效的 #include 语法: " + content.str());
+  Diags.report(SourceLocation(CurrentLine, 1, CurrentFileID),
+               DiagID::err_pp_invalid_include, {content.str()});
   return {"", false};
 }
 
@@ -673,8 +673,8 @@ bool Preprocessor::checkPragmaOnce(const std::string& filepath) {
 std::string Preprocessor::processInclude(llvm::StringRef content) {
   // Check include depth
   if (IncludeStack.size() >= Config.MaxIncludeDepth) {
-    Diags.error(SourceLocation(CurrentLine, 1, CurrentFileID),
-                "#include 嵌套深度超过限制");
+    Diags.report(SourceLocation(CurrentLine, 1, CurrentFileID),
+                 DiagID::err_pp_include_depth);
     return "";
   }
   
@@ -687,16 +687,16 @@ std::string Preprocessor::processInclude(llvm::StringRef content) {
   // Find file
   std::string filepath = findIncludeFile(filename, isSystem);
   if (filepath.empty()) {
-    Diags.error(SourceLocation(CurrentLine, 1, CurrentFileID),
-                "找不到头文件: " + filename);
+    Diags.report(SourceLocation(CurrentLine, 1, CurrentFileID),
+                 DiagID::err_pp_file_not_found, {filename});
     return "";
   }
   
   // Check for circular include
   if (std::find(IncludeStack.begin(), IncludeStack.end(), filepath) 
       != IncludeStack.end()) {
-    Diags.error(SourceLocation(CurrentLine, 1, CurrentFileID),
-                "循环包含: " + filename);
+    Diags.report(SourceLocation(CurrentLine, 1, CurrentFileID),
+                 DiagID::err_pp_circular_include, {filename});
     return "";
   }
   
@@ -717,8 +717,8 @@ std::string Preprocessor::processInclude(llvm::StringRef content) {
   // Load and process file
   uint32_t fileID = SrcMgr.loadFile(filepath);
   if (fileID == 0) {
-    Diags.error(SourceLocation(CurrentLine, 1, CurrentFileID),
-                "无法读取头文件: " + filename);
+    Diags.report(SourceLocation(CurrentLine, 1, CurrentFileID),
+                 DiagID::err_pp_read_error, {filename});
     IncludeStack.pop_back();
     CurrentFile = oldFile;
     CurrentLine = oldLine;

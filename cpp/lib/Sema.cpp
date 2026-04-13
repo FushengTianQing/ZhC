@@ -238,8 +238,8 @@ bool Sema::analyzeFunction(FuncDecl* func) {
     
     // Check if the variable is used
     if (!usedVars.contains(info.Decl->Name)) {
-      DiagEngine.warning(info.DeclLoc, 
-          "未使用的局部变量: '" + std::string(info.Decl->Name) + "'");
+      DiagEngine.report(info.DeclLoc, DiagID::warn_unused_variable,
+                   {std::string(info.Decl->Name)});
     }
   }
   
@@ -358,8 +358,7 @@ void Sema::checkInitialization(FuncDecl* func) {
   // This is a framework - full control flow analysis in Phase 2
   for (const auto& [name, info] : LocalVars) {
     if (info.IsUsed && !info.IsInitialized) {
-      DiagEngine.error(info.DeclLoc,
-          "使用了可能未初始化的变量: '" + name + "'");
+      DiagEngine.report(info.DeclLoc, DiagID::err_uninitialized_var, {name});
     }
   }
 }

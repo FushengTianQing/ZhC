@@ -23,7 +23,7 @@ bool Driver::compileSource(const std::string& path) {
   // Load source file
   uint32_t fileID = SourceMgr.loadFile(path);
   if (fileID == 0) {
-    DiagEngine.fatal(SourceLocation(), "无法打开文件: " + path);
+    DiagEngine.report(SourceLocation(), DiagID::fatal_cannot_open_file, {path});
     return false;
   }
   
@@ -54,8 +54,8 @@ bool Driver::compileSource(const std::string& path) {
     if (tok.isEOF()) break;
     
     if (tok.Kind == TokenKind::unknown) {
-      DiagEngine.error(lexer.getCurrentLocation(), 
-                       "未知字符: '" + tok.Spelling.str() + "'");
+DiagEngine.report(lexer.getCurrentLocation(), DiagID::err_unknown_character,
+                     {tok.Spelling.str()});
     }
   }
   
