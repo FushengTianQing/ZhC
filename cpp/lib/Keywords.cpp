@@ -13,10 +13,9 @@ KeywordTable::KeywordTable() {
   addBilingual("如果", "if", TokenKind::KW_if);
   addBilingual("否则", "else", TokenKind::KW_else);
   addBilingual("循环", "while", TokenKind::KW_while);
-  addBilingual("当", "while", TokenKind::KW_while);  // Alternative
   addBilingual("对于", "for", TokenKind::KW_for);
   addBilingual("选择", "switch", TokenKind::KW_switch);
-  addBilingual("当", "case", TokenKind::KW_case);    // Context-dependent
+  addBilingual("情况", "case", TokenKind::KW_case);
   addBilingual("默认", "default", TokenKind::KW_default);
   addBilingual("返回", "return", TokenKind::KW_return);
   addBilingual("跳出", "break", TokenKind::KW_break);

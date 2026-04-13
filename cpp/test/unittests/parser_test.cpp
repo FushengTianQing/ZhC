@@ -321,7 +321,7 @@ TEST_F(StatementTest, ContinueStatement) {
 }
 
 TEST_F(StatementTest, SwitchStatement) {
-  ParserTestHelper h("选择 (x) { 当 1: 语句1; 默认: 语句2; }");
+  ParserTestHelper h("选择 (x) { 情况 1: 语句1; 默认: 语句2; }");
   auto stmt = h.Parse->parseStatement();
   ASSERT_NE(stmt, nullptr);
   EXPECT_EQ(stmt->getKind(), ASTNodeKind::SWITCH_STMT);
@@ -502,9 +502,9 @@ TEST_F(TranslationUnitTest, MultipleDeclarations) {
 // Error Recovery Tests
 //===----------------------------------------------------------------------===//
 
-class ErrorRecoveryTest : public ::testing::Test {};
+class ParserErrorRecoveryTest : public ::testing::Test {};
 
-TEST_F(ErrorRecoveryTest, MissingSemicolon) {
+TEST_F(ParserErrorRecoveryTest, MissingSemicolon) {
   // Parser is lenient about missing semicolons (consumeIf pattern)
   // Both declarations should still be parsed
   ParserTestHelper h("变量 x = 1 变量 y = 2");
@@ -512,7 +512,7 @@ TEST_F(ErrorRecoveryTest, MissingSemicolon) {
   EXPECT_EQ(unit->Decls.size(), 2u);
 }
 
-TEST_F(ErrorRecoveryTest, InvalidToken) {
+TEST_F(ParserErrorRecoveryTest, InvalidToken) {
   ParserTestHelper h("@@ 变量 x = 1");
   auto unit = h.Parse->parseTranslationUnit();
   // Should skip invalid token and parse declaration
@@ -520,7 +520,7 @@ TEST_F(ErrorRecoveryTest, InvalidToken) {
   EXPECT_TRUE(h.hasErrors());
 }
 
-TEST_F(ErrorRecoveryTest, MissingClosingBrace) {
+TEST_F(ParserErrorRecoveryTest, MissingClosingBrace) {
   // Parser gracefully handles EOF in block (synchronizes at EOF)
   // No explicit error for missing closing brace at EOF
   ParserTestHelper h("函数 f() { 语句 ");

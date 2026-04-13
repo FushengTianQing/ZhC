@@ -435,6 +435,22 @@ std::unique_ptr<StmtNode> Parser::parseStatement() {
   switch (CurrentToken.Kind) {
     case TokenKind::lbrace:
       return parseBlockStmt();
+    case TokenKind::KW_var:
+    case TokenKind::KW_const:
+      // Local variable declarations inside blocks are handled as statements.
+      // They are DeclNodes but allowed in statement context.
+      // We wrap them by calling parseVarDecl directly.
+      // Note: parseVarDecl returns DeclNode, but we need StmtNode here.
+      // Since parseBlockStmt handles var/const separately, this path is
+      // reached when parseStatement is called from other contexts (e.g.,
+      // if/while/for body). We still need to parse them correctly.
+      // For now, parse them and let the caller handle the type mismatch.
+      // Actually, parseStatement is only called from parseBlockStmt (which
+      // already handles var/const) and from single-statement contexts like
+      // if/while/for bodies where a variable declaration would be unusual.
+      // If it happens, treat it as an expression statement (which will fail
+      // gracefully).
+      return parseExprStmt();
     case TokenKind::KW_if:
       return parseIfStmt();
     case TokenKind::KW_while:
@@ -463,10 +479,21 @@ std::unique_ptr<BlockStmt> Parser::parseBlockStmt() {
 
   auto block = std::make_unique<BlockStmt>();
   while (!consumeIf(TokenKind::rbrace) && !CurrentToken.isEOF()) {
-    auto stmt = parseStatement();
-    if (stmt) {
-      block->Statements.push_back(std::move(stmt));
+    std::unique_ptr<ASTNode> node;
+
+    // Dispatch: variable declarations are DeclNodes, not StmtNodes.
+    // parseStatement() doesn't handle them, so we must intercept here.
+    if (CurrentToken.Kind == TokenKind::KW_var ||
+        CurrentToken.Kind == TokenKind::KW_const) {
+      node = parseVarDecl();
     } else {
+      node = parseStatement();
+    }
+
+    if (node) {
+      block->Statements.push_back(std::move(node));
+    } else {
+      // Error recovery: skip to next synchronization point
       synchronize();
     }
   }
@@ -587,7 +614,8 @@ std::unique_ptr<SwitchStmt> Parser::parseSwitchStmt() {
       cases.push_back(parseDefaultStmt());
     } else {
       DiagEngine.error(getCurrentLocation(), "期望 'case' 或 'default'");
-      synchronize();
+      // Error recovery: skip this token to avoid infinite loop
+      advance();
     }
   }
 
@@ -603,9 +631,15 @@ std::unique_ptr<CaseStmt> Parser::parseCaseStmt() {
   llvm::SmallVector<std::unique_ptr<ASTNode>, 8> body;
   while (CurrentToken.Kind != TokenKind::KW_case &&
          CurrentToken.Kind != TokenKind::KW_default &&
-         CurrentToken.Kind != TokenKind::rbrace) {
+         CurrentToken.Kind != TokenKind::rbrace &&
+         !CurrentToken.isEOF()) {
     auto stmt = parseStatement();
-    if (stmt) body.push_back(std::move(stmt));
+    if (stmt) {
+      body.push_back(std::move(stmt));
+    } else {
+      // Error recovery: skip token to avoid infinite loop
+      advance();
+    }
   }
 
   return std::make_unique<CaseStmt>(std::move(value), std::move(body));
@@ -618,9 +652,15 @@ std::unique_ptr<DefaultStmt> Parser::parseDefaultStmt() {
   llvm::SmallVector<std::unique_ptr<ASTNode>, 8> body;
   while (CurrentToken.Kind != TokenKind::KW_case &&
          CurrentToken.Kind != TokenKind::KW_default &&
-         CurrentToken.Kind != TokenKind::rbrace) {
+         CurrentToken.Kind != TokenKind::rbrace &&
+         !CurrentToken.isEOF()) {
     auto stmt = parseStatement();
-    if (stmt) body.push_back(std::move(stmt));
+    if (stmt) {
+      body.push_back(std::move(stmt));
+    } else {
+      // Error recovery: skip token to avoid infinite loop
+      advance();
+    }
   }
 
   return std::make_unique<DefaultStmt>(std::move(body));
@@ -699,6 +739,11 @@ std::unique_ptr<ThrowStmt> Parser::parseThrowStmt() {
 
 std::unique_ptr<ExprStmt> Parser::parseExprStmt() {
   auto expr = parseExpression();
+  if (!expr) {
+    // Expression parsing failed — return nullptr so the caller knows
+    // no progress was made and can perform error recovery.
+    return nullptr;
+  }
   consumeIf(TokenKind::semi);
   return std::make_unique<ExprStmt>(std::move(expr));
 }
@@ -738,6 +783,7 @@ int Parser::getPrecedence(TokenKind kind) {
 
 std::unique_ptr<ExprNode> Parser::parseExpression(int minPrec) {
   auto left = parseUnaryExpr();
+  if (!left) return nullptr;
 
   while (true) {
     int prec = getPrecedence(CurrentToken.Kind);
@@ -757,6 +803,7 @@ std::unique_ptr<ExprNode> Parser::parseExpression(int minPrec) {
     }
 
     auto right = parseExpression(nextPrec);
+    if (!right) break;
 
     if (op == TokenKind::equal || op == TokenKind::pluseq ||
         op == TokenKind::minuseq || op == TokenKind::stareq ||

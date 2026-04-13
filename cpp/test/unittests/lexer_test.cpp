@@ -50,13 +50,18 @@ TEST(TokenKindTest, IsLiteral) {
 
 class LexerTest : public ::testing::Test {
 protected:
+  // Hold source string ownership so Token::Spelling (StringRef) remains valid
+  std::string HeldSource;
+  
   Token lexSingle(const std::string& source) {
-    Lexer lexer(source);
+    HeldSource = source;
+    Lexer lexer(HeldSource);
     return lexer.lexNext();
   }
   
   std::vector<Token> lexAll(const std::string& source) {
-    Lexer lexer(source);
+    HeldSource = source;
+    Lexer lexer(HeldSource);
     std::vector<Token> tokens;
     while (true) {
       Token tok = lexer.lexNext();

@@ -11,7 +11,7 @@ file(GLOB_RECURSE TEST_SOURCES
 add_executable(zhc_tests ${TEST_SOURCES})
 
 target_link_libraries(zhc_tests PRIVATE
-  gtest_main
+  GTest::gtest_main
   zhc_core
 )
 
